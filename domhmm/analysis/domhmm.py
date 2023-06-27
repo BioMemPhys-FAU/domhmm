@@ -22,6 +22,17 @@ class DirectorOrder(LeafletAnalysisBase):
 
     """
 
+    def get_selection(self, resname, sele_list):
+
+        #Prepare a MDAnalysis selection string
+        sele_str = 'name ' + (' or name ').join(sele_list)
+        sele_str = f'resname {resname} and ({sele_str})'
+
+        #Call MDAnalysis to make an atomgroup
+        selection = self.universe.select_atoms(sele_str)
+
+        return selection
+
     def _prepare(self):
         """
         Prepare results array before the calculation of the height spectrum begins
@@ -30,8 +41,21 @@ class DirectorOrder(LeafletAnalysisBase):
         ----------
         """
 
-        #Init results for order parameters -> For each resid we should have an array containing the order parameters for each frame
-        for resid in membrane_unique_resids: getattr(self.results, resid) = np.zeros( (self.n_frames), dtype = np.float32)
+        resid_selection = {}
+        for resid in membrane_unique_resids:
+
+            resid_seletion = self.universe.select_atoms(f"resid {resid}")
+            resname = np.unique(resid_seletion.resnames)[0]
+
+            self.tai
+
+            self.get_selection(resname = resname, sele_list = )
+            resid_selection[str(resid)] = self.universe.select_atoms(f"resid {resid}").intersection
+
+
+            #Init results for order parameters -> For each resid we should have an array containing the order parameters for each frame
+            getattr(self.results, str(resid)) = np.zeros( (self.n_frames), dtype = np.float32)
+
 
 
 
