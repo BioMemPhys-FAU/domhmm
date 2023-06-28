@@ -70,8 +70,10 @@ class LeafletAnalysisBase(AnalysisBase):
         universe_or_atomgroup: Union["Universe", "AtomGroup"],
         membrane_select: str = "all",
         leaflet_kwargs: Dict[str, Any] = {},
+        gm_kwargs: Dict[str, Any] = {},
         heads: Dict[str, Any] = {},
         tails: Dict[str, Any] = {},
+        sterols: list = [],
         **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -85,6 +87,12 @@ class LeafletAnalysisBase(AnalysisBase):
         self.universe = universe_or_atomgroup.universe
         self.membrane = universe_or_atomgroup.select_atoms(membrane_select)
         self.membrane_unique_resids = np.unique(self.membrane.resids)
+
+        self.heads = heads
+        self.tails = tails
+        self.sterols = sterols
+
+        self.gm_kwargs = gm_kwargs
 
         #------------------------------------------------------------------LEAFLETS------------------------------------------------------------------#
  
@@ -107,6 +115,8 @@ class LeafletAnalysisBase(AnalysisBase):
         #Get dictionary with selection of tailgroups in upper and lower leaflet -> self.leaflet_tails
         self.get_leaflet_tails()
 
+        self.get_leaflet_sterols()
+
 
     def get_leaflet_resids(self):
 
@@ -128,13 +138,42 @@ class LeafletAnalysisBase(AnalysisBase):
 
             #Init empty selection 
             self.leaflet_resids[f"{idx}"] = self.universe.select_atoms("")
-            self.leaflet_resids_lu[f"{idx}"] = {}
 
             #Get unique resids in the leaflet
             uni_leaf_resids = np.unique(leafgroup.resids)
 
             #Iterate over residues in found group and add it to the atomgroup
             for resid in uni_leaf_resids: self.leaflet_resids[f"{idx}"] += self.universe.select_atoms(f"resid {resid}")
+
+    def get_leaflet_sterols(self):
+        """
+        Make atomgroups for sterols
+
+        Attributes
+        ---------- 
+        sterols_head: dict
+            dictionary containing the head atomgroups for each sterol
+        sterols_tail: dict
+            dictionary containing the tail atomgroups for each sterol
+
+        """
+
+        #Init empty dicts
+        self.sterols_head = {}
+        self.sterols_tail = {}
+
+        #Iterate over sterols -> user input
+        for sterol in self.sterols:
+
+            #Make atom group for sterol head selection
+            head_sele_str = 'name ' + (' or name ').join(self.heads[sterol])
+            head_sele_str = f'resname {sterol} and ({head_sele_str})'
+            self.sterols_head[sterol] = self.universe.select_atoms(head_sele_str)
+
+            #Make atom group for sterol tail selection
+            tail_sele_str = 'name ' + (' or name ').join(self.tails[sterol])
+            tail_sele_str = f'resname {sterol} and ({tail_sele_str})'
+            self.sterols_tail[sterol] = self.universe.select_atoms(tail_sele_str)
 
     def get_leaflet_heads(self):
 
@@ -162,6 +201,7 @@ class LeafletAnalysisBase(AnalysisBase):
             #Iterate over dictionary with atoms for head groups -> This comes from user
             for key, val in zip(self.heads.keys(), self.heads.values()):
 
+                #If the lipid type is not in the leaflet continue
                 if key not in leaf_names: continue
 
                 #Prepare a MDAnalysis selection string
@@ -202,17 +242,29 @@ class LeafletAnalysisBase(AnalysisBase):
             #Iterate over dictionary with atoms for tail groups -> This comes from user
             for key, val in zip(self.tails.keys(), self.tails.values()):
 
+                #If the lipid type is not in the leaflet continue
                 if key not in leaf_names: continue
 
-                #Prepare a MDAnalysis selection string
-                tail_sele_str = 'name ' + (' or name ').join(val)
-                tail_sele_str = f'resname {key} and ({tail_sele_str})'
+                assert len(val)%2 == 0, '!!!-----ERROR-----!!!\nSelection list for tails must be even\n!!!-----ERROR-----!!!'
+
+                #Need to store a list for multiple sselections
+                self.leaflet_tails[f"{idx}"][key] = []
+
+                #Consider always pairs for calculation of lipid tail director
+                s,e=0,2
+                for i in range(len(val)//2):
+
+                    #Prepare a MDAnalysis selection string
+                    tail_sele_str = 'name ' + (' or name ').join(val[s:e])
+                    s,e=e, e+e
+
+                    tail_sele_str = f'resname {key} and ({tail_sele_str})'
         
-                #Use MDAnalysis select_atoms to make selection group for tails
-                tail_selection = self.universe.select_atoms(tail_sele_str)
+                    #Use MDAnalysis select_atoms to make selection group for tails
+                    tail_selection = self.universe.select_atoms(tail_sele_str)
 
-                assert tail_selection.n_atoms > 0, "!!!-----ERROR-----!!!\nSelection for tail group {tail_sele_str} is empty\n!!!-----ERROR-----!!!"
+                    assert tail_selection.n_atoms > 0, "!!!-----ERROR-----!!!\nSelection for tail group {tail_sele_str} is empty\n!!!-----ERROR-----!!!"
 
-                #Add selected group to leaflet dictionary according to lipid type. Use .intersection() to select residues from current leaflet!
-                self.leaflet_tails[f"{idx}"][key] = tail_selection.intersection(self.leaflet_resids[f"{idx}"])
+                    #Add selected group to leaflet dictionary according to lipid type. Use .intersection() to select residues from current leaflet!
+                    self.leaflet_tails[f"{idx}"][key].append(tail_selection.intersection(self.leaflet_resids[f"{idx}"]))
 
