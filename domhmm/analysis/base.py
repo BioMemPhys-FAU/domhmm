@@ -113,9 +113,11 @@ class LeafletAnalysisBase(AnalysisBase):
         self.get_leaflet_heads()
         
         #Get dictionary with selection of tailgroups in upper and lower leaflet -> self.leaflet_tails
-        self.get_leaflet_tails()
+        #self.get_leaflet_tails()
 
         self.get_leaflet_sterols()
+
+        self.get_leaflet_tails()
 
 
     def get_leaflet_resids(self):
@@ -171,7 +173,7 @@ class LeafletAnalysisBase(AnalysisBase):
             self.sterols_head[sterol] = self.universe.select_atoms(head_sele_str)
 
             #Make atom group for sterol tail selection
-            tail_sele_str = 'name ' + (' or name ').join(self.tails[sterol])
+            tail_sele_str = 'name ' + (' or name ').join(self.tails[sterol][0])
             tail_sele_str = f'resname {sterol} and ({tail_sele_str})'
             self.sterols_tail[sterol] = self.universe.select_atoms(tail_sele_str)
 
@@ -229,42 +231,54 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         #Init empty dict
-        self.leaflet_tails = {}
+        self.resid_selection_0 = {}
+        self.resid_selection_1 = {}
 
         #Iterate over leaflets
         for idx, leafgroup in enumerate(self.leafletfinder.groups_iter()):
 
             leaf_names = np.unique(leafgroup.resnames)
+            leaf_resids = np.unique(leafgroup.resids)
 
-            #Init empty dict for each leaflets
-            self.leaflet_tails[f"{idx}"] = {}
+            for resid in self.membrane_unique_resids:
 
-            #Iterate over dictionary with atoms for tail groups -> This comes from user
-            for key, val in zip(self.tails.keys(), self.tails.values()):
+                if resid not in leaf_resids: continue
 
-                #If the lipid type is not in the leaflet continue
-                if key not in leaf_names: continue
+                resid_selection = self.universe.select_atoms(f'resid {resid}')
+                resid_resname = np.unique(resid_selection.resnames)[0]
 
-                assert len(val)%2 == 0, '!!!-----ERROR-----!!!\nSelection list for tails must be even\n!!!-----ERROR-----!!!'
+                if idx == 0: self.resid_selection_0[str(resid)] = {}
+                else: self.resid_selection_1[str(resid)] = {}
 
-                #Need to store a list for multiple sselections
-                self.leaflet_tails[f"{idx}"][key] = []
+                for i, tail in enumerate(self.tails[resid_resname]):
 
-                #Consider always pairs for calculation of lipid tail director
-                s,e=0,2
-                for i in range(len(val)//2):
+                    n_pairs = len(tail) // 2 #Number of pairs in one tail
 
-                    #Prepare a MDAnalysis selection string
-                    tail_sele_str = 'name ' + (' or name ').join(val[s:e])
-                    s,e=e, e+e
+                    assert len(tail) % 2 == 0, '!!!-----ERROR-----!!!\nSelection list for tails must be even\n!!!-----ERROR-----!!!' 
+                
+                    if idx == 0: self.resid_selection_0[str(resid)][str(i)] = []
+                    else: self.resid_selection_1[str(resid)][str(i)] = []
 
-                    tail_sele_str = f'resname {key} and ({tail_sele_str})'
+                    s,e=0,2
+                    for j in range( n_pairs ):
+
+                        #Prepare a MDAnalysis selection string (I.e. ['C22', 'H2R'] -> 'name C22 or name H2R')
+                        tail_sele_str = 'name ' + (' or name ').join(tail[s:e])
+                        s,e=e, e+2 #Increase counter for next iteration
+                        
+                        #Select for correct lipid type (I.e. I.e. ['C22', 'H2R'] -> 'name C22 or name H2R' -> 'resname POPC and resid 78 and ('name C22 or name H2R')')
+                        tail_sele_str = f'resname {resid_resname} and resid {resid} and ({tail_sele_str})'
         
-                    #Use MDAnalysis select_atoms to make selection group for tails
-                    tail_selection = self.universe.select_atoms(tail_sele_str)
+                        #Use MDAnalysis select_atoms to make selection group for tails
+                        tail_selection = self.universe.select_atoms(tail_sele_str)
+                        
+                        #Check for correctness
+                        assert tail_selection.n_atoms > 0,  f"!!!-----ERROR-----!!!\nSelection for tail group {tail_sele_str} is empty.\n!!!-----ERROR-----!!!"
+                        assert tail_selection.n_atoms % 2 == 0, f"!!!-----ERROR-----!!!\nSelection for tail group {tail_sele_str} is not dividable by 2.\n!!!-----ERROR-----!!!"
 
-                    assert tail_selection.n_atoms > 0, "!!!-----ERROR-----!!!\nSelection for tail group {tail_sele_str} is empty\n!!!-----ERROR-----!!!"
+                        if idx == 0: self.resid_selection_0[str(resid)][str(i)].append(tail_selection)
+                        else: self.resid_selection_1[str(resid)][str(i)].append(tail_selection)
 
-                    #Add selected group to leaflet dictionary according to lipid type. Use .intersection() to select residues from current leaflet!
-                    self.leaflet_tails[f"{idx}"][key].append(tail_selection.intersection(self.leaflet_resids[f"{idx}"]))
+
+
 
