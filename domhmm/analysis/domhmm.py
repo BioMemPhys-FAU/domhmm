@@ -64,6 +64,8 @@ class DirectorOrder(LeafletAnalysisBase):
                     n_pairs = len(self.tails[resname][i]) // 2
                     getattr(self.results, f'id{resid}')[f'P2_{i}'] = np.zeros( (self.n_frames, n_pairs ), dtype = np.float32)
 
+                getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
+
             #LEAFLET 1?
             elif resid in self.leafletfinder.group(1).resids and resid not in self.leafletfinder.group(0).resids:
                 
@@ -80,6 +82,8 @@ class DirectorOrder(LeafletAnalysisBase):
                     n_pairs = len(self.tails[resname][i]) // 2
                     getattr(self.results, f'id{resid}')[f'P2_{i}'] = np.zeros( (self.n_frames, n_pairs ), dtype = np.float32)
 
+                getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
+
             #STEROL?
             elif resid not in self.leafletfinder.group(0).resids and resid not in self.leafletfinder.group(1).resids and resname in self.sterols:
 
@@ -95,6 +99,7 @@ class DirectorOrder(LeafletAnalysisBase):
                 getattr(self.results, f'id{resid}')['Leaflet'] = np.zeros( (self.n_frames), dtype = np.float32)
                 getattr(self.results, f'id{resid}')['Resname'] = resname
                 getattr(self.results, f'id{resid}')['P2_0'] = np.zeros( (self.n_frames), dtype = np.float32)
+                getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
 
             #NOTHING?
             else: raise ValueError(f'{resname} with resid {resid} not found in leaflets and sterol list!')
@@ -135,6 +140,9 @@ class DirectorOrder(LeafletAnalysisBase):
 
             rsn = getattr(self.results, f'id{key}')['Resname']
             
+            #Store head position
+            getattr(self.results, f'id{key}')[f'Heads'][index] = self.resid_heads_selection_0[key].center_of_mass()
+            
             #Iterate over tails
             for i in range(len(self.tails[rsn])):
                 #Iterate over pairs
@@ -148,6 +156,9 @@ class DirectorOrder(LeafletAnalysisBase):
             assert getattr(self.results, f'id{key}')['Leaflet'] == 1, '!!!-----ERROR-----!!!\nWrong leaflet\n!!!-----ERROR-----!!!'
             
             rsn = getattr(self.results, f'id{key}')['Resname']
+            
+            #Store head position
+            getattr(self.results, f'id{key}')[f'Heads'][index] = self.resid_heads_selection_1[key].center_of_mass()  
 
             #Iterate over tails
             for i in range(len(self.tails[rsn])):
@@ -169,6 +180,9 @@ class DirectorOrder(LeafletAnalysisBase):
 
             #Check closest distance to leaflet
             getattr(self.results, f'id{key}')['Leaflet'][index] = np.argmin(min_dists)
+            #Store head position
+            getattr(self.results, f'id{resid}')[f'Heads'][index] = self.resid_selection_sterols_heads[str(resid)].center_of_mass()
+            
             getattr(self.results, f'id{key}')['P2_0'][index] = self.calc_p2(pair = self.resid_selection_sterols[str(key)])
 
 

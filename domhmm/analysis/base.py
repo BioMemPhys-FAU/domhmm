@@ -190,33 +190,39 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         #Init empty dict
-        self.leaflet_heads = {}
+        self.resid_heads_selection_0 = {}
+        self.resid_heads_selection_1 = {}
 
         #Iterate over leaflets
         for idx, leafgroup in enumerate(self.leafletfinder.groups_iter()):
 
-            leaf_names = np.unique(leafgroup.resnames)
+            leaf_resids = np.unique(leafgroup.resids)
 
-            #Init empty dict for leaflet group
-            self.leaflet_heads[f"{idx}"] = {}
+            for resid in self.membrane_unique_resids:
 
-            #Iterate over dictionary with atoms for head groups -> This comes from user
-            for key, val in zip(self.heads.keys(), self.heads.values()):
+                if resid not in leaf_resids: continue
 
-                #If the lipid type is not in the leaflet continue
-                if key not in leaf_names: continue
+                resid_selection = self.universe.select_atoms(f'resid {resid}')
+                resid_resname = np.unique(resid_selection.resnames)[0]
 
-                #Prepare a MDAnalysis selection string
-                head_sele_str = 'name ' + (' or name ').join(val)
-                head_sele_str = f'resname {key} and ({head_sele_str})'
+                #Prepare a MDAnalysis selection string (I.e. ['C22', 'H2R'] -> 'name C22 or name H2R')
+                head_sele_str = 'name ' + (' or name ').join(self.heads[resid_resname])
+                
+                #Select for correct lipid type (I.e. I.e. ['C22', 'H2R'] -> 'name C22 or name H2R' -> 'resname POPC and resid 78 and ('name C22 or name H2R')')
+                head_sele_str = f'resname {resid_resname} and resid {resid} and ({head_sele_str})'
 
-                #Call MDAnalysis to make an atomgroup
+                #Use MDAnalysis select_atoms to make selection group for heads
                 head_selection = self.universe.select_atoms(head_sele_str)
+                
+                #Check for correctness
+                assert head_selection.n_atoms > 0,  f"!!!-----ERROR-----!!!\nSelection for head group {head_sele_str} is empty.\n!!!-----ERROR-----!!!"
 
-                assert head_selection.n_atoms > 0, "!!!-----ERROR-----!!!\nSelection for head group {head_sele_str} is empty\n!!!-----ERROR-----!!!"
+                if idx == 0: self.resid_heads_selection_0[str(resid)] = head_selection
+                else: self.resid_heads_selection_1[str(resid)] = head_selection
 
-                #Add selected group to leaflet dictionary according to lipid type. Use .intersection() to select residues from current leaflet!
-                self.leaflet_heads[f"{idx}"][key] = head_selection.intersection(self.leaflet_resids[f"{idx}"])
+
+
+
 
     def get_leaflet_tails(self):
 
