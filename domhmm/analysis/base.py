@@ -220,10 +220,6 @@ class LeafletAnalysisBase(AnalysisBase):
                 if idx == 0: self.resid_heads_selection_0[str(resid)] = head_selection
                 else: self.resid_heads_selection_1[str(resid)] = head_selection
 
-
-
-
-
     def get_leaflet_tails(self):
 
         """

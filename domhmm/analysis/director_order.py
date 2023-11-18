@@ -32,36 +32,44 @@ class DirectorOrder(LeafletAnalysisBase):
         ----------
         """
 
+        #Make a selection for resids in the upper and lower leaflet
         self.resid_selection_0 = {}
         self.resid_selection_1 = {}
+
+        #Make selections for sterols and their headgroup
         self.resid_selection_sterols = {}
         self.resid_selection_sterols_heads = {}
         
+        #Iterate over resids in the membrane
         for resid in self.membrane_unique_resids:
 
+            #Select specific resid
             resid_selection = self.universe.select_atoms(f"resid {resid}")
+
+            #Get resname of resid
             resname = np.unique(resid_selection.resnames)[0]
 
-            #Look up if resid is in the upper leaflet or ...
+            #---------------------------------------------------------------------------------------------------------------------------------------------------------
+            #Look up if resid is in the UPPER leaflet or ...
             if resid in self.leafletfinder.group(0).resids and resid not in self.leafletfinder.group(1).resids:
 
-                self.resid_selection_0[str(resid)] = []
                 #Go through list of selected directors and choose the atoms for this resid
-                for i in range( len(self.tails[resname])//2 ): self.resid_selection_0[str(resid)].append(resid_selection.intersection(self.leaflet_tails['0'][resname][i]))
+                self.resid_selection_0[str(resid)] = [ resid_selection.intersection(self.leaflet_tails['0'][resname][i]) for i in range( len(self.tails[resname])//2 )]
                 
                 #Init results for order parameters -> For each resid we should have an array containing the order parameters for each frame
                 setattr(self.results, f'id{resid}', {})
 
-                getattr(self.results, f'id{resid}')['Leaflet'] = 0
-                getattr(self.results, f'id{resid}')['Resname'] = resname
-                getattr(self.results, f'id{resid}')['P2'] = np.zeros( (self.n_frames), dtype = np.float32)
+                #Assign...
+                getattr(self.results, f'id{resid}')['Leaflet'] = 0       #...leaflet
+                getattr(self.results, f'id{resid}')['Resname'] = resname #...resname
+                getattr(self.results, f'id{resid}')['P2'] = np.zeros( (self.n_frames), dtype = np.float32) #...storage array for P2 values
 
-            #... in the lower leaflet or ...
+            #---------------------------------------------------------------------------------------------------------------------------------------------------------
+            #... in the LOWER leaflet or ...
             elif resid in self.leafletfinder.group(1).resids and resid not in self.leafletfinder.group(0).resids:
 
-                self.resid_selection_1[str(resid)] = []
                 #Go through list of selected directors and choose the atoms for this resid
-                for i in range( len(self.tails[resname])//2 ): self.resid_selection_1[str(resid)].append(resid_selection.intersection(self.leaflet_tails['1'][resname][i]))
+                self.resid_selection_1[str(resid)] = [ resid_selection.intersection(self.leaflet_tails['1'][resname][i] for i in range( len(self.tails[resname])//2 )]
                 
                 #Init results for order parameters -> For each resid we should have an array containing the order parameters for each frame
                 setattr(self.results, f'id{resid}', {})
@@ -71,6 +79,8 @@ class DirectorOrder(LeafletAnalysisBase):
                 getattr(self.results, f'id{resid}')['P2'] = np.zeros( (self.n_frames), dtype = np.float32)
 
 
+            #---------------------------------------------------------------------------------------------------------------------------------------------------------
+            #... its a sterol or ...
             elif resid not in self.leafletfinder.group(0).resids and resid not in self.leafletfinder.group(1).resids and resname in self.sterols:
 
                 self.resid_selection_sterols[str(resid)] = resid_selection.intersection(self.sterols_tail[resname])
@@ -84,21 +94,34 @@ class DirectorOrder(LeafletAnalysisBase):
                 getattr(self.results, f'id{resid}')['P2'] = np.zeros( (self.n_frames), dtype = np.float32)
 
             #... in none of them.
-            else: raise ValueError(f'{resname} not found in leaflets!')
+            else: raise ValueError(f'{resname} not found in any leaflet! Maybe a sterol?')
 
 
     def calc_p2(self, select_list):
+
+        """
+        Function calculates the P2 order parameter according to equation (1) for a list of atom pairs
+
+        select_list := List of atom pairs, each entry contains a MDAnalysis atom selection with two atoms
+
+        """
+
         #Make average over tails
         P2 = 0
         for pair in select_list:
 
+            assert pair.positions.shape == (2, 3), f"Error! Your pair selection in calc_p2 does not contain 2 atoms or/and 3 dimensions, but {pair.positions.shape}!"
+
+            #Distance vector between atoms
             r = pair.positions[0] - pair.positions[1]
+            #Norm the distance vector
             r /= np.sqrt(np.sum(r**2))
 
             #Dot product between membrane normal (z axis) and orientation vector
-            a = np.arccos(r[2])
-            P2 += 0.5 * (3* np.cos(a)**2 - 1)
+            a = np.arccos(r[2]) #Calculate the angle between z axis and orientation vector in radians 
+            P2 += 0.5 * (3* np.cos(a)**2 - 1) #Calculate order parameter
 
+        #Calculate arithmetic mean
         P2 /= len(select_list)
 
         return P2
@@ -108,7 +131,10 @@ class DirectorOrder(LeafletAnalysisBase):
         Calculate data from a single frame of the trajectory.
         """
 
+        #Get number of frame from trajectory
         self.frame = self.universe.trajectory.ts.frame 
+
+        #Obtain 0-based index
         index = self.frame // self.step - self.start
 
         #Iterate over resids in leaflet 0
@@ -125,32 +151,47 @@ class DirectorOrder(LeafletAnalysisBase):
             #Calculate P2 parameter as average over lipid tails
             getattr(self.results, f'id{key}')['P2'][index] = self.calc_p2(select_list = self.resid_selection_1[str(key)])
 
-        #Sterols
+        #Iterate over sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
-            #Check leaflet assignment -> Iterate first over both leaflets
+
+            #Assign sterols to leaflet by their minimum distance to the phosphates
+
             min_dists = []
+            #Iterate first over both leaflets
             for idx, leafgroup in enumerate(self.leafletfinder.groups_iter()):
 
                 dist_arr = distances.distance_array(self.resid_selection_sterols_heads[str(key)].center_of_mass(),
                                                     leafgroup.positions,
                                                     box=self.universe.trajectory.ts.dimensions)
 
+                #Get minimum distance to each leaflet
                 min_dists.append(np.min(dist_arr))
 
-            #Check closest distance to leaflet
+            #Which minimum distance to each leaflet is the smallest one
             getattr(self.results, f'id{key}')['Leaflet'][index] = np.argmin(min_dists)
             getattr(self.results, f'id{key}')['P2'][index] = self.calc_p2(select_list = [self.resid_selection_sterols[str(key)]])
 
 
     def _conclude(self):
-        """Calculate the final results of the analysis"""
+        """
+        Calculate the final results of the analysis
+
+        Extract the obtained data and put them in clear data structures
+
+        """
 
         self.results.p2_per_type = {}
 
         #Iterate over leaflets
         for i in range(2):
-            self.results.p2_per_type[str(i)] = {}
+
+            #Make for each leaflet a own dictionary entry
+            self.results.p2_per_type[f"Leaf{i}"] = {}
+
+            #Iterate over lipids in this leaflet and initialize an empty storage array
             for key in self.leaflet_tails[str(i)].keys(): self.results.p2_per_type[str(i)][key] = np.empty((0, self.n_frames))
+
+            #Iterate over sterols and initialize an empty storage array
             for key in self.sterols: self.results.p2_per_type[str(i)][key] = np.empty((0, self.n_frames))
 
         #Sort resids in lipid types
