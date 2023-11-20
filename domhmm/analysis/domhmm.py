@@ -13,6 +13,7 @@ import numpy as np
 from MDAnalysis.analysis import distances
 from sklearn import mixture
 from scipy import stats
+import sys
 
 class DirectorOrder(LeafletAnalysisBase):
     """
@@ -47,7 +48,7 @@ class DirectorOrder(LeafletAnalysisBase):
             #Get its lipid type
             resname = np.unique(resid_selection.resnames)[0]
 
-            #Check leaflet assignment
+            #Check leaflet assignment -> based on RESID
             #LEAFLET 0?
             if resid in self.leafletfinder.group(0).resids and resid not in self.leafletfinder.group(1).resids:
 
@@ -60,10 +61,15 @@ class DirectorOrder(LeafletAnalysisBase):
                 n_tails = len(self.tails[resname])
                 for i in range(n_tails):
 
-                    #For each tail store an array
+                    #n_pairs -> Number of C-H pairs
+                    #Should be an even number -> Check for this
+                    assert len(self.tails[resname][i]) % 2 == 0, f"Tail selection for {rsn} in chain {i} must be divisable by 2!"
                     n_pairs = len(self.tails[resname][i]) // 2
+
+                    #Init storage for P2 values for each lipid
                     getattr(self.results, f'id{resid}')[f'P2_{i}'] = np.zeros( (self.n_frames, n_pairs ), dtype = np.float32)
 
+                #Store 3-D position of head group for each lipid
                 getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
 
             #LEAFLET 1?
@@ -78,16 +84,21 @@ class DirectorOrder(LeafletAnalysisBase):
                 n_tails = len(self.tails[resname])
                 for i in range(n_tails):
 
-                    #For each tail store an array
+                    #n_pairs -> Number of C-H pairs
+                    #Should be an even number -> Check for this
+                    assert len(self.tails[resname][i]) % 2 == 0, f"Tail selection for {rsn} in chain {i} must be divisable by 2!"
                     n_pairs = len(self.tails[resname][i]) // 2
+
+                    #Init storage for P2 values for each lipid
                     getattr(self.results, f'id{resid}')[f'P2_{i}'] = np.zeros( (self.n_frames, n_pairs ), dtype = np.float32)
 
+                #Store 3-D position of head group for each lipid
                 getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
 
             #STEROL?
             elif resid not in self.leafletfinder.group(0).resids and resid not in self.leafletfinder.group(1).resids and resname in self.sterols:
 
-                #Sterols are not assigned to a specific leaflet -> They can flip. Maybe it is unlikely that it happens in each membrane (especially atomistic ones)
+                #Sterols are not assigned to a specific leaflet -> They can flip. Maybe it is unlikely that it happens in some membrane (especially atomistic ones)
                 #but it can happen and the code keeps track of them.
 
                 #Make a MDAnalysis atom selection for each resid. For the other lipids this was already done in the LeafletAnalysisBase class
@@ -96,13 +107,17 @@ class DirectorOrder(LeafletAnalysisBase):
                 
                 #Init results for order parameters -> For each resid we should have an array containing the order parameters for each frame
                 setattr(self.results, f'id{resid}', {})
+                #Init storage array for leaflet assignment
                 getattr(self.results, f'id{resid}')['Leaflet'] = np.zeros( (self.n_frames), dtype = np.float32)
+                #Resname of the sterol compound
                 getattr(self.results, f'id{resid}')['Resname'] = resname
+                #For sterol only one P2 value is calculated but for each frame
                 getattr(self.results, f'id{resid}')['P2_0'] = np.zeros( (self.n_frames), dtype = np.float32)
+                #Init storage array for head group position for each sterol
                 getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
 
             #NOTHING?
-            else: raise ValueError(f'{resname} with resid {resid} not found in leaflets and sterol list!')
+            else: raise ValueError(f'{resname} with resid {resid} not found in leaflets or sterol list!')
 
 
     def calc_p2(self, pair):
@@ -120,51 +135,63 @@ class DirectorOrder(LeafletAnalysisBase):
         r /= np.sqrt(np.sum(r**2))
 
         #Dot product between membrane normal (z axis) and orientation vector
-        a = np.arccos(r[2])
+        a = np.arccos(r[2]) #Angle in radians
         P2 = 0.5 * (3 * np.cos(a)**2 - 1)
 
         return P2
+
+    def get_p2_per_lipid(self, resid_selection_leaflet, leaflet, resid_heads_selection_leaflet):
+
+        """
+        Applies P2 calculation for each C-H pair in an individual lipid for each leaflet.
+
+        Parameters
+        ----------
+        resid_selection_leaflet : dictionary
+            Contains resids for a specific leaflet
+        leaflet : int
+            Leaflet of interest
+        resid_heads_selection_leaflet : dictionary
+            Contains MDAnalysis atom selection for head group of individual lipids per leaflet
+
+
+        """
+
+        #Iterate over resids in leaflet
+        for key in resid_selection_leaflet.keys():
+
+            #Check if leaflet is correct -> Sanity check
+            assert getattr(self.results, f'id{key}')['Leaflet'] == leaflet, '!!!-----ERROR-----!!!\nWrong leaflet\n!!!-----ERROR-----!!!'
+
+            #Store head position -> Center of Mass of head group selection
+            getattr(self.results, f'id{key}')[f'Heads'][self.index] = resid_heads_selection_leaflet[key].center_of_mass()
+
+            #Get resname
+            rsn = getattr(self.results, f'id{key}')['Resname']
+            
+            #Iterate over number of acyl chains in lipid named "rsn"
+            for n_chain in range( len(self.tails[rsn]) ):
+
+                #self.tails[rsn][n_chain] contains atoms names in tail, if the input is correctly given it should look like this:
+                #I.E. -> ["C1", "H1R", "C1", "H1S", ...]
+
+                #Iterate over these pairs -> I.E. ("C1","H1R"), ("C1", "H1S"), ... -> In this order the P2 values should be also stored
+                for i in range(len(self.tails[rsn][n_chain]) // 2):
+
+                    getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ])
 
     def _single_frame(self):
         """
         Calculate data from a single frame of the trajectory.
         """
 
-        self.frame = self.universe.trajectory.ts.frame 
-        index = self.frame // self.step - self.start
+        #Get number of frame from trajectory
+        self.frame = self.universe.trajectory.ts.frame
+        #Calculate correct index if skipping step not equals 1 or start point not equals 0
+        self.index = self.frame // self.step - self.start
 
-        #Iterate over resids in leaflet 0
-        for key, val in zip(self.resid_selection_0.keys(), self.resid_selection_0.values()): 
-            #Check if leaflet is correct
-            assert getattr(self.results, f'id{key}')['Leaflet'] == 0, '!!!-----ERROR-----!!!\nWrong leaflet\n!!!-----ERROR-----!!!'
-
-            rsn = getattr(self.results, f'id{key}')['Resname']
-            
-            #Store head position
-            getattr(self.results, f'id{key}')[f'Heads'][index] = self.resid_heads_selection_0[key].center_of_mass()
-            
-            #Iterate over tails
-            for i in range(len(self.tails[rsn])):
-                #Iterate over pairs
-                for j in range(len(self.tails[rsn][i]) // 2):
-
-                    getattr(self.results, f'id{key}')[f'P2_{i}'][index, j] = self.calc_p2(pair = self.resid_selection_0[str(key)][str(i)][j])
-
-        #Iterate over resids in leaflet 1
-        for key, val in zip(self.resid_selection_1.keys(), self.resid_selection_1.values()):
-            #Check if leaflet is correct
-            assert getattr(self.results, f'id{key}')['Leaflet'] == 1, '!!!-----ERROR-----!!!\nWrong leaflet\n!!!-----ERROR-----!!!'
-            
-            rsn = getattr(self.results, f'id{key}')['Resname']
-            
-            #Store head position
-            getattr(self.results, f'id{key}')[f'Heads'][index] = self.resid_heads_selection_1[key].center_of_mass()  
-
-            #Iterate over tails
-            for i in range(len(self.tails[rsn])):
-                #Iterate over pairs
-                for j in range(len(self.tails[rsn][i]) // 2):
-                    getattr(self.results, f'id{key}')[f'P2_{i}'][index, j] = self.calc_p2(pair = self.resid_selection_1[str(key)][str(i)][j])
+        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_0, leaflet = 0, resid_heads_selection_leaflet = self.resid_heads_selection_0)
+        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_1, leaflet = 1, resid_heads_selection_leaflet = self.resid_heads_selection_1)
 
         #Sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
@@ -179,48 +206,162 @@ class DirectorOrder(LeafletAnalysisBase):
                 min_dists.append(np.min(dist_arr))
 
             #Check closest distance to leaflet
-            getattr(self.results, f'id{key}')['Leaflet'][index] = np.argmin(min_dists)
+            getattr(self.results, f'id{key}')['Leaflet'][self.index] = np.argmin(min_dists)
             #Store head position
-            getattr(self.results, f'id{resid}')[f'Heads'][index] = self.resid_selection_sterols_heads[str(resid)].center_of_mass()
+            getattr(self.results, f'id{key}')[f'Heads'][self.index] = self.resid_selection_sterols_heads[str(resid)].center_of_mass()
             
-            getattr(self.results, f'id{key}')['P2_0'][index] = self.calc_p2(pair = self.resid_selection_sterols[str(key)])
+            getattr(self.results, f'id{key}')['P2_0'][self.index] = self.calc_p2(pair = self.resid_selection_sterols[str(key)])
 
 
     def _conclude(self):
-        """Calculate the final results of the analysis"""
 
-        self.results.p2_per_lipid = {}
+        """
+        Calculate the final results of the analysis
 
-        for key in self.tails.keys(): 
-            if key not in self.sterols:
+        Extract the obtained data and put them into a clear and accessible data structure
+        """
 
-                #Create dictionary entry for each lipid type and add two lists for the two membrane leaflets
-                self.results.p2_per_lipid[key] = [[], []]
+        #-----------------------------------------------------------------------
+        #Make a dictionary for the P2 values of each lipid type for each leaflet
+        #-----------------------------------------------------------------------
 
-                #For each leaflet list a list for each tail is written
-                for i in range(len(self.tails[key])): 
-                    self.results.p2_per_lipid[key][0].append([])
-                    self.results.p2_per_lipid[key][1].append([])
+        """
+        The result should be a dictionary with the following structure:
 
-        #Iterate over resids
+            - p2_per_type
+                - Leaf0
+                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs)
+                    - TypeA_1 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs) 
+                    - TypeB_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs) 
+                    - ...
+                - Leaf1
+                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs) 
+                    - ...
+        """
+
+        #Initialize storage dictionary
+
+        self.results.p2_per_type = {}
+
+        #Iterate over leaflets
+        for i in range(2):
+
+            #Make dictionary for each leaflet
+            self.results.p2_per_type[f"Leaf{i}"] = {}
+        
+            #Iterate over resnames in each leaflet
+            for rsn in np.unique(self.leafletfinder.group(i).resnames):
+
+                #Iterate over number of acyl chains in lipid named "rsn"
+                for n_chain in range( len(self.tails[rsn]) ): 
+
+                    #Make a list for each acyl chain in resn
+                    self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = []
+
+        #-------------------------------------------------------------
+
+        #Fill dictionary with obtained data
+
+        #Iterate over all residues in the selected membrane
         for resid in self.membrane_unique_resids:
 
-            #Check resname
-            resn = getattr(self.results, f'id{resid}')['Resname']
+            #Grab leaflet and resname
+            leaflet = getattr(self.results, f'id{resid}')['Leaflet']
+            rsn = getattr(self.results, f'id{resid}')['Resname']
 
-            #Only non-sterols are considered
-            if resn not in self.sterols:
-                #Get leaflet assignment
-                leaf = getattr(self.results, f'id{resid}')['Leaflet']
-                #Iterate over tails
-                for i in range(len(self.tails[resn])):
-                    #Append the correct order parameters
-                    self.results.p2_per_lipid[resn][leaf][i].append( getattr(self.results, f'id{resid}')[f'P2_{i}'] )
+            #Check if lipid is a sterol compound or not
+            if rsn not in self.sterols:
+            
+                #Iterate over chains -> For a normal phospholipid that should be 2
+                for n_chain in range( len(self.tails[rsn]) ): 
 
-        for key in self.results.p2_per_lipid.keys():
-            for i in range(2):
-                for j in range( len(self.results.p2_per_lipid[key][i])):
-                    self.results.p2_per_lipid[key][i][j] = np.array(self.results.p2_per_lipid[key][i][j])
+                    #Get individual lipid p2 values for corresponding chain
+                    indv_p2 = getattr(self.results, f'id{resid}')[f'P2_{n_chain}']
+
+                    #Add it to the lipid type list
+                    self.results.p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{n_chain}"].append(indv_p2)
+
+            elif rsn in self.sterols:
+
+                pass
+
+            #NOTHING?
+            else: raise ValueError(f'{resname} with resid {resid} not found in leaflets or sterol list!')
+
+        #-------------------------------------------------------------
+        
+        #Transform lists to arrays
+
+        #Iterate over leaflets
+        for i in range(2):
+
+            #Iterate over lipid in leaflet
+            for rsn in np.unique(self.leafletfinder.group(i).resnames): 
+                
+                #Check for sterol compound
+                if rsn not in self.sterols:
+
+                    #Iterate over chain
+                    for n_chain in range( len(self.tails[rsn]) ):
+
+                        #Transform list to array
+                        self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = np.array(self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"])
+
+        #-------------------------------------------------------------
+        #-------------------------------------------------------------
+
+        #---------------------------------------------------------------------------
+        #Make a dictionary with averaged P2 values per C-H2 (or C-H) group PER chain 
+        #---------------------------------------------------------------------------
+
+        self.results.mean_p2_per_type = {}
+
+        #Iterate over leaflets
+        for leaf_key, leaf in zip(self.results.p2_per_type.keys(), self.results.p2_per_type.values()):
+
+            self.results.mean_p2_per_type[leaf_key] = {}
+
+            #Iterate over lipid types
+            for key, val in zip(self.tails.keys(), self.tails.values()):
+
+                #Iterate over chains for each lipid type
+                for i, chain in enumerate(val):
+
+                    #Check if lipid type is in leaflet
+                    if f"{key}_{i}" in leaf.keys():
+
+                        #Get all pairs in chain
+                        pairs_in_chain = np.array_split(chain, len(chain) // 2)
+                        n_pairs = len(pairs_in_chain)
+
+                        order_per_chain = []
+
+                        #Iterate over pairs
+                        for j in range( n_pairs - 2 + 1):
+
+                            #Check if a pair has the same aliphatic C-Atom
+
+                            #If so -> Calculate the average (i.e. C1-H1S and C1-H1R)
+                            if pairs_in_chain[j][0] == pairs_in_chain[j+1][0]: order_per_chain.append( leaf[f"{key}_{i}"][:, :, j:j+2].mean(-1).T )
+
+                            #If there is a C-Atom UNEQUAL to the former AND the following C-Atom -> Assume double bond -> No average over pairs
+
+                            #Edge case:
+                            # j = 0 -> j-1 = -1 
+                            # Should not matter since latest atom in aliphatic name is named differently than first one -> Should also work for double bonds at first place
+                            elif pairs_in_chain[j][0] != pairs_in_chain[j+1][0] and pairs_in_chain[j][0] != pairs_in_chain[j-1][0]: order_per_chain.append( leaf[f"{key}_{i}"][:, :, j].T )
+
+                            #If just the following C-Atom is unequal pass on
+                            elif pairs_in_chain[j][0] != pairs_in_chain[j+1][0]: pass
+
+                            else:
+                                raise ValueError(f"Something odd in merging order parameters for {key} in chain {i} per CH2 happened!")
+
+                        mean_p2_per_type[leaf_key][f"{key}_{i}"] = np.array(order_per_chain).T
+
+                else: pass
+
+
 
 
 
