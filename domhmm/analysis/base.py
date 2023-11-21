@@ -74,6 +74,7 @@ class LeafletAnalysisBase(AnalysisBase):
         heads: Dict[str, Any] = {},
         tails: Dict[str, Any] = {},
         sterols: list = [],
+        local: bool = False,
         **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -93,6 +94,14 @@ class LeafletAnalysisBase(AnalysisBase):
         self.sterols = sterols
 
         self.gm_kwargs = gm_kwargs
+
+        #-----------------------------------------------------------Local membrane properties--------------------------------------------------------#
+        #If local is True then properties are calculated if possible
+
+        if local == True:
+            self.refZ = True
+        else:
+            self.refZ = False
 
         #------------------------------------------------------------------LEAFLETS------------------------------------------------------------------#
  
