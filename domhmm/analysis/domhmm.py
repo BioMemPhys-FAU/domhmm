@@ -17,11 +17,11 @@ import sys
 
 class DirectorOrder(LeafletAnalysisBase):
     """
-    The DirectorOrder class calculates the P2 order parameter for each selected lipid according to the forumla:
+    The DirectorOrder class calculates a order parameter for each selected lipid according to the formula:
 
         P2 = 0.5 * (3 * cos(a)^2 - 1), (1)
 
-    where a is the angle between the lipid director and the membrane normal.
+    where a is the angle between a pre-defined director in the lipid (e.g. C-H or CC) and a reference axis.
 
     """
 
@@ -72,6 +72,9 @@ class DirectorOrder(LeafletAnalysisBase):
                 #Store 3-D position of head group for each lipid
                 getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
 
+                #Store the area per lipid for each lipid
+                getattr(self.results, f'id{resid}')[f'APL'] = np.zeros( self.n_frames, dtype = np.float32) 
+
             #LEAFLET 1?
             elif resid in self.leafletfinder.group(1).resids and resid not in self.leafletfinder.group(0).resids:
                 
@@ -94,6 +97,9 @@ class DirectorOrder(LeafletAnalysisBase):
 
                 #Store 3-D position of head group for each lipid
                 getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
+
+                #Store the area per lipid for each lipid
+                getattr(self.results, f'id{resid}')[f'APL'] = np.zeros( self.n_frames, dtype = np.float32) 
 
             #STEROL?
             elif resid not in self.leafletfinder.group(0).resids and resid not in self.leafletfinder.group(1).resids and resname in self.sterols:
@@ -120,7 +126,7 @@ class DirectorOrder(LeafletAnalysisBase):
             else: raise ValueError(f'{resname} with resid {resid} not found in leaflets or sterol list!')
 
 
-    def calc_p2(self, pair):
+    def calc_p2(self, pair, reference_axis):
 
         """
         Calculates the deuterium order parameter according to equation (1) for each pair.
@@ -129,18 +135,23 @@ class DirectorOrder(LeafletAnalysisBase):
         ----------
         pair: MDAnalysis atom selection
             selection group containing the two atoms for the director calculation
+
+        reference_axis: numpy.array
+            numpy array containing the reference vector for the angle calculation.
         """
 
         r = pair.positions[0] - pair.positions[1]
         r /= np.sqrt(np.sum(r**2))
 
+
         #Dot product between membrane normal (z axis) and orientation vector
-        a = np.arccos(r[2]) #Angle in radians
+        dot_prod = np.dot(r, reference_axis)
+        a = np.arccos(dot_prod) #Angle in radians
         P2 = 0.5 * (3 * np.cos(a)**2 - 1)
 
         return P2
 
-    def get_p2_per_lipid(self, resid_selection_leaflet, leaflet, resid_heads_selection_leaflet):
+    def get_p2_per_lipid(self, resid_selection_leaflet, leaflet, resid_heads_selection_leaflet, local_normals, refZ):
 
         """
         Applies P2 calculation for each C-H pair in an individual lipid for each leaflet.
@@ -153,6 +164,10 @@ class DirectorOrder(LeafletAnalysisBase):
             Leaflet of interest
         resid_heads_selection_leaflet : dictionary
             Contains MDAnalysis atom selection for head group of individual lipids per leaflet
+        local_normals : dictionary
+            Containing local normals per lipid -> keys are the resids
+        refZ : bool
+            Using the z-axis as reference axis or the local normal defined per lipid?
 
 
         """
@@ -178,7 +193,61 @@ class DirectorOrder(LeafletAnalysisBase):
                 #Iterate over these pairs -> I.E. ("C1","H1R"), ("C1", "H1S"), ... -> In this order the P2 values should be also stored
                 for i in range(len(self.tails[rsn][n_chain]) // 2):
 
-                    getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ])
+                    if refZ:
+                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ], reference_axis = np.array([0, 0, 1]))
+                    else:
+                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ], reference_axis = local_normals["key"])
+
+    def get_local_area_normal(self, leaflet, boxdim, periodic = True, exactness_level = 10):
+
+        """
+        Calculate area per lipid and local membrane normal with MemSurfer library.
+
+        Parameters
+        ----------
+
+        leaflet: int
+            Top or bottom leaflet
+        boxdim: np.array
+            Box dimensions in x, y, z
+        periodic: bool
+            Usage of periodic boundary conditions during simulation
+        exactness_level: int
+            Approximating surface using Poisson reconstruction
+        """
+
+        #Prepare box dimensions -> Seems to be used also for box width calculation (like bbox[1,:] - bbox[0, :]). First row where therefore the lower limit and second the upper limit
+        bbox = np.zeros( (2, 3) )
+        bbox[1, :] = boxdim
+
+        mem = memsurfer.Membrane( points = self.leafletfinder.groups( leaflet ).positions,
+                                  labels = DH.leafletfinder.groups( leaflet ).resids.astype("U"), 
+                                  bbox = bbox,
+                                  periodic = periodic,
+                                  boundary_layer = 0.2 #Default value
+                                 )
+
+        #Put points back into box
+        mem.fit_points_to_box_xy()
+
+        #Approximate surface -> Uses as standard 18 k-neighbours for normal calculation
+        mem.compute_approx_surface(exactness_level = exactness_level)
+
+        #Compute membrane surfaces based on the approximated surface calculated above:
+        # - memb_planar := Planar projections of points on the smoothed surface
+        # - memb_smooth := Points of the smoothed surface
+        # - memb_exact  := Exact coordinates of lipids from trajectory
+        mem.compute_membrane_surface()
+
+        local_normals = mem.memb_smooth.compute_normals()
+
+        local_area_per_lipid = mem.memb_smooth.compute_pointareas()
+
+        local_normals_dict = dict( zip(mem.labels, local_normals) )
+
+        for resid, apl in zip(mem.labels, local_area_per_lipid): getattr(self.results, f'id{resid}')[f'APL'][self.index] = apl
+
+        return local_normals_dict
 
     def _single_frame(self):
         """
@@ -190,8 +259,12 @@ class DirectorOrder(LeafletAnalysisBase):
         #Calculate correct index if skipping step not equals 1 or start point not equals 0
         self.index = self.frame // self.step - self.start
 
-        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_0, leaflet = 0, resid_heads_selection_leaflet = self.resid_heads_selection_0)
-        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_1, leaflet = 1, resid_heads_selection_leaflet = self.resid_heads_selection_1)
+        boxdim = self.universe.trajectory.ts.dimensions[0:3]
+        local_normals_dict_0 = get_local_area_normal(leaflet = 0, boxdim = boxdim, periodic = True, exactness_level = 10)
+        local_normals_dict_1 = get_local_area_normal(leaflet = 1, boxdim = boxdim, periodic = True, exactness_level = 10)
+
+        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_0, leaflet = 0, resid_heads_selection_leaflet = self.resid_heads_selection_0, reference_vectors = local_normals_dict_0, refZ = self.refZ)
+        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_1, leaflet = 1, resid_heads_selection_leaflet = self.resid_heads_selection_1, reference_vectors = local_normals_dict_1, refZ = self.refZ)
 
         #Sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
@@ -222,7 +295,7 @@ class DirectorOrder(LeafletAnalysisBase):
         """
 
         #-----------------------------------------------------------------------
-        #Make a dictionary for the P2 values of each lipid type for each leaflet
+        #Make a dictionary for the calculated values of each lipid type for each leaflet
         #-----------------------------------------------------------------------
 
         """
@@ -237,17 +310,29 @@ class DirectorOrder(LeafletAnalysisBase):
                 - Leaf1
                     - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs) 
                     - ...
+
+            - apl_per_type
+                - Leaf0
+                    - TypeA -> (NumberOfLipids, NumberOfFrames)
+                    - TypeB -> (NumberOfLipids, NumberOfFrames)
+                    - ...
+                - Leaf1
+                    - TypeA -> (NumberOfLipids, NumberOfFrames)
+                    - ...
+
         """
 
         #Initialize storage dictionary
 
         self.results.p2_per_type = {}
+        self.results.apl_per_type = {}
 
         #Iterate over leaflets
         for i in range(2):
 
             #Make dictionary for each leaflet
             self.results.p2_per_type[f"Leaf{i}"] = {}
+            self.results.apl_per_type[f"Leaf{i}"] = {}
         
             #Iterate over resnames in each leaflet
             for rsn in np.unique(self.leafletfinder.group(i).resnames):
@@ -257,6 +342,8 @@ class DirectorOrder(LeafletAnalysisBase):
 
                     #Make a list for each acyl chain in resn
                     self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = []
+                
+                self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"] = []
 
         #-------------------------------------------------------------
 
@@ -280,6 +367,10 @@ class DirectorOrder(LeafletAnalysisBase):
 
                     #Add it to the lipid type list
                     self.results.p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{n_chain}"].append(indv_p2)
+            
+                #Get area per lipid for specific residue
+                apl = getattr(self.results, f'id{resid}')['APL']
+                self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"].append( apl )
 
             elif rsn in self.sterols:
 
@@ -306,6 +397,9 @@ class DirectorOrder(LeafletAnalysisBase):
 
                         #Transform list to array
                         self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = np.array(self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"])
+                    
+                    #Just transform for area per lipid
+                    self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"] = np.array(self.results.p2_per_type[f"Leaf{i}"][f"{rsn}"])
 
         #-------------------------------------------------------------
         #-------------------------------------------------------------
@@ -313,6 +407,22 @@ class DirectorOrder(LeafletAnalysisBase):
         #---------------------------------------------------------------------------
         #Make a dictionary with averaged P2 values per C-H2 (or C-H) group PER chain 
         #---------------------------------------------------------------------------
+
+        """
+        The result should be a dictionary with the following structure:
+
+            - mean_p2_per_type
+                - Leaf0
+                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms)
+                    - TypeA_1 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
+                    - TypeB_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
+                    - ...
+                - Leaf1
+                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
+                    - ...
+
+        That is not necessary for the area per lipid since this is just a scalar
+        """
 
         self.results.mean_p2_per_type = {}
 
@@ -332,6 +442,10 @@ class DirectorOrder(LeafletAnalysisBase):
 
                         #Get all pairs in chain
                         pairs_in_chain = np.array_split(chain, len(chain) // 2)
+
+                        #Adding a dummy array ensures that double bonds at the end of an acyl chain are taken into account
+                        pairs_in_chain +=  [np.array(["dummy", "dummy"])]
+
                         n_pairs = len(pairs_in_chain)
 
                         order_per_chain = []
@@ -342,13 +456,14 @@ class DirectorOrder(LeafletAnalysisBase):
                             #Check if a pair has the same aliphatic C-Atom
 
                             #If so -> Calculate the average (i.e. C1-H1S and C1-H1R)
+                            #I transpose the resulting arrays several times to get a more logical shape of the resulting array
                             if pairs_in_chain[j][0] == pairs_in_chain[j+1][0]: order_per_chain.append( leaf[f"{key}_{i}"][:, :, j:j+2].mean(-1).T )
 
                             #If there is a C-Atom UNEQUAL to the former AND the following C-Atom -> Assume double bond -> No average over pairs
 
                             #Edge case:
                             # j = 0 -> j-1 = -1 
-                            # Should not matter since latest atom in aliphatic name is named differently than first one -> Should also work for double bonds at first place
+                            # Should not matter since latest atom in aliphatic name is named differently than first one -> Should also work for double bonds at the first place of the 
                             elif pairs_in_chain[j][0] != pairs_in_chain[j+1][0] and pairs_in_chain[j][0] != pairs_in_chain[j-1][0]: order_per_chain.append( leaf[f"{key}_{i}"][:, :, j].T )
 
                             #If just the following C-Atom is unequal pass on
@@ -357,7 +472,7 @@ class DirectorOrder(LeafletAnalysisBase):
                             else:
                                 raise ValueError(f"Something odd in merging order parameters for {key} in chain {i} per CH2 happened!")
 
-                        mean_p2_per_type[leaf_key][f"{key}_{i}"] = np.array(order_per_chain).T
+                        self.results.mean_p2_per_type[leaf_key][f"{key}_{i}"] = np.array(order_per_chain).T
 
                 else: pass
 
