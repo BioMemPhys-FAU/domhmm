@@ -14,6 +14,7 @@ from MDAnalysis.analysis import distances
 from sklearn import mixture
 from scipy import stats
 import sys
+import memsurfer
 
 class DirectorOrder(LeafletAnalysisBase):
     """
@@ -196,7 +197,7 @@ class DirectorOrder(LeafletAnalysisBase):
                     if refZ:
                         getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ], reference_axis = np.array([0, 0, 1]))
                     else:
-                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ], reference_axis = local_normals["key"])
+                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ], reference_axis = local_normals[f"{key}"])
 
     def get_local_area_normal(self, leaflet, boxdim, periodic = True, exactness_level = 10):
 
@@ -221,7 +222,7 @@ class DirectorOrder(LeafletAnalysisBase):
         bbox[1, :] = boxdim
 
         mem = memsurfer.Membrane( points = self.leafletfinder.groups( leaflet ).positions,
-                                  labels = DH.leafletfinder.groups( leaflet ).resids.astype("U"), 
+                                  labels = self.leafletfinder.groups( leaflet ).resids.astype("U"), 
                                   bbox = bbox,
                                   periodic = periodic,
                                   boundary_layer = 0.2 #Default value
@@ -259,12 +260,14 @@ class DirectorOrder(LeafletAnalysisBase):
         #Calculate correct index if skipping step not equals 1 or start point not equals 0
         self.index = self.frame // self.step - self.start
 
+        #------------------------------------------------------Local Normals/Area per Lipid------------------------------------------------------#
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
-        local_normals_dict_0 = get_local_area_normal(leaflet = 0, boxdim = boxdim, periodic = True, exactness_level = 10)
-        local_normals_dict_1 = get_local_area_normal(leaflet = 1, boxdim = boxdim, periodic = True, exactness_level = 10)
+        local_normals_dict_0 = self.get_local_area_normal(leaflet = 0, boxdim = boxdim, periodic = True, exactness_level = 10)
+        local_normals_dict_1 = self.get_local_area_normal(leaflet = 1, boxdim = boxdim, periodic = True, exactness_level = 10)
 
-        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_0, leaflet = 0, resid_heads_selection_leaflet = self.resid_heads_selection_0, reference_vectors = local_normals_dict_0, refZ = self.refZ)
-        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_1, leaflet = 1, resid_heads_selection_leaflet = self.resid_heads_selection_1, reference_vectors = local_normals_dict_1, refZ = self.refZ)
+        #------------------------------------------------------Order parameter------------------------------------------------------#
+        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_0, leaflet = 0, resid_heads_selection_leaflet = self.resid_heads_selection_0, local_normals = local_normals_dict_0, refZ = self.refZ)
+        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_1, leaflet = 1, resid_heads_selection_leaflet = self.resid_heads_selection_1, local_normals = local_normals_dict_1, refZ = self.refZ)
 
         #Sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
@@ -370,7 +373,7 @@ class DirectorOrder(LeafletAnalysisBase):
             
                 #Get area per lipid for specific residue
                 apl = getattr(self.results, f'id{resid}')['APL']
-                self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"].append( apl )
+                self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"].append( apl )
 
             elif rsn in self.sterols:
 
@@ -399,7 +402,7 @@ class DirectorOrder(LeafletAnalysisBase):
                         self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = np.array(self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"])
                     
                     #Just transform for area per lipid
-                    self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"] = np.array(self.results.p2_per_type[f"Leaf{i}"][f"{rsn}"])
+                    self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"] = np.array(self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"])
 
         #-------------------------------------------------------------
         #-------------------------------------------------------------
