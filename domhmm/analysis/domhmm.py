@@ -7,7 +7,6 @@ This module contains the :class:`LocalFluctuation` class.
 """
 
 from .base import LeafletAnalysisBase
-from .hmm import HMM
 
 from typing import Union, TYPE_CHECKING, Dict, Any
 

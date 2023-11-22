@@ -98,9 +98,9 @@ class LeafletAnalysisBase(AnalysisBase):
         #If local is True then properties are calculated if possible
 
         if local == True:
-            self.refZ = True
-        else:
             self.refZ = False
+        else:
+            self.refZ = True
 
         #------------------------------------------------------------------LEAFLETS------------------------------------------------------------------#
 
