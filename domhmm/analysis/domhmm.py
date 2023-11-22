@@ -7,16 +7,21 @@ This module contains the :class:`LocalFluctuation` class.
 """
 
 from .base import LeafletAnalysisBase
+from .hmm import HMM
+
 from typing import Union, TYPE_CHECKING, Dict, Any
 
 import numpy as np
 from MDAnalysis.analysis import distances
 from sklearn import mixture
+from hmmlearn.hmm import GaussianHMM
 from scipy import stats
 import sys
 import memsurfer
 
-class DirectorOrder(LeafletAnalysisBase):
+from tqdm import tqdm
+
+class PropertyCalculation(LeafletAnalysisBase):
     """
     The DirectorOrder class calculates a order parameter for each selected lipid according to the formula:
 
@@ -51,7 +56,7 @@ class DirectorOrder(LeafletAnalysisBase):
 
             #Check leaflet assignment -> based on RESID
             #LEAFLET 0?
-            if resid in self.leafletfinder.group(0).resids and resid not in self.leafletfinder.group(1).resids:
+            if resid in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids:
 
                 #Init results for order parameters -> For each resid we should have an array containing the order parameters for each frame
                 setattr(self.results, f'id{resid}', {})                     #-> Setup an empty dictionary
@@ -62,9 +67,6 @@ class DirectorOrder(LeafletAnalysisBase):
                 n_tails = len(self.tails[resname])
                 for i in range(n_tails):
 
-                    #n_pairs -> Number of C-H pairs
-                    #Should be an even number -> Check for this
-                    assert len(self.tails[resname][i]) % 2 == 0, f"Tail selection for {rsn} in chain {i} must be divisable by 2!"
                     n_pairs = len(self.tails[resname][i]) // 2
 
                     #Init storage for P2 values for each lipid
@@ -77,7 +79,7 @@ class DirectorOrder(LeafletAnalysisBase):
                 getattr(self.results, f'id{resid}')[f'APL'] = np.zeros( self.n_frames, dtype = np.float32) 
 
             #LEAFLET 1?
-            elif resid in self.leafletfinder.group(1).resids and resid not in self.leafletfinder.group(0).resids:
+            elif resid in self.leaflet_selection["1"].resids and resid not in self.leaflet_selection["0"].resids:
                 
                 #Init results for order parameters -> For each resid we should have an array containing the order parameters for each frame
                 setattr(self.results, f'id{resid}', {})                     #-> Setup an empty dictionary
@@ -88,9 +90,6 @@ class DirectorOrder(LeafletAnalysisBase):
                 n_tails = len(self.tails[resname])
                 for i in range(n_tails):
 
-                    #n_pairs -> Number of C-H pairs
-                    #Should be an even number -> Check for this
-                    assert len(self.tails[resname][i]) % 2 == 0, f"Tail selection for {rsn} in chain {i} must be divisable by 2!"
                     n_pairs = len(self.tails[resname][i]) // 2
 
                     #Init storage for P2 values for each lipid
@@ -103,7 +102,7 @@ class DirectorOrder(LeafletAnalysisBase):
                 getattr(self.results, f'id{resid}')[f'APL'] = np.zeros( self.n_frames, dtype = np.float32) 
 
             #STEROL?
-            elif resid not in self.leafletfinder.group(0).resids and resid not in self.leafletfinder.group(1).resids and resname in self.sterols:
+            elif resid not in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids and resname in self.sterols :
 
                 #Sterols are not assigned to a specific leaflet -> They can flip. Maybe it is unlikely that it happens in some membrane (especially atomistic ones)
                 #but it can happen and the code keeps track of them.
@@ -150,17 +149,20 @@ class DirectorOrder(LeafletAnalysisBase):
         a = np.arccos(dot_prod) #Angle in radians
         P2 = 0.5 * (3 * np.cos(a)**2 - 1)
 
+        #Flip sign of order parameters
+        P2 = -1 * P2
+
         return P2
 
-    def get_p2_per_lipid(self, resid_selection_leaflet, leaflet, resid_heads_selection_leaflet, local_normals, refZ):
+    def get_p2_per_lipid(self, resid_tails_selection_leaflet, leaflet, resid_heads_selection_leaflet, local_normals, refZ):
 
         """
         Applies P2 calculation for each C-H pair in an individual lipid for each leaflet.
 
         Parameters
         ----------
-        resid_selection_leaflet : dictionary
-            Contains resids for a specific leaflet
+        resid_tails_selection_leaflet : dictionary
+            Contains MDAnalysis atom selection for tail group of individual lipids per leaflet
         leaflet : int
             Leaflet of interest
         resid_heads_selection_leaflet : dictionary
@@ -174,7 +176,7 @@ class DirectorOrder(LeafletAnalysisBase):
         """
 
         #Iterate over resids in leaflet
-        for key in resid_selection_leaflet.keys():
+        for key in resid_heads_selection_leaflet.keys():
 
             #Check if leaflet is correct -> Sanity check
             assert getattr(self.results, f'id{key}')['Leaflet'] == leaflet, '!!!-----ERROR-----!!!\nWrong leaflet\n!!!-----ERROR-----!!!'
@@ -192,12 +194,12 @@ class DirectorOrder(LeafletAnalysisBase):
                 #I.E. -> ["C1", "H1R", "C1", "H1S", ...]
 
                 #Iterate over these pairs -> I.E. ("C1","H1R"), ("C1", "H1S"), ... -> In this order the P2 values should be also stored
-                for i in range(len(self.tails[rsn][n_chain]) // 2):
+                for j in range(len(self.tails[rsn][n_chain]) // 2):
 
                     if refZ:
-                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ], reference_axis = np.array([0, 0, 1]))
+                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, j] = self.calc_p2(pair = resid_tails_selection_leaflet[str(key)][ str(n_chain) ][ j ], reference_axis = np.array([0, 0, 1]))
                     else:
-                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, i] = self.calc_p2(pair = resid_selection_leaflet[str(key)][ str(n_chain) ][ i ], reference_axis = local_normals[f"{key}"])
+                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, j] = self.calc_p2(pair = resid_tails_selection_leaflet[str(key)][ str(n_chain) ][ j ], reference_axis = local_normals[f"{key}"])
 
     def get_local_area_normal(self, leaflet, boxdim, periodic = True, exactness_level = 10):
 
@@ -255,6 +257,7 @@ class DirectorOrder(LeafletAnalysisBase):
         Calculate data from a single frame of the trajectory.
         """
 
+
         #Get number of frame from trajectory
         self.frame = self.universe.trajectory.ts.frame
         #Calculate correct index if skipping step not equals 1 or start point not equals 0
@@ -266,8 +269,8 @@ class DirectorOrder(LeafletAnalysisBase):
         local_normals_dict_1 = self.get_local_area_normal(leaflet = 1, boxdim = boxdim, periodic = True, exactness_level = 10)
 
         #------------------------------------------------------Order parameter------------------------------------------------------#
-        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_0, leaflet = 0, resid_heads_selection_leaflet = self.resid_heads_selection_0, local_normals = local_normals_dict_0, refZ = self.refZ)
-        self.get_p2_per_lipid(resid_selection_leaflet = self.resid_selection_1, leaflet = 1, resid_heads_selection_leaflet = self.resid_heads_selection_1, local_normals = local_normals_dict_1, refZ = self.refZ)
+        self.get_p2_per_lipid(resid_tails_selection_leaflet = self.resid_tails_selection_0, leaflet = 0, resid_heads_selection_leaflet = self.resid_heads_selection_0, local_normals = local_normals_dict_0, refZ = self.refZ)
+        self.get_p2_per_lipid(resid_tails_selection_leaflet = self.resid_tails_selection_1, leaflet = 1, resid_heads_selection_leaflet = self.resid_heads_selection_1, local_normals = local_normals_dict_1, refZ = self.refZ)
 
         #Sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
@@ -479,56 +482,226 @@ class DirectorOrder(LeafletAnalysisBase):
 
                 else: pass
 
+    #-------------------------------------------------------------FIT GAUSSIAN MIXTURE MODEL-------------------------------------------------------------#
+    def GMM(self, gmm_kwargs = {}):
+
+        self.results["GMM"] = {}
+
+        """
+        Structure as follows:
+
+            - GMM
+                - Leaf0
+                    - LipidA
+                        - GMM Results Tail 1
+                        - GMM Results Tail 2
+                        - ..
+                        - GMM Results APL
+                    - ...
+                - Leaf1
+                    - LipidA
+                        - ...
+
+
+        """
+
+        #Iterate over leaflets
+        for idx, leafgroup in zip(self.leaflet_selection.keys(), self.leaflet_selection.values()):
+
+            #Init empty dictionary for each leaflet
+            self.results["GMM"][f"Leaf{idx}"] = {}
+
+        self.get_gmm_order_parameters(0, gmm_kwargs = gmm_kwargs)
+        self.get_gmm_order_parameters(1, gmm_kwargs = gmm_kwargs)
+
+        self.get_gmm_area_per_lipid(0, gmm_kwargs = gmm_kwargs)
+        self.get_gmm_area_per_lipid(1, gmm_kwargs = gmm_kwargs)
+
+    def get_gmm_order_parameters(self, leaflet, gmm_kwargs):
+
+        #Get lipid types in leaflet
+        leaflet_resnames = np.unique( self.leaflet_resids[ str(leaflet) ].resnames ) 
+
+        #Iterate over lipids in leaflet
+        for rsn in leaflet_resnames:
+
+            #Iterate over tails (e.g. for standard phospholipids that 2)
+            for i, tail in enumerate(self.tails[rsn]):
+
+                self.results["GMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"] = self.fit_gmm(property_ = self.results.mean_p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{i}"].mean(2), gmm_kwargs = gmm_kwargs)
+
+    def get_gmm_area_per_lipid(self, leaflet, gmm_kwargs):
+
+        #Get lipid types in leaflet
+        leaflet_resnames = np.unique( self.leaflet_resids[ str(leaflet) ].resnames ) 
+
+        #Iterate over lipids in leaflet
+        for rsn in leaflet_resnames:
+
+            self.results["GMM"][f"Leaf{leaflet}"][f"{rsn}_APL"] = self.fit_gmm(property_ = self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"], gmm_kwargs = gmm_kwargs)
+
+    def fit_gmm(self, property_, gmm_kwargs):
+
+        """
+        Fit a Gaussian Mixture Model for each lipid type to the results of the property calculation.
+        This is done here for each leaflet seperatley!
+
+
+        Parameters
+        ----------
+        property_ : numpy.array
+            Input data for the gaussian mixture model ( Shape: (NLipids, NFrames) )
+
+
+        """
+
+        assert self.n_frames == property_.shape[1], "Wrong input shape for the fitting of the GMM!"
+
+        #---------------------------------------Prep data---------------------------------------#
+
+        #Take arithmetic mean over chain order parameters
+        property_flatten = property_.flatten() #Shape change (NLipids, NFrames) -> (NLipids * NFrames, )
+
+        #---------------------------------------Gaussian Mixture---------------------------------------#
+
+        #Run the GaussianMixture Model for two components
+        GM = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit( property_flatten.reshape((-1, 1)) )
+
+        #---------------------------------------Gaussian Mixture Results---------------------------------------#
+
+        #The Gaussian distribution with the highest mean corresponds to the ordered state
+        param_o = np.argmax(GM.means_)
+        #The Gaussian distribution with the lowest mean corresponds to the disoredered state
+        param_d = np.argmin(GM.means_)
+
+        #Get mean and variance of the fitted Gaussian distributions
+        mu_o, var_o = GM.means_[param_o], GM.covariances_[param_o][0]
+        mu_d, var_d = GM.means_[param_d], GM.covariances_[param_d][0]
+
+        sig_o = np.sqrt( var_o )
+        sig_d = np.sqrt( var_d )
+
+        #---------------------------------------Intermediate Distribution---------------------------------------#
+        mu_I = (sig_d * mu_o + sig_o * mu_d) / (sig_d + sig_o)
+        sig_I= np.min( [ np.abs(mu_o - mu_I), np.abs(mu_d - mu_I) ] ) / 3
+        var_I = sig_I**2
+
+        #----------------------------------------Conclude----------------------------------------#
+        #Put the fitted results in an easy to access format
+        fit_results = np.empty( (3, 2), dtype =np.float32)
+
+        fit_results[0, 0], fit_results[0, 1] = mu_d, var_d
+        fit_results[1, 0], fit_results[1, 1] = mu_I, var_I
+        fit_results[2, 0], fit_results[2, 1] = mu_o, var_o
+
+        return fit_results
+
+
+    #-------------------------------------------------------------FIT HIDDEN MARKOW MODEL-------------------------------------------------------------#
+
+    def HMM(self, n_repeats, hmm_kwargs = {}):
+
+        if len(self.results["GMM"]) == 0:
+            print("!!!---WARNING---!!!")
+            print("No Gaussian Mixture Model data found! Pleasr run GMM first!")
+            return
+
+        else: pass
+
+        self.results["HMM"] = {}
+
+        """
+        Structure as follows:
+
+            - HMM
+                - Leaf0
+                    - LipidA
+                        - Trained HMM for Tail 1 of Lipid A
+                        - Trained HMM for Tail 2 of Lipid A
+                        - Trained HMM for APL of Lipid A
+                    - ...
+                - Leaf1
+                    - LipidA
+                        - ...
+
+
+        """
+
+        #Iterate over leaflets
+        for idx, leafgroup in zip(self.leaflet_selection.keys(), self.leaflet_selection.values()):
+
+            #Init empty dictionary for each leaflet
+            self.results["HMM"][f"Leaf{idx}"] = {}
+
+        self.get_hmm_order_parameters(leaflet = 0, n_repeats = 10, hmm_kwargs = hmm_kwargs)
+        self.get_hmm_order_parameters(leaflet = 1, n_repeats = 10, hmm_kwargs = hmm_kwargs)
+
+        self.get_hmm_area_per_lipid(leaflet = 0, n_repeats = 10, hmm_kwargs = hmm_kwargs)
+        self.get_hmm_area_per_lipid(leaflet = 1, n_repeats = 10, hmm_kwargs = hmm_kwargs)
+
+    def get_hmm_order_parameters(self, leaflet, n_repeats, hmm_kwargs):
+
+        #Get lipid types in leaflet
+        leaflet_resnames = np.unique( self.leaflet_resids[ str(leaflet) ].resnames ) 
+
+        #Iterate over lipids in leaflet
+        for rsn in leaflet_resnames:
+
+            #Iterate over tails (e.g. for standard phospholipids that 2)
+            for i, tail in enumerate(self.tails[rsn]):
+
+                self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"] = self.fit_hmm(property_ = self.results.mean_p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{i}"].mean(2),
+                                                                                   init_params = self.results.GMM[f"Leaf{leaflet}"][f"{rsn}_{i}"],
+                                                                                   n_repeats = n_repeats,
+                                                                                   hmm_kwargs = hmm_kwargs)
+
+    def get_hmm_area_per_lipid(self, leaflet, n_repeats, hmm_kwargs):
+
+        #Get lipid types in leaflet
+        leaflet_resnames = np.unique( self.leaflet_resids[ str(leaflet) ].resnames ) 
+
+        #Iterate over lipids in leaflet
+        for rsn in leaflet_resnames:
+
+            self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_APL"] = self.fit_hmm(property_ = self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"],
+                                                                               init_params = self.results.GMM[f"Leaf{leaflet}"][f"{rsn}_APL"],
+                                                                               n_repeats = n_repeats,
+                                                                               hmm_kwargs = hmm_kwargs)
+
+    def fit_hmm(self, property_, init_params, n_repeats, hmm_kwargs):
+
+
+        assert self.n_frames == property_.shape[1], "Wrong input shape for the fitting of the HMM!"
+
+        n_lipids = property_.shape[0]
+
+        means_ = init_params[:, 0].reshape(-1, 1)
+        vars_ = init_params[:, 1].reshape(-1, 1)
+
+        bagging = []
+        bic_ = []
+
+        for i in range(n_repeats):
+            
+            GHMM = GaussianHMM(n_components = 3, means_prior = means_ , covars_prior = vars_, **hmm_kwargs)
+
+            GHMM.fit( property_.flatten().reshape(-1, 1), lengths = np.repeat( self.n_frames, n_lipids ) )
+
+            bic_.append( GHMM.bic( property_.flatten().reshape(-1, 1), lengths = np.repeat( self.n_frames, n_lipids ) ) )
+
+            bagging.append( GHMM )
+
+            del GHMM
+
+        best_model = bagging[ np.argmin(bic_) ]
+
+        return best_model
 
 
 
 
 
 
-#        self.results.gaussian_mixture = {}
-#        for key in self.heads.keys():
-#
-#            #---------------------------------------Prep data---------------------------------------#
-#            self.results.gaussian_mixture[key] = {}
-#            mean_ = np.hstack((self.results.p2_per_type['0'][key].flatten(), self.results.p2_per_type['1'][key].flatten()))
-#
-#            #---------------------------------------Gaussian Mixture---------------------------------------#
-#            self.results.gaussian_mixture[key]['Mean'] = mean_
-#
-#            GM = mixture.GaussianMixture(n_components=2, **self.gm_kwargs).fit( mean_.reshape((-1, 1)) )
-#
-#            self.results.gaussian_mixture[key]['GaussianMixtureModel'] = GM
-#
-#            #---------------------------------------Gaussian Mixture Results---------------------------------------#
-#            param_o = np.argmax(GM.means_)
-#            param_d = np.argmin(GM.means_)
-#            mu_o, sig_o = GM.means_[param_o], np.sqrt(GM.covariances_[param_o][0])
-#            mu_d, sig_d = GM.means_[param_d], np.sqrt(GM.covariances_[param_d][0])
-#
-#            weights_o = GM.weights_[param_o]
-#            weights_d = GM.weights_[param_d]
-#            
-#            self.results.gaussian_mixture[key]['O_Mean'] = mu_o
-#            self.results.gaussian_mixture[key]['O_STD'] = sig_o
-#            self.results.gaussian_mixture[key]['O_W'] = weights_o
-#
-#            self.results.gaussian_mixture[key]['D_Mean'] = mu_d
-#            self.results.gaussian_mixture[key]['D_STD'] = sig_d
-#            self.results.gaussian_mixture[key]['D_W'] = weights_d
-#
-#            lipid_o = weights_o * stats.norm.pdf(x = np.linspace(-.5, 1, 1501), loc = mu_o, scale = sig_o)
-#            lipid_d = weights_d * stats.norm.pdf(x = np.linspace(-.5, 1, 1501), loc = mu_d, scale = sig_d)
-#
-#            self.results.gaussian_mixture[key]['Lipid_O'] = np.vstack((np.linspace(-.5, 1, 1501), lipid_o ))
-#            self.results.gaussian_mixture[key]['Lipid_D'] = np.vstack((np.linspace(-.5, 1, 1501), lipid_d ))
-#
-#            #---------------------------------------Intermediate Distribution---------------------------------------#
-#            mu_I = (sig_d * mu_o + sig_o * mu_d) / (sig_d + sig_o)
-#            sig_I= np.min( [ np.abs(mu_o - mu_I), np.abs(mu_d - mu_I) ] ) / 3
-#            lipid_i = stats.norm.pdf(x = np.linspace(-.5, 1, 1501), loc = mu_I, scale = sig_I)
-#
-#            self.results.gaussian_mixture[key]['Lipid_I'] = np.vstack((np.linspace(-.5, 1, 1501), lipid_i ))
-#            self.results.gaussian_mixture[key]['I_Mean'] = mu_I
-#            self.results.gaussian_mixture[key]['I_STD'] = sig_I
-#            self.results.gaussian_mixture[key]['I_W'] = (weights_o + weights_d)/2
-#
+
+
+

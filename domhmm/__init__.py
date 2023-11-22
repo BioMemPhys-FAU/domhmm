@@ -4,7 +4,7 @@ HMM model to determine Lo or Ld domains from coarse grained or atomistic MD simu
 """
 
 # Add imports here
-from .analysis import DirectorOrder
+from .analysis import PropertyCalculation
 
 # Handle versioneer
 from ._version import get_versions
