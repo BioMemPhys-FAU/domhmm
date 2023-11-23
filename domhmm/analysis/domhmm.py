@@ -18,6 +18,7 @@ from scipy import stats
 import sys
 import memsurfer
 
+import os
 from tqdm import tqdm
 
 class PropertyCalculation(LeafletAnalysisBase):
@@ -118,6 +119,8 @@ class PropertyCalculation(LeafletAnalysisBase):
                 getattr(self.results, f'id{resid}')['Resname'] = resname
                 #For sterol only one P2 value is calculated but for each frame
                 getattr(self.results, f'id{resid}')['P2_0'] = np.zeros( (self.n_frames), dtype = np.float32)
+                #Also sterols can get an area per lipid assigned
+                getattr(self.results, f'id{resid}')['APL'] = np.zeros( (self.n_frames), dtype = np.float32)
                 #Init storage array for head group position for each sterol
                 getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros( (self.n_frames, 3), dtype = np.float32) 
 
@@ -222,8 +225,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         bbox = np.zeros( (2, 3) )
         bbox[1, :] = boxdim
 
-        mem = memsurfer.Membrane( points = self.leafletfinder.groups( leaflet ).positions,
-                                  labels = self.leafletfinder.groups( leaflet ).resids.astype("U"), 
+        old_stdout = sys.stdout # backup current stdout
+        sys.stdout = open(os.devnull, "w")
+        mem = memsurfer.Membrane( points = self.surface_lipids_per_frame[ str(leaflet) ].positions,
+                                  labels = self.surface_lipids_per_frame[ str(leaflet) ].resids.astype("U"), 
                                   bbox = bbox,
                                   periodic = periodic,
                                   boundary_layer = 0.2 #Default value
@@ -231,6 +236,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         #Put points back into box
         mem.fit_points_to_box_xy()
+
 
         #Approximate surface -> Uses as standard 18 k-neighbours for normal calculation
         mem.compute_approx_surface(exactness_level = exactness_level)
@@ -244,6 +250,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         local_normals = mem.memb_smooth.compute_normals()
 
         local_area_per_lipid = mem.memb_smooth.compute_pointareas()
+        sys.stdout = old_stdout # reset old stdout
 
         local_normals_dict = dict( zip(mem.labels, local_normals) )
 
@@ -256,6 +263,24 @@ class PropertyCalculation(LeafletAnalysisBase):
         Calculate data from a single frame of the trajectory.
         """
 
+        #Make selection of non-flip/flop lipids and flip/flop lipids if there are sterols present
+
+        self.surface_lipids_per_frame = {}
+
+        #Iterate over leafelts
+        for leaflet in range(2):
+       
+            self.surface_lipids_per_frame[ str(leaflet) ] = self.leaflet_selection[ str(leaflet) ] 
+
+            for sterol in self.sterols:
+
+                 self.surface_lipids_per_frame[ str(leaflet) ] += self.sterols_head[sterol].select_atoms(" around 12 global group leaflet", leaflet = self.leaflet_selection[ str(leaflet) ] )
+
+        
+        if self.surface_lipids_per_frame["0"].select_atoms("group leaf1",leaf1= self.surface_lipids_per_frame["1"]): raise ValueError("Atoms in both leaflets!")
+            
+            #print(self.leaflet_selection[ str(leaflet) ].n_atoms)
+            #print(self.surface_lipids_per_frame[ str(leaflet) ].n_atoms)
 
         #Get number of frame from trajectory
         self.frame = self.universe.trajectory.ts.frame
@@ -273,22 +298,26 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         #Sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
-            #Check leaflet assignment -> Iterate first over both leaflets
-            min_dists = []
-            for idx, leafgroup in enumerate(self.leafletfinder.groups_iter()):
 
-                dist_arr = distances.distance_array(self.resid_selection_sterols_heads[str(key)].center_of_mass(),
-                                                    leafgroup.positions,
-                                                    box=self.universe.trajectory.ts.dimensions)
+            if key in self.surface_lipids_per_frame[ "0" ].resids and key not in self.surface_lipids_per_frame[ "1" ].resids:
+                #Check closest distance to leaflet
+                getattr(self.results, f'id{key}')['Leaflet'][self.index] = 0
+            elif key in self.surface_lipids_per_frame[ "1" ].resids and key not in self.surface_lipids_per_frame[ "0" ].resids:
+                #Check closest distance to leaflet
+                getattr(self.results, f'id{key}')['Leaflet'][self.index] = 1
+            elif key in self.surface_lipids_per_frame[ "0" ].resids and key in self.surface_lipids_per_frame[ "1" ].resids:
+                print("!!!---WARNING---!!!")
+                print(f"Cholesterol with ID {key} is in both leaflets!")
+            elif key in self.surface_lipids_per_frame[ "1" ].resids and key in self.surface_lipids_per_frame[ "0" ].resids:
+                #Cholesterol is not assigned to a specific leaflet -> resides in the mid of the membrane
+                getattr(self.results, f'id{key}')['Leaflet'][self.index] = 2
+            else:
+                print("That shouldn't happen! Time for Scully and Moulder!")
 
-                min_dists.append(np.min(dist_arr))
-
-            #Check closest distance to leaflet
-            getattr(self.results, f'id{key}')['Leaflet'][self.index] = np.argmin(min_dists)
             #Store head position
-            getattr(self.results, f'id{key}')[f'Heads'][self.index] = self.resid_selection_sterols_heads[str(resid)].center_of_mass()
+            getattr(self.results, f'id{key}')[f'Heads'][self.index] = self.resid_selection_sterols_heads[str(key)].center_of_mass()
             
-            getattr(self.results, f'id{key}')['P2_0'][self.index] = self.calc_p2(pair = self.resid_selection_sterols[str(key)])
+            getattr(self.results, f'id{key}')[f'P2_0'][self.index] = self.calc_p2(pair = self.resid_selection_sterols[str(key)], reference_axis = np.array([0, 0, 1]))
 
 
     def _conclude(self):
