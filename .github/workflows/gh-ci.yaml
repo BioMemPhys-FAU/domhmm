@@ -1,16 +1,16 @@
 name: GH Actions CI
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  schedule:
-    # Weekly tests at midnight on Sundays run on main by default:
-    #   Scheduled workflows run on the latest commit on the default or base branch.
-    #   (from https://help.github.com/en/actions/reference/events-that-trigger-workflows#scheduled-events-schedule)
-    - cron: "0 0 * * 0"
+on: [push]
+#  push:
+#    branches:
+#      - main
+#  pull_request:
+#    branches:
+#      - main
+#  schedule:
+#    # Weekly tests at midnight on Sundays run on main by default:
+#    #   Scheduled workflows run on the latest commit on the default or base branch.
+#    #   (from https://help.github.com/en/actions/reference/events-that-trigger-workflows#scheduled-events-schedule)
+#    - cron: "0 0 * * 0"
 
 concurrency:
   # Specific group naming so CI is only cancelled
