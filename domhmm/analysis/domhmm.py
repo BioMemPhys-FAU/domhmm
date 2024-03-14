@@ -511,7 +511,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
                         self.results.mean_p2_per_type[leaf_key][f"{key}_{i}"] = np.array(order_per_chain).T
 
-                else: pass
+                    else: pass
 
         #-------------------------------------------------------------
         #-------------------------------------------------------------
