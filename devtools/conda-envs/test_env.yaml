@@ -18,6 +18,5 @@ dependencies:
 
   # Pip-only installs
   - pip:
-    - codecov
     - hmmlearn
-
+    - memsurfer

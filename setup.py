@@ -50,7 +50,7 @@ setup(
     # Required packages, pulls from pip if needed
     # do not use for Conda deployment
     install_requires=[
-        "mdanalysis>=2.0.0", "hmmlearn"
+        "mdanalysis>=2.0.0", "hmmlearn", "memsurfer", "pytest"
     ],
     # Additional entries you may want simply uncomment the lines you want and fill in the data
     # url='domhmm.readthedocs.io/en/latest/',  # Website
