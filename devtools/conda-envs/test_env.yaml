@@ -10,6 +10,9 @@ dependencies:
   # MDAnalysis
   - MDAnalysis
 
+  # Functionality
+  - hmmlearn
+
   # Testing
   - pytest
   - pytest-cov
@@ -17,6 +20,5 @@ dependencies:
   - codecov
 
   # Pip-only installs
-  - pip:
-    - hmmlearn
-    - memsurfer
+#  - pip:
+#    - codecov
