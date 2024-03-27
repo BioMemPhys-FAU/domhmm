@@ -15,7 +15,7 @@ import numpy as np
 from sklearn import mixture
 from hmmlearn.hmm import GaussianHMM
 # from scipy import stats
-from scipy.spatial import Voronoi, ConvexHull # voronoi_plot_2d
+from scipy.spatial import Voronoi, ConvexHull  # voronoi_plot_2d
 # import sys
 # import memsurfer
 
@@ -107,8 +107,8 @@ class PropertyCalculation(LeafletAnalysisBase):
                 getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
 
                 # STEROL?
-            elif resid not in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection[
-                "1"].resids and resname in self.sterols:
+            elif (resid not in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids
+                  and resname in self.sterols):
 
                 # Sterols are not assigned to a specific leaflet -> They can flip. Maybe it is unlikely that it
                 # happens in some membrane (especially atomistic ones) but it can happen and the code keeps track of
@@ -563,7 +563,8 @@ class PropertyCalculation(LeafletAnalysisBase):
                         # Get all pairs in chain
                         pairs_in_chain = np.array_split(chain, len(chain) // 2)
 
-                        # Adding a dummy array ensures that double bonds at the end of an acyl chain are taken into account
+                        # Adding a dummy array ensures that double bonds at the end of an acyl chain are taken
+                        # into account
                         pairs_in_chain += [np.array(["dummy", "dummy"])]
 
                         n_pairs = len(pairs_in_chain)
@@ -576,15 +577,18 @@ class PropertyCalculation(LeafletAnalysisBase):
                             # Check if a pair has the same aliphatic C-Atom
 
                             # If so -> Calculate the average (i.e. C1-H1S and C1-H1R)
-                            # I transpose the resulting arrays several times to get a more logical shape of the resulting array
+                            # I transpose the resulting arrays several times to get a more logical shape of the
+                            # resulting array
                             if pairs_in_chain[j][0] == pairs_in_chain[j + 1][0]:
                                 order_per_chain.append(leaf[f"{key}_{i}"][:, :, j:j + 2].mean(-1).T)
 
-                            # If there is a C-Atom UNEQUAL to the former AND the following C-Atom -> Assume double bond -> No average over pairs
+                            # If there is a C-Atom UNEQUAL to the former AND the following C-Atom -> Assume double bond
+                            # -> No average over pairs
 
                             # Edge case:
                             # j = 0 -> j-1 = -1 
-                            # Should not matter since latest atom in aliphatic name is named differently than first one -> Should also work for double bonds at the first place of the 
+                            # Should not matter since latest atom in aliphatic name is named differently than first one
+                            # -> Should also work for double bonds at the first place of the
                             elif pairs_in_chain[j][0] != pairs_in_chain[j + 1][0] and pairs_in_chain[j][0] != \
                                     pairs_in_chain[j - 1][0]:
                                 order_per_chain.append(leaf[f"{key}_{i}"][:, :, j].T)
@@ -610,7 +614,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         # ---------------------------------------------
 
         """
-        Sterol are able to flip-flop between leaflets, they are there for special treated and have their own output data structure
+        Sterol are able to flip-flop between leaflets, they are there for special treated and have their own output data
+         structure
 
         - Sterols
             - SterolA
@@ -706,7 +711,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         """
         Fit a Gaussian Mixture Model for each lipid type to the results of the property calculation.
-        This is done here for each leaflet seperatley!
+        This is done here for each leaflet separately!
 
 
         Parameters
@@ -722,8 +727,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # ---------------------------------------Prep data---------------------------------------#
 
         # Take arithmetic mean over chain order parameters
-        property_flatten = property_[:,
-                           start_frame:].flatten()  # Shape change (NLipids, NFrames) -> (NLipids * NFrames, )
+        property_flatten = property_[:,start_frame:].flatten() # Shape change (NLipids, NFrames) -> (NLipids * NFrames,)
 
         # ---------------------------------------Gaussian Mixture---------------------------------------#
 
@@ -747,12 +751,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         if apl == False:
             # The Gaussian distribution with the highest mean corresponds to the ordered state
             param_o = np.argmax(GM.means_)
-            # The Gaussian distribution with the lowest mean corresponds to the disoredered state
+            # The Gaussian distribution with the lowest mean corresponds to the disordered state
             param_d = np.argmin(GM.means_)
         else:
             # The Gaussian distribution with the lowest mean corresponds to the ordered state
             param_o = np.argmin(GM.means_)
-            # The Gaussian distribution with the highest mean corresponds to the disoredered state
+            # The Gaussian distribution with the highest mean corresponds to the disordered state
             param_d = np.argmax(GM.means_)
 
         # Get mean and variance of the fitted Gaussian distributions
@@ -784,7 +788,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         if "GMM" not in self.results.keys() or len(self.results["GMM"]) == 0:
             print("!!!---WARNING---!!!")
-            print("No Gaussian Mixture Model data found! Pleasr run GMM first!")
+            print("No Gaussian Mixture Model data found! Please run GMM first!")
             return
 
         else:
