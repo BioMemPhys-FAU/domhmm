@@ -165,59 +165,59 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return P2
 
-    # def get_p2_per_lipid(self, resid_tails_selection_leaflet, leaflet, resid_heads_selection_leaflet, local_normals,
-    #                      refZ):
-    #
-    #     """
-    #     Applies P2 calculation for each C-H pair in an individual lipid for each leaflet.
-    #
-    #     Parameters
-    #     ----------
-    #     resid_tails_selection_leaflet : dictionary
-    #         Contains MDAnalysis atom selection for tail group of individual lipids per leaflet
-    #     leaflet : int
-    #         Leaflet of interest
-    #     resid_heads_selection_leaflet : dictionary
-    #         Contains MDAnalysis atom selection for head group of individual lipids per leaflet
-    #     local_normals : dictionary
-    #         Containing local normals per lipid -> keys are the resids
-    #     refZ : bool
-    #         Using the z-axis as reference axis or the local normal defined per lipid?
-    #
-    #
-    #     """
-    #
-    #     # Iterate over resids in leaflet
-    #     for key in resid_heads_selection_leaflet.keys():
-    #
-    #         # Check if leaflet is correct -> Sanity check
-    #         assert getattr(self.results, f'id{key}')[
-    #                    'Leaflet'] == leaflet, '!!!-----ERROR-----!!!\nWrong leaflet\n!!!-----ERROR-----!!!'
-    #
-    #         # Store head position -> Center of Mass of head group selection
-    #         getattr(self.results, f'id{key}')[f'Heads'][self.index] = resid_heads_selection_leaflet[
-    #             key].center_of_mass()
-    #
-    #         # Get resname
-    #         rsn = getattr(self.results, f'id{key}')['Resname']
-    #
-    #         # Iterate over number of acyl chains in lipid named "rsn"
-    #         for n_chain in range(len(self.tails[rsn])):
-    #
-    #             # self.tails[rsn][n_chain] contains atoms names in tail, if the input is correctly given it should look like this:
-    #             # I.E. -> ["C1", "H1R", "C1", "H1S", ...]
-    #
-    #             # Iterate over these pairs -> I.E. ("C1","H1R"), ("C1", "H1S"), ... -> In this order the P2 values should be also stored
-    #             for j in range(len(self.tails[rsn][n_chain]) // 2):
-    #
-    #                 if refZ:
-    #                     getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, j] = self.calc_p2(
-    #                         pair=resid_tails_selection_leaflet[str(key)][str(n_chain)][j],
-    #                         reference_axis=np.array([0, 0, 1]))
-    #                 else:
-    #                     getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, j] = self.calc_p2(
-    #                         pair=resid_tails_selection_leaflet[str(key)][str(n_chain)][j],
-    #                         reference_axis=local_normals[f"{key}"])
+    def get_p2_per_lipid(self, resid_tails_selection_leaflet, leaflet, resid_heads_selection_leaflet, local_normals,
+                         refZ):
+
+        """
+        Applies P2 calculation for each C-H pair in an individual lipid for each leaflet.
+
+        Parameters
+        ----------
+        resid_tails_selection_leaflet : dictionary
+            Contains MDAnalysis atom selection for tail group of individual lipids per leaflet
+        leaflet : int
+            Leaflet of interest
+        resid_heads_selection_leaflet : dictionary
+            Contains MDAnalysis atom selection for head group of individual lipids per leaflet
+        local_normals : dictionary
+            Containing local normals per lipid -> keys are the resids
+        refZ : bool
+            Using the z-axis as reference axis or the local normal defined per lipid?
+
+
+        """
+
+        # Iterate over resids in leaflet
+        for key in resid_heads_selection_leaflet.keys():
+
+            # Check if leaflet is correct -> Sanity check
+            assert getattr(self.results, f'id{key}')[
+                       'Leaflet'] == leaflet, '!!!-----ERROR-----!!!\nWrong leaflet\n!!!-----ERROR-----!!!'
+
+            # Store head position -> Center of Mass of head group selection
+            getattr(self.results, f'id{key}')[f'Heads'][self.index] = resid_heads_selection_leaflet[
+                key].center_of_mass()
+
+            # Get resname
+            rsn = getattr(self.results, f'id{key}')['Resname']
+
+            # Iterate over number of acyl chains in lipid named "rsn"
+            for n_chain in range(len(self.tails[rsn])):
+
+                # self.tails[rsn][n_chain] contains atoms names in tail, if the input is correctly given it should look like this:
+                # I.E. -> ["C1", "H1R", "C1", "H1S", ...]
+
+                # Iterate over these pairs -> I.E. ("C1","H1R"), ("C1", "H1S"), ... -> In this order the P2 values should be also stored
+                for j in range(len(self.tails[rsn][n_chain]) // 2):
+
+                    if refZ:
+                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, j] = self.calc_p2(
+                            pair=resid_tails_selection_leaflet[str(key)][str(n_chain)][j],
+                            reference_axis=np.array([0, 0, 1]))
+                    else:
+                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, j] = self.calc_p2(
+                            pair=resid_tails_selection_leaflet[str(key)][str(n_chain)][j],
+                            reference_axis=local_normals[f"{key}"])
 
     # def get_local_area_normal(self, leaflet, boxdim, periodic = True, exactness_level = 10):
     #
@@ -362,15 +362,17 @@ class PropertyCalculation(LeafletAnalysisBase):
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
         # local_normals_dict_0 = self.get_local_area_normal(leaflet=0, boxdim=boxdim, periodic=True, exactness_level=10)
         # local_normals_dict_1 = self.get_local_area_normal(leaflet=1, boxdim=boxdim, periodic=True, exactness_level=10)
-        # TODO Add Voronoi area calculation
+        # TODO Add Voronoi area calculation:
+        #  upper/lower_apl saved in data with residue id
+        #  upper/lower_vor used in weight matrix calculation
 
         # ------------------------------ Order parameter ------------------------------------------------------------- #
-        # self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_0, leaflet=0,
-        #                       resid_heads_selection_leaflet=self.resid_heads_selection_0,
-        #                       local_normals=local_normals_dict_0, refZ=self.refZ)
-        # self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_1, leaflet=1,
-        #                       resid_heads_selection_leaflet=self.resid_heads_selection_1,
-        #                       local_normals=local_normals_dict_1, refZ=self.refZ)
+        self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_0, leaflet=0,
+                              resid_heads_selection_leaflet=self.resid_heads_selection_0,
+                              local_normals= None, refZ=self.refZ)
+        self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_1, leaflet=1,
+                              resid_heads_selection_leaflet=self.resid_heads_selection_1,
+                              local_normals= None, refZ=self.refZ)
         # TODO Add order parameter calculation
 
         # TODO Decide how to deal with weight matrix based on Voronoi diagram
