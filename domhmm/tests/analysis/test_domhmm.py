@@ -1,7 +1,7 @@
 import pytest
 from numpy.testing import assert_allclose
 
-from domhmm.analysis.domhmm import Domhmm
+from domhmm.analysis.domhmm import PropertyCalculation
 from domhmm.tests.utils import make_Universe
 
 
@@ -22,7 +22,7 @@ class TestDomhmm:
 
     @pytest.fixture
     def analysis(self, universe):
-        return Domhmm(universe)
+        return PropertyCalculation(universe)
 
     @pytest.mark.parametrize(
         "select, n_atoms",  # argument names
@@ -34,7 +34,7 @@ class TestDomhmm:
     )
     def test_atom_selection(self, universe, select, n_atoms):
         # `universe` here is the fixture defined above
-        analysis = Domhmm(
+        analysis = PropertyCalculation(
             universe, select=select)
         assert analysis.atomgroup.n_atoms == n_atoms
 
