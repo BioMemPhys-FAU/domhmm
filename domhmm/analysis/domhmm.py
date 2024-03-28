@@ -402,9 +402,6 @@ class PropertyCalculation(LeafletAnalysisBase):
                                                            leaf1=self.surface_lipids_per_frame["1"]):
             raise ValueError("Atoms in both leaflets !")
 
-        # print(self.leaflet_selection[ str(leaflet) ].n_atoms)
-        # print(self.surface_lipids_per_frame[ str(leaflet) ].n_atoms)
-
         # Get number of frame from trajectory
         self.frame = self.universe.trajectory.ts.frame
         # Calculate correct index if skipping step not equals 1 or start point not equals 0
@@ -429,10 +426,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_1, leaflet=1,
                               resid_heads_selection_leaflet=self.resid_heads_selection_1,
                               local_normals=None, refZ=self.refZ)
+        # ------------------------------ Weight Matrix --------------------------------------------------------------- #
+        # TODO Decide saving style of weight matrices
+        upper_weight_matrix = self.weight_matrix(upper_vor, leaflet=0)
+        lower_weight_matrix = self.weight_matrix(lower_vor, leaflet=1)
 
-        # TODO Decide how to save weight matrix result
-        self.weight_matrix(upper_vor, leaflet=0)
-        self.weight_matrix(lower_vor, leaflet=1)
 
         # Sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
@@ -701,6 +699,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         for sterol in self.sterols:
             self.results["Sterols"][sterol]["Leaf"] = np.array(self.results["Sterols"][sterol]["Leaf"])
             self.results["Sterols"][sterol]["P2"] = np.array(self.results["Sterols"][sterol]["P2"])
+
+        # TODO Add post-processing parts to here:
+        #  GMM
+        #  HMM
+        #  GetisOrd
+        #  Hierarchical Clustering
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
     def GMM(self, n_repeats, start_frame, gmm_kwargs={}):
@@ -982,3 +986,83 @@ class PropertyCalculation(LeafletAnalysisBase):
                 re_predX = np.array([sorted_means[predX_i] for predX_i in predX])
 
                 getattr(self.results, f'id{resid}')["Pred_APL"] = re_predX
+
+    # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
+    def getis_ord_stat(self, weight_matrix, leaflet, lassign):
+
+        """
+        Getis-Ord Local Spatial Autocorrelation Statistics calculation based on the predicted order states
+        of each lipid and the weighting factors between neighbored lipids.
+
+        Be aware that this function is far from being elegant but it should do its job.
+
+        Parameters
+        ----------
+        weight_matrix : numpy.ndarray
+            Weight matrix for all lipid in a leaflet at current time step
+        leaflet : int
+            0 = upper leaflet, 1 = lower leafet
+        lassign : numpy.ndarray
+            Leaflet assignment for each molecule at each step of time
+
+        Returns
+        -------
+        g_star_i : list of numpy.ndarrays
+            G*i values for each lipid at each time step
+        w_ii_all : list of numpy.ndarrays
+            Self-influence of the lipids
+        """
+
+        # Initialize empty lists to store the G*i values and the self-influence of the lipids in a lipid
+        g_star_i = []
+        w_ii_all = []
+
+        # Get the weightmatrix of the leaflet at the current time step
+
+        # Number of lipids in the leaflet
+        n = weight_matrix.shape[0]
+
+        # In case the code was already executed beforehand
+        weight_matrix[range(n), range(n)] = 0.
+
+        # Get the order state of each lipid in the leaflet at the current time step
+        # 1. Step: (lassign[ idxDPPC ][:, step] == leaflet) -> Which lipids are in the leaflet
+        # 2. Step: orderDPPC[:, step][ ... ] --> What are their order parameters
+        do_dppc = []#orderDPPC[:, step][lassign[idxDPPC][:, step] == leaflet]
+        do_dipc = []#orderDIPC[:, step][lassign[idxDIPC][:, step] == leaflet]
+        do_chol = []#orderCHOL[:, step][lassign[idxCHOL][:, step] == leaflet]
+
+        # Put all the order states in one array -> The order of the lipids must be the same as in the system!!!
+        order_states = np.concatenate([do_dppc, do_dipc, do_chol])
+
+        # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
+        nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
+
+        # Parameters for the Getis-Ord statistic
+        w_ii = np.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
+        weight_matrix[range(n), range(n)] = w_ii
+        w_star_i = np.sum(weight_matrix, axis=-1)  # + w_ii
+        s_star_1i = np.sum(weight_matrix ** 2, axis=-1)  # + w_ii**2
+
+        # Empirical standard deviation over all order states in the leaflet
+        s = np.std(order_states, ddof=1)
+
+        # Employ matrix-vector multiplication
+        so = weight_matrix @ order_states
+
+        # Calculate the nominator for G*i
+        nom = so - w_star_i * 0.5
+
+        # Calculate the denominator for G*i
+        denom = s * np.sqrt((n * s_star_1i - w_star_i ** 2) / (n - 1))
+
+        g_star = nom / denom
+
+        assert not np.any(nneighbor < 1), "Lipid found without a neighbor!"
+
+        # TODO Results for Clustering
+        #  Should be saved in self.result
+        g_star_i.append(g_star)
+        w_ii_all.append(w_ii)
+
+        return g_star_i, w_ii_all
