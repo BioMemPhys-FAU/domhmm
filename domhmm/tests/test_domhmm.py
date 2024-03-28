@@ -21,8 +21,8 @@ def test_mdanalysis_logo_length(mdanalysis_logo_text):
 
 def test_run():
     """Demo testing to try run """
-    path2xtc = "data/md_center_mol_last2mus.xtc"
-    path2tpr = "data/mem.tpr"
+    path2xtc = "./data/md_center_mol_last2mus.xtc"
+    path2tpr = "./data/mem.tpr"
     uni = mda.Universe(path2tpr, path2xtc)
     # TODO Parameters of PropertyCalculation
     #   * leaflet_kwargs:
