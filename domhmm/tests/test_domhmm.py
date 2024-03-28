@@ -4,25 +4,18 @@ Unit and regression test for the domhmm package.
 
 # Import package, test suite, and other packages as needed
 import domhmm
-import pytest
 import sys
 import MDAnalysis as mda
-import os
+
 def test_domhmm_imported():
     """Sample test, will always pass so long as import statement worked"""
     assert "domhmm" in sys.modules
 
 
-def test_mdanalysis_logo_length(mdanalysis_logo_text):
-    """Example test using a fixture defined in conftest.py"""
-    logo_lines = mdanalysis_logo_text.split("\n")
-    assert len(logo_lines) == 46, "Logo file does not have 46 lines!"
-
-
 def test_run():
     """Demo testing to try run """
-    path2xtc = "domhmm/test/data/md_center_mol_last2mus.xtc"
-    path2tpr = "domhmm/test/data/mem.tpr"
+    path2xtc = "domhmm/tests/data/md_center_mol_last2mus.xtc"
+    path2tpr = "domhmm/tests/data/mem.tpr"
     uni = mda.Universe(path2tpr, path2xtc)
     # TODO Parameters of PropertyCalculation
     #   * leaflet_kwargs:
