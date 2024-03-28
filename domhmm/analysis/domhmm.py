@@ -7,19 +7,10 @@ This module contains the :class:`LocalFluctuation` class.
 """
 
 from .base import LeafletAnalysisBase
-
-# from typing import Union, TYPE_CHECKING, Dict, Any
-
 import numpy as np
-# from MDAnalysis.analysis import distances
 from sklearn import mixture
 from hmmlearn.hmm import GaussianHMM
-# from scipy import stats
-from scipy.spatial import Voronoi, ConvexHull  # voronoi_plot_2d
-# import sys
-# import memsurfer
-
-# import os
+from scipy.spatial import Voronoi, ConvexHull
 from tqdm import tqdm
 
 
@@ -274,7 +265,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     #
     #     return local_normals_dict
 
-    def area_per_lipid_vor(self, coor_xy, bx, by):
+    def area_per_lipid_vor(self, leaflet, boxdim):
 
         """
         Calculation of the area per lipid employing Voronoi tessellation on coordinates mapped to the xy plane.
@@ -298,10 +289,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Number of points in the plane
+        coor_xy = self.surface_lipids_per_frame[str(leaflet)].positions
         ncoor = coor_xy.shape[0]
-        # TODO - This is used for corrdinates = Is it headgroups ?
+        # TODO - This is used for coordinates = Is it head groups ?
         #   self.surface_lipids_per_frame[str(leaflet)].positions,
-
+        bx = boxdim[0]
+        by = boxdim[1]
         # Create periodic images of the coordinates
         # to take periodic boundary conditions into account
         pbc = np.zeros((9 * ncoor, 2), dtype=np.float32)
@@ -328,6 +321,65 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return apl, vor
 
+    def weight_matrix(self, vor, leaflet):
+
+        """
+        Calculate the weight factors between neighbored lipid pairs based on a Voronoi tessellation.
+
+        Parameters
+        ----------
+        vor : Voronoi Tesselation
+            Scipy's Voronoi Diagram object
+        coor_xy : numpy.ndarray
+            Mapped positions of the lipid headgroups
+
+        Returns
+        -------
+        weight_matrix : numpy.ndarray
+            Weight factors wij between neighbored lipid pairs.
+            Is 0 if lipids are not directly neighbored.
+        """
+
+        # Number of points in the plane
+        coor_xy = self.surface_lipids_per_frame[str(leaflet)].positions
+        ncoor = coor_xy.shape[0]
+
+        # Calculate the distance for all pairs of points between which a ridge exists
+        dij = vor.points[vor.ridge_points[:, 0]] - vor.points[vor.ridge_points[:, 1]]
+        dij = np.sqrt(np.sum(dij ** 2, axis=1))
+
+        # There is the (rare!) possibility that two points have the exact same xy positions,
+        # to prevent issues at further calculation steps, their distance is set to a very small
+        # distance of 4.7 Angstrom (2 times the VdW radius of a regular bead in MARTINI3)
+        dij[dij < 1E-5] = 4.7
+
+        # Calculate the distance for all pairs of vertices connected via a ridge
+        vert_idx = np.array(vor.ridge_vertices)
+        bij = vor.vertices[vert_idx[:, 0]] - vor.vertices[vert_idx[:, 1]]
+        bij = np.sqrt(np.sum(bij ** 2, axis=1))
+
+        # INFO: vor.ridge_points and vor.ridge_vertices should be sorted -> Check vor.ridge_dict
+
+        # Calculate weight factor
+        wij = bij / dij
+
+        # Setup an empty array to store the weight factors for each lipid
+        weight_matrix = np.zeros((ncoor, ncoor))
+
+        # Select all indices of ridges that contain members of the unit cell
+        mask_unit_cell = np.logical_or(vor.ridge_points[:, 0] < ncoor, vor.ridge_points[:, 1] < ncoor)
+
+        # Apply the modulus operator since some of the indices in "unit_cell_point" will point to coordinates
+        # outside the unit cell. Applying the modulus operator "%" will allow an indexing of the "weight_matrix".
+        # However, some of the indices in "unit_cell_point" will be doubled that shouldn't be an issue since the
+        # same weight factor is then just put several times in the same entry of the array (no summing or something similar!)
+        unit_cell_point = vor.ridge_points[mask_unit_cell] % ncoor
+
+        weight_matrix[unit_cell_point[:, 0], unit_cell_point[:, 1]] = wij[mask_unit_cell]
+        weight_matrix[unit_cell_point[:, 1], unit_cell_point[:, 0]] = wij[mask_unit_cell]
+
+        return weight_matrix
+
     def _single_frame(self):
         """
         Calculate data from a single frame of the trajectory.
@@ -348,7 +400,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         if self.surface_lipids_per_frame["0"].select_atoms("group leaf1",
                                                            leaf1=self.surface_lipids_per_frame["1"]):
-            raise ValueError("Atoms in both leaflets!")
+            raise ValueError("Atoms in both leaflets !")
 
         # print(self.leaflet_selection[ str(leaflet) ].n_atoms)
         # print(self.surface_lipids_per_frame[ str(leaflet) ].n_atoms)
@@ -359,34 +411,39 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.index = self.frame // self.step - self.start
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
+        # TODO Boxdim is selected in 2D for basic implementation. It will be changed to 3D with required implementations
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
         # local_normals_dict_0 = self.get_local_area_normal(leaflet=0, boxdim=boxdim, periodic=True, exactness_level=10)
         # local_normals_dict_1 = self.get_local_area_normal(leaflet=1, boxdim=boxdim, periodic=True, exactness_level=10)
         # TODO Add Voronoi area calculation:
         #  upper/lower_apl saved in data with residue id
         #  upper/lower_vor used in weight matrix calculation
+        upper_apl, upper_vor = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim)
+        lower_apl, lower_vor = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim)
 
         # ------------------------------ Order parameter ------------------------------------------------------------- #
+        # TODO Add order parameter calculation
         self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_0, leaflet=0,
                               resid_heads_selection_leaflet=self.resid_heads_selection_0,
-                              local_normals= None, refZ=self.refZ)
+                              local_normals=None, refZ=self.refZ)
         self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_1, leaflet=1,
                               resid_heads_selection_leaflet=self.resid_heads_selection_1,
-                              local_normals= None, refZ=self.refZ)
-        # TODO Add order parameter calculation
+                              local_normals=None, refZ=self.refZ)
 
-        # TODO Decide how to deal with weight matrix based on Voronoi diagram
+        # TODO Decide how to save weight matrix result
+        self.weight_matrix(upper_vor, leaflet=0)
+        self.weight_matrix(lower_vor, leaflet=1)
 
         # Sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
 
-            if key in self.surface_lipids_per_frame["0"].resids and key not in self.surface_lipids_per_frame[
-                "1"].resids:
+            if (key in self.surface_lipids_per_frame["0"].resids and
+                    key not in self.surface_lipids_per_frame["1"].resids):
                 # Check closest distance to leaflet
                 getattr(self.results, f'id{key}')['Leaflet'][self.index] = 0
 
-            elif key in self.surface_lipids_per_frame["1"].resids and key not in self.surface_lipids_per_frame[
-                "0"].resids:
+            elif (key in self.surface_lipids_per_frame["1"].resids and
+                  key not in self.surface_lipids_per_frame["0"].resids):
                 # Check closest distance to leaflet
                 getattr(self.results, f'id{key}')['Leaflet'][self.index] = 1
 
@@ -394,8 +451,8 @@ class PropertyCalculation(LeafletAnalysisBase):
                 print("!!!---WARNING---!!!")
                 print(f"Cholesterol with ID {key} is in both leaflets!")
 
-            elif key not in self.surface_lipids_per_frame["1"].resids and key not in self.surface_lipids_per_frame[
-                "0"].resids:
+            elif (key not in self.surface_lipids_per_frame["1"].resids and
+                  key not in self.surface_lipids_per_frame["0"].resids):
                 # Cholesterol is not assigned to a specific leaflet -> resides in the mid of the membrane
                 getattr(self.results, f'id{key}')['Leaflet'][self.index] = 2
 
@@ -403,8 +460,8 @@ class PropertyCalculation(LeafletAnalysisBase):
                 ValueError("Cholesterol isn't anywhere! That shouldn't happen! Time for Scully and Moulder!")
 
             # Store head position
-            getattr(self.results, f'id{key}')[f'Heads'][self.index] = self.resid_selection_sterols_heads[
-                str(key)].center_of_mass()
+            getattr(self.results, f'id{key}')[f'Heads'][self.index] = (
+                self.resid_selection_sterols_heads[str(key)].center_of_mass())
 
             getattr(self.results, f'id{key}')[f'P2_0'][self.index] = self.calc_p2(
                 pair=self.resid_selection_sterols[str(key)], reference_axis=np.array([0, 0, 1]))
@@ -588,7 +645,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                             # -> No average over pairs
 
                             # Edge case:
-                            # j = 0 -> j-1 = -1 
+                            # j = 0 -> j-1 = -1
                             # Should not matter since latest atom in aliphatic name is named differently than first one
                             # -> Should also work for double bonds at the first place of the
                             elif pairs_in_chain[j][0] != pairs_in_chain[j + 1][0] and pairs_in_chain[j][0] != \
@@ -729,7 +786,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         # ---------------------------------------Prep data---------------------------------------#
 
         # Take arithmetic mean over chain order parameters
-        property_flatten = property_[:,start_frame:].flatten() # Shape change (NLipids, NFrames) -> (NLipids * NFrames,)
+        property_flatten = property_[:,
+                           start_frame:].flatten()  # Shape change (NLipids, NFrames) -> (NLipids * NFrames,)
 
         # ---------------------------------------Gaussian Mixture---------------------------------------#
 
