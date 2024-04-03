@@ -32,10 +32,14 @@ class PropertyCalculation(LeafletAnalysisBase):
         ----------
         """
 
-        # Altough sterols maybe do not play a larger role in the future for the domain identification it seems to be
+        # Although sterols maybe do not play a larger role in the future for the domain identification it seems to be
         # a good idea to keep this functionality
         self.resid_selection_sterols = {}
         self.resid_selection_sterols_heads = {}
+
+        # Weight matrix storage for each leaflet.
+        setattr(self.results, "upper_weight_all", [])
+        setattr(self.results, "lower_weight_all", [])
 
         # Next, a dictionary for EACH selected resid will be created. That's pretty much, but it is important to have
         # the order parameters for each lipid over the whole trajectory for the domain identification
@@ -273,12 +277,10 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Parameters
         ----------
-        coor_xy : numpy.ndarray
-            Mapped positions of the lipid headgroups
-        bx : float
-            Length of box vector in x direction
-        by : float
-            Length of box vector in y direction
+        leaflet : string
+            Index to decide upper/lower leaflet
+        boxdim : array
+            Length of box vectors in all directions
 
         Returns
         -------
@@ -291,8 +293,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Number of points in the plane
         coor_xy = self.surface_lipids_per_frame[str(leaflet)].positions
         ncoor = coor_xy.shape[0]
-        # TODO - This is used for coordinates = Is it head groups ?
-        #   self.surface_lipids_per_frame[str(leaflet)].positions,
+        # TODO Boxdim is selected in 2D for basic implementation. It will be changed to 3D with required implementations
         bx = boxdim[0]
         by = boxdim[1]
         # Create periodic images of the coordinates
@@ -318,7 +319,9 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Iterate over all members of the unit cell and calculate their occupied area
         apl = np.array([ConvexHull(vor.vertices[vor.regions[vor.point_region[i]]]).volume for i in range(ncoor)])
-
+        for i in range(0, len(self.surface_lipids_per_frame[str(leaflet)].resnums)):
+            resid = self.surface_lipids_per_frame[str(leaflet)].resnums[i]
+            getattr(self.results, f'id{resid}')[f'APL'][self.index] = apl[i]
         return apl, vor
 
     def weight_matrix(self, vor, leaflet):
@@ -330,8 +333,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         ----------
         vor : Voronoi Tesselation
             Scipy's Voronoi Diagram object
-        coor_xy : numpy.ndarray
-            Mapped positions of the lipid headgroups
+        leaflet : string
+            Index to decide upper/lower leaflet
 
         Returns
         -------
@@ -369,15 +372,14 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Select all indices of ridges that contain members of the unit cell
         mask_unit_cell = np.logical_or(vor.ridge_points[:, 0] < ncoor, vor.ridge_points[:, 1] < ncoor)
 
-        # Apply the modulus operator since some of the indices in "unit_cell_point" will point to coordinates
-        # outside the unit cell. Applying the modulus operator "%" will allow an indexing of the "weight_matrix".
-        # However, some of the indices in "unit_cell_point" will be doubled that shouldn't be an issue since the
-        # same weight factor is then just put several times in the same entry of the array (no summing or something similar!)
+        # Apply the modulus operator since some of the indices in "unit_cell_point" will point to coordinates outside
+        # the unit cell. Applying the modulus operator "%" will allow an indexing of the "weight_matrix". However, some
+        # of the indices in "unit_cell_point" will be doubled that shouldn't be an issue since the same weight factor is
+        # then just put several times in the same entry of the array (no summing or something similar!)
         unit_cell_point = vor.ridge_points[mask_unit_cell] % ncoor
 
         weight_matrix[unit_cell_point[:, 0], unit_cell_point[:, 1]] = wij[mask_unit_cell]
         weight_matrix[unit_cell_point[:, 1], unit_cell_point[:, 0]] = wij[mask_unit_cell]
-
         return weight_matrix
 
     def _single_frame(self):
@@ -408,29 +410,23 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.index = self.frame // self.step - self.start
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
-        # TODO Boxdim is selected in 2D for basic implementation. It will be changed to 3D with required implementations
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
-        # local_normals_dict_0 = self.get_local_area_normal(leaflet=0, boxdim=boxdim, periodic=True, exactness_level=10)
-        # local_normals_dict_1 = self.get_local_area_normal(leaflet=1, boxdim=boxdim, periodic=True, exactness_level=10)
-        # TODO Add Voronoi area calculation:
-        #  upper/lower_apl saved in data with residue id
-        #  upper/lower_vor used in weight matrix calculation
         upper_apl, upper_vor = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim)
         lower_apl, lower_vor = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim)
+        # TODO Local normal calculation
 
         # ------------------------------ Order parameter ------------------------------------------------------------- #
-        # TODO Add order parameter calculation
         self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_0, leaflet=0,
                               resid_heads_selection_leaflet=self.resid_heads_selection_0,
-                              local_normals=None, refZ=self.refZ)
+                              local_normals={}, refZ=self.refZ)
         self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_1, leaflet=1,
                               resid_heads_selection_leaflet=self.resid_heads_selection_1,
-                              local_normals=None, refZ=self.refZ)
+                              local_normals={}, refZ=self.refZ)
         # ------------------------------ Weight Matrix --------------------------------------------------------------- #
-        # TODO Decide saving style of weight matrices
         upper_weight_matrix = self.weight_matrix(upper_vor, leaflet=0)
         lower_weight_matrix = self.weight_matrix(lower_vor, leaflet=1)
-
+        self.results["upper_weight_all"].append(upper_weight_matrix)
+        self.results["lower_weight_all"].append(lower_weight_matrix)
 
         # Sterols
         for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
@@ -1028,6 +1024,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Get the order state of each lipid in the leaflet at the current time step
         # 1. Step: (lassign[ idxDPPC ][:, step] == leaflet) -> Which lipids are in the leaflet
         # 2. Step: orderDPPC[:, step][ ... ] --> What are their order parameters
+        # TODO Make it deterministic
         do_dppc = []#orderDPPC[:, step][lassign[idxDPPC][:, step] == leaflet]
         do_dipc = []#orderDIPC[:, step][lassign[idxDIPC][:, step] == leaflet]
         do_chol = []#orderCHOL[:, step][lassign[idxCHOL][:, step] == leaflet]
