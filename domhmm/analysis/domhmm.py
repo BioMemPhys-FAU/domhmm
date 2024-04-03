@@ -319,9 +319,12 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Iterate over all members of the unit cell and calculate their occupied area
         apl = np.array([ConvexHull(vor.vertices[vor.regions[vor.point_region[i]]]).volume for i in range(ncoor)])
+
+        # Save result
         for i in range(0, len(self.surface_lipids_per_frame[str(leaflet)].resnums)):
             resid = self.surface_lipids_per_frame[str(leaflet)].resnums[i]
             getattr(self.results, f'id{resid}')[f'APL'][self.index] = apl[i]
+
         return apl, vor
 
     def weight_matrix(self, vor, leaflet):
@@ -701,7 +704,15 @@ class PropertyCalculation(LeafletAnalysisBase):
         #  HMM
         #  GetisOrd
         #  Hierarchical Clustering
-
+        gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
+                      "max_iter": 10000, "n_init": 20,
+                      "warm_start": False, "covariance_type": "full"}
+        self.GMM(n_repeats=1, start_frame=1, gmm_kwargs=gmm_kwargs)
+        hmm_kwargs = {"verbose": 0, "tol": 1E-4, "n_iter": 2000,
+                      "algorithm": "viterbi", "covariance_type": "full",
+                      "init_params": "st", "params": "stmc"}
+        self.HMM(n_repeats=1, start_frame=1, hmm_kwargs=hmm_kwargs)
+        print('as')
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
     def GMM(self, n_repeats, start_frame, gmm_kwargs={}):
 
@@ -925,7 +936,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         assert self.n_frames == property_.shape[1], "Wrong input shape for the fitting of the HMM!"
 
         n_lipids = property_.shape[0]
-
         means_ = init_params[:, 0].reshape(3, -1)
         vars_ = init_params[:, 1].reshape(3, -1)
         weights_ = init_params[:, 2].reshape(3, -1)
@@ -933,9 +943,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         best_score = -np.inf
 
         for i in tqdm(range(n_repeats)):
-
             GHMM_n = GaussianHMM(n_components=3, means_prior=means_, covars_prior=vars_, **hmm_kwargs)
-
+            # TODO Error on shape of means_ and vars_
             GHMM_n.fit(property_[:, start_frame:].flatten().reshape(-1, 1),
                        lengths=np.repeat(self.n_frames - start_frame, n_lipids))
 
