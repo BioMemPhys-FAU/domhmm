@@ -50,7 +50,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Select specific resid
             resid_selection = self.universe.select_atoms(f"resid {resid}")
             # Get its lipid type
-            resname = np.unique(resid_selection.resnames)[0]
+            resname = resid_selection.resnames[0]
 
             # Check leaflet assignment -> based on RESID
             # LEAFLET 0?
@@ -475,7 +475,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Make a dictionary for the calculated values of each lipid type for each leaflet
         # -----------------------------------------------------------------------
 
+        # TODO Change it
         """
+        
         The result should be a dictionary with the following structure:
 
             - p2_per_type
@@ -500,26 +502,19 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Initialize storage dictionary
-
-        self.results.p2_per_type = {}
-        self.results.apl_per_type = {}
+        self.results.train_data_per_type = {}
 
         # Iterate over leaflets -> 0 top, 1 bottom
         for i in range(2):
 
             # Make dictionary for each leaflet
-            self.results.p2_per_type[f"Leaf{i}"] = {}
-            self.results.apl_per_type[f"Leaf{i}"] = {}
+            self.results.train_data_per_type[f"Leaf{i}"] = {}
 
-            # Iterate over resnames in each leaflet
-            for rsn in np.unique(self.leaflet_selection[str(i)].resnames):
-
-                # Iterate over number of acyl chains in lipid named "rsn"
-                for n_chain in range(len(self.tails[rsn])):
-                    # Make a list for each acyl chain in resn
-                    self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = []
-
-                self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"] = []
+            for rsn in self.unique_resnames:
+                # Create each leaflet's lipid types 3D empty array.
+                # Array will fill with order parameters of tails and area per lipid
+                num_tails = len(self.tails[rsn])
+                self.results.train_data_per_type[f"Leaf{i}"][f"{rsn}"] = [[] for i in range(num_tails + 1)]
 
         # -------------------------------------------------------------
 
@@ -541,11 +536,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                     indv_p2 = getattr(self.results, f'id{resid}')[f'P2_{n_chain}']
 
                     # Add it to the lipid type list
-                    self.results.p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{n_chain}"].append(indv_p2)
+                    self.results.train_data_per_type[f"Leaf{leaflet}"][f"{rsn}"][n_chain].append(indv_p2)
 
                 # Get area per lipid for specific residue
                 apl = getattr(self.results, f'id{resid}')['APL']
-                self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"].append(apl)
+                # Add it to the lipid type's result. Index is -1 since area per lipid is the latest element
+                self.results.train_data_per_type[f"Leaf{leaflet}"][f"{rsn}"][-1].append(apl)
 
             elif rsn in self.sterols:
                 pass
@@ -557,110 +553,15 @@ class PropertyCalculation(LeafletAnalysisBase):
         # -------------------------------------------------------------
 
         # Transform lists to arrays
-
+        # TODO Concate all lists to one big
         # Iterate over leaflets
         for i in range(2):
+            for rsn in self.unique_resnames:
+                self.results.train_data_per_type[f"Leaf{i}"][f"{rsn}"]["data"] = np.array([
+                    self.results.train_data_per_type[f"Leaf{i}"][f"{rsn}"][j]
+                    for j in range(len(self.results.train_data_per_type[f"Leaf{i}"][f"{rsn}"]))
+                ])
 
-            # Iterate over lipid in leaflet
-            for rsn in np.unique(self.leaflet_selection[str(i)].resnames):
-
-                # Check for sterol compound
-                if rsn not in self.sterols:
-
-                    # Iterate over chain
-                    for n_chain in range(len(self.tails[rsn])):
-                        # Transform list to array
-                        self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = np.array(
-                            self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"])
-
-                    # Just transform for area per lipid
-                    self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"] = np.array(
-                        self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"])
-
-        # -------------------------------------------------------------
-        # -------------------------------------------------------------
-
-        # ---------------------------------------------------------------------------
-        # Make a dictionary with averaged P2 values per C-H2 (or C-H) group PER chain
-        # ---------------------------------------------------------------------------
-
-        """
-        The result should be a dictionary with the following structure:
-
-            - mean_p2_per_type
-                - Leaf0
-                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms)
-                    - TypeA_1 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
-                    - TypeB_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
-                    - ...
-                - Leaf1
-                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
-                    - ...
-
-        That is not necessary for the area per lipid since this is just a scalar
-        """
-
-        self.results.mean_p2_per_type = {}
-
-        # Iterate over leaflets
-        for leaf_key, leaf in zip(self.results.p2_per_type.keys(), self.results.p2_per_type.values()):
-
-            self.results.mean_p2_per_type[leaf_key] = {}
-
-            # Iterate over lipid types
-            for key, val in zip(self.tails.keys(), self.tails.values()):
-
-                # Iterate over chains for each lipid type
-                for i, chain in enumerate(val):
-
-                    # Check if lipid type is in leaflet
-                    if f"{key}_{i}" in leaf.keys():
-
-                        # Get all pairs in chain
-                        pairs_in_chain = np.array_split(chain, len(chain) // 2)
-
-                        # Adding a dummy array ensures that double bonds at the end of an acyl chain are taken
-                        # into account
-                        pairs_in_chain += [np.array(["dummy", "dummy"])]
-
-                        n_pairs = len(pairs_in_chain)
-
-                        order_per_chain = []
-
-                        # Iterate over pairs
-                        for j in range(n_pairs - 2 + 1):
-
-                            # Check if a pair has the same aliphatic C-Atom
-
-                            # If so -> Calculate the average (i.e. C1-H1S and C1-H1R)
-                            # I transpose the resulting arrays several times to get a more logical shape of the
-                            # resulting array
-                            if pairs_in_chain[j][0] == pairs_in_chain[j + 1][0]:
-                                order_per_chain.append(leaf[f"{key}_{i}"][:, :, j:j + 2].mean(-1).T)
-
-                            # If there is a C-Atom UNEQUAL to the former AND the following C-Atom -> Assume double bond
-                            # -> No average over pairs
-
-                            # Edge case:
-                            # j = 0 -> j-1 = -1
-                            # Should not matter since latest atom in aliphatic name is named differently than first one
-                            # -> Should also work for double bonds at the first place of the
-                            elif pairs_in_chain[j][0] != pairs_in_chain[j + 1][0] and pairs_in_chain[j][0] != \
-                                    pairs_in_chain[j - 1][0]:
-                                order_per_chain.append(leaf[f"{key}_{i}"][:, :, j].T)
-
-                            # If just the following C-Atom is unequal pass on
-                            elif pairs_in_chain[j][0] != pairs_in_chain[j + 1][0]:
-                                pass
-
-                            else:
-                                raise ValueError(
-                                    f"Something odd in merging order parameters for {key} in chain {i} per CH2 happened!")
-
-                        self.results.mean_p2_per_type[leaf_key][f"{key}_{i}"] = np.array(order_per_chain).T
-
-                    else:
-                        pass
 
         # -------------------------------------------------------------
         # -------------------------------------------------------------
@@ -704,15 +605,14 @@ class PropertyCalculation(LeafletAnalysisBase):
         #  HMM
         #  GetisOrd
         #  Hierarchical Clustering
-        gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
-                      "max_iter": 10000, "n_init": 20,
-                      "warm_start": False, "covariance_type": "full"}
-        self.GMM(n_repeats=1, start_frame=1, gmm_kwargs=gmm_kwargs)
-        hmm_kwargs = {"verbose": 0, "tol": 1E-4, "n_iter": 2000,
-                      "algorithm": "viterbi", "covariance_type": "full",
-                      "init_params": "st", "params": "stmc"}
-        self.HMM(n_repeats=1, start_frame=1, hmm_kwargs=hmm_kwargs)
-        print('as')
+        # gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
+        #               "max_iter": 10000, "n_init": 20,
+        #               "warm_start": False, "covariance_type": "full"}
+        # self.GMM(n_repeats=1, start_frame=1, gmm_kwargs=gmm_kwargs)
+        # hmm_kwargs = {"verbose": 0, "tol": 1E-4, "n_iter": 2000,
+        #               "algorithm": "viterbi", "covariance_type": "full",
+        #               "init_params": "st", "params": "stmc"}
+        # self.HMM(n_repeats=1, start_frame=1, hmm_kwargs=hmm_kwargs)
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
     def GMM(self, n_repeats, start_frame, gmm_kwargs={}):
 
@@ -750,7 +650,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     def get_gmm_order_parameters(self, n_repeats, leaflet, start_frame, gmm_kwargs):
 
         # Get lipid types in leaflet
-        leaflet_resnames = np.unique(self.leaflet_resids[str(leaflet)].resnames)
+        leaflet_resnames = self.unique_resnames
 
         # Iterate over lipids in leaflet
         for rsn in leaflet_resnames:
@@ -766,7 +666,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     def get_gmm_area_per_lipid(self, n_repeats, leaflet, start_frame, gmm_kwargs):
 
         # Get lipid types in leaflet
-        leaflet_resnames = np.unique(self.leaflet_resids[str(leaflet)].resnames)
+        leaflet_resnames = self.unique_resnames
 
         # Iterate over lipids in leaflet
         for rsn in leaflet_resnames:
@@ -898,7 +798,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     def get_hmm_order_parameters(self, leaflet, n_repeats, start_frame, hmm_kwargs):
 
         # Get lipid types in leaflet
-        leaflet_resnames = np.unique(self.leaflet_resids[str(leaflet)].resnames)
+        leaflet_resnames = self.unique_resnames
 
         # Iterate over lipids in leaflet
         for rsn in leaflet_resnames:
@@ -917,7 +817,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     def get_hmm_area_per_lipid(self, leaflet, n_repeats, start_frame, hmm_kwargs):
 
         # Get lipid types in leaflet
-        leaflet_resnames = np.unique(self.leaflet_resids[str(leaflet)].resnames)
+        leaflet_resnames = self.unique_resnames
 
         # Iterate over lipids in leaflet
         for rsn in leaflet_resnames:

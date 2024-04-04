@@ -142,6 +142,9 @@ class LeafletAnalysisBase(AnalysisBase):
         # Membrane selection -> is later used for center of mass calculation
         self.memsele = self.universe.select_atoms(membrane_select)
 
+        # Save unique residue names
+        self.unique_resnames = np.unique(self.memsele.resnames)
+
         # Get residues ids in upper and lower leaflet -> self.leaflet_resids
         self.get_leaflet_resids()
 
@@ -240,7 +243,7 @@ class LeafletAnalysisBase(AnalysisBase):
         tails_selection_per_type = {}
 
         # Iterate over lipid types
-        for resname in np.unique(self.memsele.resnames):
+        for resname in self.unique_resnames:
 
             # ------------------------------------------------------HEAD SELECTION------------------------------------ #
 
