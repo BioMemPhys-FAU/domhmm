@@ -87,7 +87,7 @@ class LeafletAnalysisBase(AnalysisBase):
         # that can should used to store and retrieve results
         # See more at the MDAnalysis documentation:
         # https://docs.mdanalysis.org/stable/documentation_pages/analysis/base.html?highlight=results#MDAnalysis.analysis.base.Results
-
+        self.resid_tails_selection = {}
         self.universe = universe_or_atomgroup.universe
         self.membrane = universe_or_atomgroup.select_atoms(membrane_select)
         self.membrane_unique_resids = np.unique(self.membrane.resids)
@@ -214,168 +214,29 @@ class LeafletAnalysisBase(AnalysisBase):
     def get_leaflet_heads_tails(self):
 
         """
-        Make atomgroups for headgroups in upper and lower leaflet
-        Make atomgroups for tailgroups in upper and lower leaflet
+        Make atomgroups for tailgroups for each chain of residues
 
         Attributes
-        ---------- 
-        self.resid_heads_selection_0: dict
-            dictionary containing the head atomgroups for each residue in the upper leaflet 
-        self.resid_heads_selection_1: dict
-            dictionary containing the head atomgroups for each residue in the lower leaflet 
-        self.resid_tails_selection_0: dict
-            dictionary containing the tail atomgroups for each residue in the upper leaflet 
-        self.resid_tails_selection_1: dict
-            dictionary containing the tail atomgroups for each residue in the lower leaflet 
-
+        ----------
+        self.resid_tails_selection: dict
+            dictionary containing the tail atomgroups for all residues each tail
         """
-
-        # Init empty dict
-        self.resid_heads_selection_0 = {}
-        self.resid_heads_selection_1 = {}
-
-        # Init empty dict
-        self.resid_tails_selection_0 = {}
-        self.resid_tails_selection_1 = {}
-
-        # Select the groups for heads and tails once and not for every single resid
-        head_selection_per_type = {}
-        tails_selection_per_type = {}
-
+        # Temporary dictionary for query collection of tails
+        tail_select_list = {}
         # Iterate over lipid types
         for resname in self.unique_resnames:
-
-            # ------------------------------------------------------HEAD SELECTION------------------------------------ #
-
-            # Prepare a MDAnalysis selection string (I.e. ['P', 'O11', 'O12', 'O13', 'O14'] ->
-            # 'name P or name O11 or name O12 or name O13 or name O14')
-            head_sele_str = 'name ' + ' or name '.join(self.heads[resname])
-
-            # Select for correct lipid type (I.e. 'name P or name O11 or name O12 or name O13 or name O14' ->
-            # 'resname POPC and (name P or name O11 or name O12 or name O13 or name O14)')
-            head_sele_str = f'resname {resname} and ({head_sele_str})'
-
-            # Use MDAnalysis select_atoms to make selection group for heads
-            head_selection = self.universe.select_atoms(head_sele_str)
-
-            # Check for correctness
-            assert head_selection.n_atoms > 0, (f"!!!-----ERROR-----!!!\nSelection for head group {head_sele_str} is "
-                                                f"empty.\n!!!-----ERROR-----!!!")
-
-            # Store atom selection in dictionary
-            head_selection_per_type[resname] = head_selection
-
-            # ------------------------------------------------------TAIL SELECTION------------------------------------ #
-
             # Make for every type an extra dictionary -> Tails suck because there so many of them per lipid (at least 2)
-            tails_selection_per_type[resname] = {}
-
-            """
-            Final structure should look like that
-
-            - tails_selection_per_type (dict)
-                - LipidA (dict)
-                    - Chain0 (list)
-                        - Atom selection Pair 0
-                        - Atom selection Pair 1
-                        -...
-                    - Chain1 (list)
-                        - Atom selection Pair 0
-                        - Atom selection Pair 1
-                        -...
-                - LipidB (dict)
-                    - ...
-
-            """
-
             # Iterate over tails (e.g. for standard phospholipids that 2)
             for i, tail in enumerate(self.tails[resname]):
-
                 # Check for correct input
-                assert len(
-                    tail) % 2 == 0, ('!!!-----ERROR-----!!!\nSelection list for tails must be even\n'
-                                     '!!!-----ERROR-----!!!')
-
-                n_pairs = len(tail) // 2  # Number of pairs in one tail
-
-                # Init empty list for every CHAIN
-                tails_selection_per_type[resname][str(i)] = []
-
-                # Iterate over all pairs and make extra selections
-                s, e = 0, 2
-                for j in range(n_pairs):
-                    # Prepare a MDAnalysis selection string (I.e. ['C22', 'H2R'] -> 'name C22 or name H2R')
-                    tail_sele_str = 'name ' + ' or name '.join(tail[s:e])
-                    s, e = e, e + 2  # Increase counter for next iteration -> 0,2 -> 2,4 -> 4,6 ...
-
-                    # Select for correct lipid type (I.e. I.e. ['C22', 'H2R'] -> 'name C22 or name H2R' ->
-                    # 'resname POPC and ('name C22 or name H2R')')
-                    tail_sele_str = f'resname {resname} and ({tail_sele_str})'
-
-                    # Use MDAnalysis select_atoms to make selection group for tails
-                    tail_selection = self.universe.select_atoms(tail_sele_str)
-
-                    # Check for correctness
-                    assert tail_selection.n_atoms > 0, (f"!!!-----ERROR-----!!!\n"
-                                                        f"Selection for tail group {tail_sele_str} is empty.\n"
-                                                        f"!!!-----ERROR-----!!!")
-                    assert tail_selection.n_atoms % 2 == 0, (f"!!!-----ERROR-----!!!\n"
-                                                             f"Selection for tail group {tail_sele_str} is not "
-                                                             f"dividable by 2.\n!!!-----ERROR-----!!!")
-
-                    tails_selection_per_type[resname][str(i)].append(tail_selection)
-
-        # Iterate over leaflets
-        for idx, leafgroup in zip(self.leaflet_selection.keys(), self.leaflet_selection.values()):
-
-            leaf_resids = np.unique(self.leaflet_resids[idx].resids)
-
-            # Iterate over resids in leaflet
-            for resid in tqdm(leaf_resids):
-
-                # Select specific resid
-                resid_selection = self.universe.select_atoms(f'resid {resid}')
-                # Get the lipid type of the specific resid
-                resid_resname = resid_selection.resnames[0]
-
-                # -----------------------------------------------------HEAD SELECTION--------------------------------- #
-
-                # Assign selected head group to upper or lower leaflet
-                if idx == "0":
-                    self.resid_heads_selection_0[str(resid)] = resid_selection.intersection(
-                        head_selection_per_type[resid_resname])
-                else:
-                    self.resid_heads_selection_1[str(resid)] = resid_selection.intersection(
-                        head_selection_per_type[resid_resname])
-
-                # -----------------------------------------------------TAIL SELECTION--------------------------------- #
-                # Make an extra dictionary for each tail
-                if idx == "0":
-                    self.resid_tails_selection_0[str(resid)] = {}
-                else:
-                    self.resid_tails_selection_1[str(resid)] = {}
-
-                # Iterate over tails (e.g. for standard phospholipids that 2)
-                for i, tail in enumerate(self.tails[resid_resname]):
-
-                    n_pairs = len(tail) // 2  # Number of pairs in one tail
-
-                    # Init empty list for each pair
-                    if idx == "0":
-                        self.resid_tails_selection_0[str(resid)][str(i)] = []
-                    else:
-                        self.resid_tails_selection_1[str(resid)][str(i)] = []
-
-                    # Iterate over all pairs and make extra selections
-                    s, e = 0, 2
-                    for j in range(n_pairs):
-
-                        # Use MDAnalysis select_atoms to make selection group for tails
-                        tail_selection = self.universe.select_atoms(tail_sele_str)
-
-                        if idx == "0":
-                            self.resid_tails_selection_0[str(resid)][str(i)].append(
-                                resid_selection.intersection(tails_selection_per_type[resid_resname][str(i)][j]))
-                        else:
-                            self.resid_tails_selection_1[str(resid)][str(i)].append(
-                                resid_selection.intersection(tails_selection_per_type[resid_resname][str(i)][j]))
+                assert len(tail) % 2 == 0, 'Error: Selection list for tails must be even'
+                # Prepare a MDAnalysis selection string (I.e. ['C22', 'H2R'] -> 'name C22 or name H2R')
+                tail_sele_str = 'name ' + ' or name '.join(tail)
+                # Select for correct lipid type (I.e. I.e. ['C22', 'H2R'] -> 'name C22 or name H2R' ->
+                # 'resname POPC and ('name C22 or name H2R')')
+                tail_sele_str = f'(resname {resname} and ({tail_sele_str}))'
+                tail_select_list.setdefault(i, []).append(tail_sele_str)
+        # Create tail selection dictionary for each chain
+        for i, query_list in tail_select_list.items():
+            query = " or ".join(query_list)
+            self.resid_tails_selection[f"Chain_{i+1}"] = self.universe.select_atoms(query)
