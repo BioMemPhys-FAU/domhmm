@@ -239,4 +239,4 @@ class LeafletAnalysisBase(AnalysisBase):
         # Create tail selection dictionary for each chain
         for i, query_list in tail_select_list.items():
             query = " or ".join(query_list)
-            self.resid_tails_selection[f"Chain_{i+1}"] = self.universe.select_atoms(query)
+            self.resid_tails_selection[i] = self.universe.select_atoms(query)
