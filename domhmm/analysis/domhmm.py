@@ -8,6 +8,7 @@ This module contains the :class:`LocalFluctuation` class.
 
 from .base import LeafletAnalysisBase
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn import mixture
 from hmmlearn.hmm import GaussianHMM
 from scipy.spatial import Voronoi, ConvexHull
@@ -354,20 +355,29 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.results.train_data_per_type[f"{rsn}"][1] = np.array(self.results.train_data_per_type[f"{rsn}"][1])
         # -------------------------------------------------------------
         # TODO Add post-processing parts to here:
-        #  HMM
         #  GetisOrd
         #  Hierarchical Clustering
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
                       "max_iter": 10000, "n_init": 20,
                       "warm_start": False, "covariance_type": "full"}
         self.GMM(gmm_kwargs=gmm_kwargs)
-        # hmm_kwargs = {"verbose": 0, "tol": 1E-4, "n_iter": 2000,
-        #               "algorithm": "viterbi", "covariance_type": "full",
-        #               "init_params": "st", "params": "stmc"}
-        # self.HMM(n_repeats=1, start_frame=1, hmm_kwargs=hmm_kwargs)
+        # TODO Change number of iterations to 1000 or 2000
+        hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 20,
+                      "algorithm": "viterbi", "covariance_type": "full",
+                      "init_params": "st", "params": "stmc"}
+        self.HMM(hmm_kwargs=hmm_kwargs)
+
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
-    def GMM(self, gmm_kwargs={}):
+    def GMM(self, gmm_kwargs):
+        """
+        Fit Gaussian Mixture
+
+        Parameters
+        ----------
+        gmm_kwargs : dict
+            Additional parameters for mixture.GaussianMixture
+        """
         self.results["GMM"] = {}
         # Iterate over each residue and implement gaussian mixture model
         for res, data in self.results.train_data_per_type.items():
@@ -379,112 +389,97 @@ class PropertyCalculation(LeafletAnalysisBase):
             if not each.converged_:
                 print(f"{resname} Gaussian Mixture Model is not converged.")
 
+    # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
-    # ------------------------------ HIDDEN MARKOW MODEL ------------------------------------------------------------- #
-
-    def HMM(self, n_repeats, start_frame, hmm_kwargs={}):
-
-        if "GMM" not in self.results.keys() or len(self.results["GMM"]) == 0:
-            print("!!!---WARNING---!!!")
-            print("No Gaussian Mixture Model data found! Please run GMM first!")
-            return
-
-        else:
-            pass
-
+    def HMM(self, hmm_kwargs):
         self.results["HMM"] = {}
+        # Iterate over each residue and implement gaussian-hidden markov model
+        for res, data in self.results.train_data_per_type.items():
+            hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][res], hmm_kwargs=hmm_kwargs, n_repeats=2)
+            self.results["HMM"][res] = hmm
+        # TODO = Plot hidden markov model tolerance graph in verbose option
+        self.plot_hmm_result()
+
+    def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
 
         """
-        Structure as follows:
+        Fit several HMM models to the data and return the best one.
 
-            - HMM
-                - Leaf0
-                    - LipidA
-                        - Trained HMM for Tail 1 of Lipid A
-                        - Trained HMM for Tail 2 of Lipid A
-                        - Trained HMM for APL of Lipid A
-                    - ...
-                - Leaf1
-                    - LipidA
-                        - ...
+        Parameters
+        ----------
+        data : numpy.ndarray
+            Data of the single lipid properties for one lipid type at each time step
+        gmm : GaussianMixture Model
+            Scikit-learn object
+        n_repeats : int
+            Number of independent fits
+        dim : int
+            Dimension of lipid property space
 
+        hmm_kwargs: dict
+            Additional parameters for Hidden Markov Model
+
+        Returns
+        -------
+        best_ghmm : GaussianHMM
+            hmmlearn object
 
         """
 
-        # Iterate over leaflets
-        for idx, leafgroup in zip(self.leaflet_selection.keys(), self.leaflet_selection.values()):
-            # Init empty dictionary for each leaflet
-            self.results["HMM"][f"Leaf{idx}"] = {}
+        # Specify the length of the sequence for each lipid
+        n_lipids = data.shape[0]
+        lengths = np.repeat(self.n_frames, n_lipids)
 
-        self.get_hmm_order_parameters(leaflet=0, n_repeats=n_repeats, start_frame=start_frame, hmm_kwargs=hmm_kwargs)
-        self.get_hmm_order_parameters(leaflet=1, n_repeats=n_repeats, start_frame=start_frame, hmm_kwargs=hmm_kwargs)
+        # The HMM fitting is started multiple times from
+        # different starting conditions
 
-        self.get_hmm_area_per_lipid(leaflet=0, n_repeats=n_repeats, start_frame=start_frame, hmm_kwargs=hmm_kwargs)
-        self.get_hmm_area_per_lipid(leaflet=1, n_repeats=n_repeats, start_frame=start_frame, hmm_kwargs=hmm_kwargs)
-
-    def get_hmm_order_parameters(self, leaflet, n_repeats, start_frame, hmm_kwargs):
-
-        # Get lipid types in leaflet
-        leaflet_resnames = self.unique_resnames
-
-        # Iterate over lipids in leaflet
-        for rsn in leaflet_resnames:
-
-            if rsn in self.sterols: continue
-
-            # Iterate over tails (e.g. for standard phospholipids that 2)
-            for i, tail in enumerate(self.tails[rsn]):
-                self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"] = self.fit_hmm(
-                    property_=self.results.mean_p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{i}"].mean(2),
-                    init_params=self.results.GMM[f"Leaf{leaflet}"][f"{rsn}_{i}"],
-                    n_repeats=n_repeats,
-                    start_frame=start_frame,
-                    hmm_kwargs=hmm_kwargs)
-
-    def get_hmm_area_per_lipid(self, leaflet, n_repeats, start_frame, hmm_kwargs):
-
-        # Get lipid types in leaflet
-        leaflet_resnames = self.unique_resnames
-
-        # Iterate over lipids in leaflet
-        for rsn in leaflet_resnames:
-
-            if rsn in self.sterols: continue
-
-            self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_APL"] = self.fit_hmm(
-                property_=self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"],
-                init_params=self.results.GMM[f"Leaf{leaflet}"][f"{rsn}_APL"],
-                n_repeats=n_repeats,
-                start_frame=start_frame,
-                hmm_kwargs=hmm_kwargs)
-
-    def fit_hmm(self, property_, init_params, n_repeats, start_frame, hmm_kwargs):
-
-        assert self.n_frames == property_.shape[1], "Wrong input shape for the fitting of the HMM!"
-
-        n_lipids = property_.shape[0]
-        means_ = init_params[:, 0].reshape(3, -1)
-        vars_ = init_params[:, 1].reshape(3, -1)
-        weights_ = init_params[:, 2].reshape(3, -1)
-
+        # Initialize the best score with minus infinity
         best_score = -np.inf
 
+        # Re-start the HMM fitting 10 times
         for i in tqdm(range(n_repeats)):
-            GHMM_n = GaussianHMM(n_components=3, means_prior=means_, covars_prior=vars_, **hmm_kwargs)
-            # TODO Error on shape of means_ and vars_
-            GHMM_n.fit(property_[:, start_frame:].flatten().reshape(-1, 1),
-                       lengths=np.repeat(self.n_frames - start_frame, n_lipids))
 
-            score_n = GHMM_n.score(property_[:, start_frame:].flatten().reshape(-1, 1),
-                                   lengths=np.repeat(self.n_frames - start_frame, n_lipids))
+            # Initialize a HMM for one lipid type
+            ghmm_i = GaussianHMM(n_components=2,
+                                 means_prior=gmm.means_,
+                                 covars_prior=gmm.covariances_,
+                                 **hmm_kwargs)
 
-            if score_n > best_score:
-                best_score = score_n
-                GHMM = GHMM_n
+            # Train the HMM based on the data for every lipid and frame
+            ghmm_i.fit(data.reshape(-1, dim),
+                       lengths=lengths)
 
-            del GHMM_n
+            # Obtain the log-likelihood
+            # probability of the current model
+            score_i = ghmm_i.score(data.reshape(-1, dim),
+                                   lengths=lengths)
 
-        return GHMM
+            # Check if the quality of the result improved
+            if score_i > best_score:
+                best_score = score_i
+                best_ghmm = ghmm_i
+
+            # Delete the current model
+            del ghmm_i
+
+        return best_ghmm
+
+    def plot_hmm_result(self):
+        for resname, ghmm in self.results['HMM'].items():
+            plt.semilogy(np.arange(len(ghmm.monitor_.history) - 1), np.diff(np.array(ghmm.monitor_.history)),
+                          ls="-", label=resname, lw=2)
+
+        plt.legend(fontsize=15)
+
+        plt.semilogy(np.arange(100), np.repeat(1E-4, 100), color="k", ls="--", lw=2)
+        plt.xlim(0, 100)
+        plt.ylim(1E-5, 15E5)
+        plt.ylabel(r"$\Delta(log(\hat{L}))$", fontsize=18)
+        plt.xlabel("Iterations", fontsize=18)
+        plt.tick_params(axis="both", labelsize=11)
+        plt.text(s="Tolerance 1e-4", x=1, y=1E-4 + 0.00005, color="k", fontsize=15)
+        plt.title("a", fontsize=20, fontweight="bold", loc="left")
+        plt.show()
 
     def predict_states(self):
 
