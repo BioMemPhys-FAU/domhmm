@@ -55,45 +55,27 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Get its lipid type
             resname = resid_selection.resnames[0]
 
+            # Init results for order parameters -> For each resid we should have an array containing the order
+            # parameters for each frame
+            setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
+            getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
+
+            # Iterate over leaflet tails
+            n_tails = len(self.tails[resname])
+            for i in range(n_tails):
+                # Init storage for SCC values for each lipid
+                getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
+
+            # Store the area per lipid for each lipid
+            getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
+
             # Check leaflet assignment -> based on RESID
-            # LEAFLET 0?
-            # TODO Refactor this if - else branches
             if resid in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids:
-
-                # Init results for order parameters -> For each resid we should have an array containing the order
-                # parameters for each frame
-                setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
                 getattr(self.results, f'id{resid}')['Leaflet'] = 0  # -> Store information about leaflet assignment
-                getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
-
-                # Iterate over leaflet tails
-                n_tails = len(self.tails[resname])
-                for i in range(n_tails):
-                    # Init storage for SCC values for each lipid
-                    getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
-
-                # Store the area per lipid for each lipid
-                getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
-
-                # LEAFLET 1?
             elif resid in self.leaflet_selection["1"].resids and resid not in self.leaflet_selection["0"].resids:
-
-                # Init results for order parameters -> For each resid we should have an array containing the order
-                # parameters for each frame
-                setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
                 getattr(self.results, f'id{resid}')['Leaflet'] = 1  # -> Store information about leaflet assignment
-                getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
-
-                # Iterate over leaflet tails
-                n_tails = len(self.tails[resname])
-                for i in range(n_tails):
-                    # Init storage for SCC values for each lipid
-                    getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
-
-                # Store the area per lipid for each lipid
-                getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
             else:
-                raise ValueError(f'{resname} with resid {resid} not found in leaflets or sterol list!')
+                raise ValueError(f'{resname} with resid {resid} not found in leaflets')
 
     def calc_order_parameter(self, chain):
 
@@ -502,20 +484,16 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Save prediction result of each residue
             self.results['HMM_Pred'][resname] = prediction
         # TODO - May usable for verbose option
-        #   self.predict_plot()
+        self.predict_plot()
 
     def predict_plot(self):
         t = np.linspace(8, 10, self.n_frames)
         for resname in self.unique_resnames:
-            im = plt.plot(t, self.results['HMM_Pred'][resname].mean(0), label=resname)
-
+            plt.plot(t, self.results['HMM_Pred'][resname].mean(0), label=resname)
         plt.xticks([8, 8.5, 9, 9.5, 10])
-
         plt.xlabel(r"t ($\mu$s)", fontsize=18)
         plt.ylabel(r"$\bar{O}_{Lipid}$", fontsize=18)
-
         plt.legend(fontsize=15, ncols=1, loc="lower left")
-
         plt.ylim(0, 1)
         plt.xlim(8, 10)
         plt.title("b", fontsize=20, fontweight="bold", loc="left")
