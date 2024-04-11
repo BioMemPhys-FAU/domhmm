@@ -405,11 +405,13 @@ class PropertyCalculation(LeafletAnalysisBase):
             hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
             self.results["HMM"][resname] = hmm
         # TODO Plot hidden markov model tolerance graph in verbose option
-        # self.plot_hmm_result()
+        #   self.plot_hmm_result()
+
         # TODO Decide how to validate HMM (checking result models' means?)
 
         # Make predictions based on HMM model
         self.predict_states()
+
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
 
         """
@@ -499,7 +501,25 @@ class PropertyCalculation(LeafletAnalysisBase):
             prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
             # Save prediction result of each residue
             self.results['HMM_Pred'][resname] = prediction
+        # TODO - May usable for verbose option
+        #   self.predict_plot()
 
+    def predict_plot(self):
+        t = np.linspace(8, 10, self.n_frames)
+        for resname in self.unique_resnames:
+            im = plt.plot(t, self.results['HMM_Pred'][resname].mean(0), label=resname)
+
+        plt.xticks([8, 8.5, 9, 9.5, 10])
+
+        plt.xlabel(r"t ($\mu$s)", fontsize=18)
+        plt.ylabel(r"$\bar{O}_{Lipid}$", fontsize=18)
+
+        plt.legend(fontsize=15, ncols=1, loc="lower left")
+
+        plt.ylim(0, 1)
+        plt.xlim(8, 10)
+        plt.title("b", fontsize=20, fontweight="bold", loc="left")
+        plt.show()
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
     def getis_ord_stat(self, weight_matrix, leaflet, lassign):
