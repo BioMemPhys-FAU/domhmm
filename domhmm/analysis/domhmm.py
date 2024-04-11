@@ -36,7 +36,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         # a good idea to keep this functionality
         self.resid_selection_sterols = {}
 
-        # Weight matrix storage for each leaflet.
+        # Initialize storage dictionary
+        self.results.train_data_per_type = {}
+
+        # Initalize weight matrix storage for each leaflet.
         setattr(self.results, "upper_weight_all", [])
         setattr(self.results, "lower_weight_all", [])
 
@@ -53,6 +56,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             # Check leaflet assignment -> based on RESID
             # LEAFLET 0?
+            # TODO Refactor this if - else branches
             if resid in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids:
 
                 # Init results for order parameters -> For each resid we should have an array containing the order
@@ -305,20 +309,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Make a dictionary for the calculated values of each lipid type for each leaflet
         # -----------------------------------------------------------------------
 
-        # Initialize storage dictionary
-        self.results.train_data_per_type = {}
-
-        # Iterate over leaflets -> 0 top, 1 bottom
-        for i in range(2):
-
-            # Make dictionary for each leaflet
-            self.results.train_data_per_type[f"Leaf{i}"] = {}
-
-            for rsn in self.unique_resnames:
-                # Create each leaflet's lipid types 3D empty array.
-                # Array will fill with order parameters of tails and area per lipid
-                num_tails = len(self.tails[rsn])
-                self.results.train_data_per_type[f"Leaf{i}"][f"{rsn}"] = [[] for i in range(num_tails + 1)]
+        for rsn in self.unique_resnames:
+            # Create each leaflet's lipid types 3D empty array.
+            # Array will fill with order parameters of tails and area per lipid
+            num_tails = len(self.tails[rsn])
+            self.results.train_data_per_type[f"{rsn}"] = [[] for _ in range(2)]
 
         # -------------------------------------------------------------
 
@@ -328,24 +323,21 @@ class PropertyCalculation(LeafletAnalysisBase):
         for resid in self.membrane_unique_resids:
 
             # Grab leaflet and resname
-            leaflet = getattr(self.results, f'id{resid}')['Leaflet']
             rsn = getattr(self.results, f'id{resid}')['Resname']
 
             # Check if lipid is a sterol compound or not
             if rsn not in self.sterols:
-
-                # Iterate over chains -> For a normal phospholipid that should be 2
-                for n_chain in range(len(self.tails[rsn])):
-                    # Get individual lipid p2 values for corresponding chain
-                    indv_p2 = getattr(self.results, f'id{resid}')[f'SCC_{n_chain}']
-
-                    # Add it to the lipid type list
-                    self.results.train_data_per_type[f"Leaf{leaflet}"][f"{rsn}"][n_chain].append(indv_p2)
-
+                self.results.train_data_per_type[f"{rsn}"][0].append(resid)
                 # Get area per lipid for specific residue
                 apl = getattr(self.results, f'id{resid}')['APL']
-                # Add it to the lipid type's result. Index is -1 since area per lipid is the latest element
-                self.results.train_data_per_type[f"Leaf{leaflet}"][f"{rsn}"][-1].append(apl)
+                temp_result_array = [apl]
+                # Iterate over chains -> For a normal phospholipid that should be 2
+                for n_chain in range(len(self.tails[rsn])):
+                    # Get individual lipid scc values for corresponding chain
+                    indv_scc = getattr(self.results, f'id{resid}')[f'SCC_{n_chain}']
+                    temp_result_array.append(indv_scc)
+
+                self.results.train_data_per_type[f"{rsn}"][1].append(np.array(temp_result_array).transpose())
 
             elif rsn in self.sterols:
                 pass
@@ -357,170 +349,36 @@ class PropertyCalculation(LeafletAnalysisBase):
         # -------------------------------------------------------------
 
         # Transform lists to arrays
-        # TODO Concate all lists to one big
-        # Iterate over leaflets
-        for i in range(2):
-            for rsn in self.unique_resnames:
-                self.results.train_data_per_type[f"Leaf{i}"][f"{rsn}"]["data"] = np.array([
-                    self.results.train_data_per_type[f"Leaf{i}"][f"{rsn}"][j]
-                    for j in range(len(self.results.train_data_per_type[f"Leaf{i}"][f"{rsn}"]))
-                ])
-
+        for rsn in self.unique_resnames:
+            # If number of tail of some residues are more than 2, this line will throw error
+            self.results.train_data_per_type[f"{rsn}"][1] = np.array(self.results.train_data_per_type[f"{rsn}"][1])
         # -------------------------------------------------------------
-
         # TODO Add post-processing parts to here:
-        #  GMM
         #  HMM
         #  GetisOrd
         #  Hierarchical Clustering
-        # gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
-        #               "max_iter": 10000, "n_init": 20,
-        #               "warm_start": False, "covariance_type": "full"}
-        # self.GMM(n_repeats=1, start_frame=1, gmm_kwargs=gmm_kwargs)
+        gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
+                      "max_iter": 10000, "n_init": 20,
+                      "warm_start": False, "covariance_type": "full"}
+        self.GMM(gmm_kwargs=gmm_kwargs)
         # hmm_kwargs = {"verbose": 0, "tol": 1E-4, "n_iter": 2000,
         #               "algorithm": "viterbi", "covariance_type": "full",
         #               "init_params": "st", "params": "stmc"}
         # self.HMM(n_repeats=1, start_frame=1, hmm_kwargs=hmm_kwargs)
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
-    def GMM(self, n_repeats, start_frame, gmm_kwargs={}):
-
+    def GMM(self, gmm_kwargs={}):
         self.results["GMM"] = {}
+        # Iterate over each residue and implement gaussian mixture model
+        for res, data in self.results.train_data_per_type.items():
+            gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, 3))
+            self.results["GMM"][res] = gmm
 
-        """
-        Structure as follows:
+        # Check for convergence
+        for resname, each in self.results["GMM"].items():
+            if not each.converged_:
+                print(f"{resname} Gaussian Mixture Model is not converged.")
 
-            - GMM
-                - Leaf0
-                    - LipidA
-                        - GMM Results Tail 1
-                        - GMM Results Tail 2
-                        - ..
-                        - GMM Results APL
-                    - ...
-                - Leaf1
-                    - LipidA
-                        - ...
-
-
-        """
-
-        # Iterate over leaflets
-        for idx, leafgroup in zip(self.leaflet_selection.keys(), self.leaflet_selection.values()):
-            # Init empty dictionary for each leaflet
-            self.results["GMM"][f"Leaf{idx}"] = {}
-
-        self.get_gmm_order_parameters(leaflet=0, n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-        self.get_gmm_order_parameters(leaflet=1, n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-
-        self.get_gmm_area_per_lipid(leaflet=0, n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-        self.get_gmm_area_per_lipid(leaflet=1, n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-
-    def get_gmm_order_parameters(self, n_repeats, leaflet, start_frame, gmm_kwargs):
-
-        # Get lipid types in leaflet
-        leaflet_resnames = self.unique_resnames
-
-        # Iterate over lipids in leaflet
-        for rsn in leaflet_resnames:
-
-            if rsn in self.sterols: continue
-
-            # Iterate over tails (e.g. for standard phospholipids that 2)
-            for i, tail in enumerate(self.tails[rsn]):
-                self.results["GMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"] = self.fit_gmm(
-                    property_=self.results.mean_p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{i}"].mean(2),
-                    n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-
-    def get_gmm_area_per_lipid(self, n_repeats, leaflet, start_frame, gmm_kwargs):
-
-        # Get lipid types in leaflet
-        leaflet_resnames = self.unique_resnames
-
-        # Iterate over lipids in leaflet
-        for rsn in leaflet_resnames:
-
-            if rsn in self.sterols: continue
-
-            self.results["GMM"][f"Leaf{leaflet}"][f"{rsn}_APL"] = self.fit_gmm(
-                property_=self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"], n_repeats=n_repeats,
-                start_frame=start_frame, gmm_kwargs=gmm_kwargs, apl=True)
-
-    def fit_gmm(self, property_, gmm_kwargs, n_repeats, start_frame, apl=False):
-
-        """
-        Fit a Gaussian Mixture Model for each lipid type to the results of the property calculation.
-        This is done here for each leaflet separately!
-
-
-        Parameters
-        ----------
-        property_ : numpy.array
-            Input data for the gaussian mixture model ( Shape: (NLipids, NFrames) )
-
-
-        """
-
-        assert self.n_frames == property_.shape[1], "Wrong input shape for the fitting of the GMM!"
-
-        # ---------------------------------------Prep data---------------------------------------#
-
-        # Take arithmetic mean over chain order parameters
-        property_flatten = property_[:,
-                           start_frame:].flatten()  # Shape change (NLipids, NFrames) -> (NLipids * NFrames,)
-
-        # ---------------------------------------Gaussian Mixture---------------------------------------#
-
-        # Run the GaussianMixture Model for two components
-        best_score = -np.inf
-
-        for n in tqdm(range(n_repeats)):
-
-            GM_n = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(property_flatten.reshape((-1, 1)))
-
-            score_n = GM_n.score(property_.flatten().reshape((-1, 1)))
-
-            if score_n > best_score:
-                GM = GM_n
-                best_score = score_n
-
-            del GM_n
-
-        # ---------------------------------------Gaussian Mixture Results---------------------------------------#
-
-        if apl == False:
-            # The Gaussian distribution with the highest mean corresponds to the ordered state
-            param_o = np.argmax(GM.means_)
-            # The Gaussian distribution with the lowest mean corresponds to the disordered state
-            param_d = np.argmin(GM.means_)
-        else:
-            # The Gaussian distribution with the lowest mean corresponds to the ordered state
-            param_o = np.argmin(GM.means_)
-            # The Gaussian distribution with the highest mean corresponds to the disordered state
-            param_d = np.argmax(GM.means_)
-
-        # Get mean and variance of the fitted Gaussian distributions
-        mu_o, var_o, weights_o = GM.means_[param_o], GM.covariances_[param_o][0], GM.weights_[param_o]
-        mu_d, var_d, weights_d = GM.means_[param_d], GM.covariances_[param_d][0], GM.weights_[param_d]
-
-        sig_o = np.sqrt(var_o)
-        sig_d = np.sqrt(var_d)
-
-        # ---------------------------------------Intermediate Distribution---------------------------------------#
-        mu_I = (sig_d * mu_o + sig_o * mu_d) / (sig_d + sig_o)
-        sig_I = np.min([np.abs(mu_o - mu_I), np.abs(mu_d - mu_I)]) / 3
-        var_I = sig_I ** 2
-        weights_I = (weights_d + weights_o) / 2
-
-        # ----------------------------------------Conclude----------------------------------------#
-        # Put the fitted results in an easy to access format
-        fit_results = np.empty((3, 3), dtype=np.float32)
-
-        fit_results[0, 0], fit_results[0, 1], fit_results[0, 2] = mu_d, var_d, weights_d
-        fit_results[1, 0], fit_results[1, 1], fit_results[1, 2] = mu_I, var_I, weights_I
-        fit_results[2, 0], fit_results[2, 1], fit_results[2, 2] = mu_o, var_o, weights_o
-
-        return fit_results
 
     # ------------------------------ HIDDEN MARKOW MODEL ------------------------------------------------------------- #
 
