@@ -392,14 +392,24 @@ class PropertyCalculation(LeafletAnalysisBase):
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
     def HMM(self, hmm_kwargs):
+        """
+        Create Gaussian based Hidden Markov Models for each residue type
+        Parameters
+        ----------
+        hmm_kwargs : dict
+            Additional parameters for hmmlearn.hmm.GaussianHMM
+        """
         self.results["HMM"] = {}
         # Iterate over each residue and implement gaussian-hidden markov model
-        for res, data in self.results.train_data_per_type.items():
-            hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][res], hmm_kwargs=hmm_kwargs, n_repeats=2)
-            self.results["HMM"][res] = hmm
-        # TODO = Plot hidden markov model tolerance graph in verbose option
-        self.plot_hmm_result()
+        for resname, data in self.results.train_data_per_type.items():
+            hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
+            self.results["HMM"][resname] = hmm
+        # TODO Plot hidden markov model tolerance graph in verbose option
+        # self.plot_hmm_result()
+        # TODO Decide how to validate HMM (checking result models' means?)
 
+        # Make predictions based on HMM model
+        self.predict_states()
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
 
         """
@@ -468,9 +478,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         for resname, ghmm in self.results['HMM'].items():
             plt.semilogy(np.arange(len(ghmm.monitor_.history) - 1), np.diff(np.array(ghmm.monitor_.history)),
                           ls="-", label=resname, lw=2)
-
         plt.legend(fontsize=15)
-
         plt.semilogy(np.arange(100), np.repeat(1E-4, 100), color="k", ls="--", lw=2)
         plt.xlim(0, 100)
         plt.ylim(1E-5, 15E5)
@@ -482,37 +490,16 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.show()
 
     def predict_states(self):
+        self.results['HMM_Pred'] = {}
+        for resname, data in self.results.train_data_per_type.items():
+            shape = data[1].shape
+            hmm = self.results['HMM'][resname]
+            # Lengths consists of number of frames and number of residues
+            lengths = np.repeat(shape[1], shape[0])
+            prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+            # Save prediction result of each residue
+            self.results['HMM_Pred'][resname] = prediction
 
-        for resid in self.memsele.resids:
-
-            rsn = getattr(self.results, f'id{resid}')["Resname"]
-            leaflet = getattr(self.results, f'id{resid}')["Leaflet"]
-
-            if rsn not in self.sterols:
-
-                # ---------------------------------------------------------P2 Prediction---------------------------------------------------------#
-                # Iterate over tails (e.g. for standard phospholipids that 2)
-                for i, tail in enumerate(self.tails[rsn]):
-                    X = getattr(self.results, f'id{resid}')[f"P2_{i}"].mean(1)
-
-                    sorted_means = np.argsort(self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"].means_[:, 0])
-
-                    predX = self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"].predict(X.reshape(-1, 1))
-
-                    re_predX = np.array([sorted_means[predX_i] for predX_i in predX])
-
-                    getattr(self.results, f'id{resid}')[f"Pred_P2_{i}"] = re_predX
-
-                # ---------------------------------------------------------APL Prediction---------------------------------------------------------#
-                X = getattr(self.results, f'id{resid}')[f"APL"]
-
-                sorted_means = np.argsort(-1 * self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_APL"].means_[:, 0])
-
-                predX = self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_APL"].predict(X.reshape(-1, 1))
-
-                re_predX = np.array([sorted_means[predX_i] for predX_i in predX])
-
-                getattr(self.results, f'id{resid}')["Pred_APL"] = re_predX
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
     def getis_ord_stat(self, weight_matrix, leaflet, lassign):
