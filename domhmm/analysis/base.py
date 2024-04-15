@@ -143,7 +143,8 @@ class LeafletAnalysisBase(AnalysisBase):
         self.memsele = self.universe.select_atoms(membrane_select)
 
         # Save unique residue names
-        self.unique_resnames = np.unique(self.memsele.resnames)
+        _, idx = np.unique(self.memsele.resnames, return_index=True)
+        self.unique_resnames = self.memsele.resnames[np.sort(idx)]
 
         # Get residues ids in upper and lower leaflet -> self.leaflet_resids
         self.get_leaflet_resids()

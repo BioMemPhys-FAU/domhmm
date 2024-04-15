@@ -37,8 +37,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         # a good idea to keep this functionality
         self.resid_selection_sterols = {}
 
-        # Initialize storage dictionary
+        # Initialize result storage dictionaries
         self.results.train_data_per_type = {}
+        self.results.GMM = {}
+        self.results.HMM = {}
+        self.results.HMM_Pred = {}
+        self.results.Getis_Ord = {}
 
         # Initalize weight matrix storage for each leaflet.
         setattr(self.results, "upper_weight_all", [])
@@ -294,9 +298,9 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         for rsn in self.unique_resnames:
             # Create each leaflet's lipid types 3D empty array.
-            # Array will fill with order parameters of tails and area per lipid
+            # Array will fill with order parameters of tails, area per lipid and leaflet information
             num_tails = len(self.tails[rsn])
-            self.results.train_data_per_type[f"{rsn}"] = [[] for _ in range(2)]
+            self.results.train_data_per_type[f"{rsn}"] = [[] for _ in range(3)]
 
         # -------------------------------------------------------------
 
@@ -319,8 +323,10 @@ class PropertyCalculation(LeafletAnalysisBase):
                     # Get individual lipid scc values for corresponding chain
                     indv_scc = getattr(self.results, f'id{resid}')[f'SCC_{n_chain}']
                     temp_result_array.append(indv_scc)
-
+                # Add order parameter list and take transpose of it for HMM and GMM training requirements
                 self.results.train_data_per_type[f"{rsn}"][1].append(np.array(temp_result_array).transpose())
+                # Add leaflet information
+                self.results.train_data_per_type[f"{rsn}"][2].append(self.results[f'id{resid}']["Leaflet"])
 
             elif rsn in self.sterols:
                 pass
@@ -334,10 +340,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Transform lists to arrays
         for rsn in self.unique_resnames:
             # If number of tail of some residues are more than 2, this line will throw error
+            self.results.train_data_per_type[f"{rsn}"][0] = np.array(self.results.train_data_per_type[f"{rsn}"][0])
             self.results.train_data_per_type[f"{rsn}"][1] = np.array(self.results.train_data_per_type[f"{rsn}"][1])
+            self.results.train_data_per_type[f"{rsn}"][2] = np.array(self.results.train_data_per_type[f"{rsn}"][2])
         # -------------------------------------------------------------
         # TODO Add post-processing parts to here:
-        #  GetisOrd
         #  Hierarchical Clustering
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
                       "max_iter": 10000, "n_init": 20,
@@ -348,6 +355,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                       "algorithm": "viterbi", "covariance_type": "full",
                       "init_params": "st", "params": "stmc"}
         self.HMM(hmm_kwargs=hmm_kwargs)
+        self.getis_ord()
 
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
@@ -360,7 +368,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         gmm_kwargs : dict
             Additional parameters for mixture.GaussianMixture
         """
-        self.results["GMM"] = {}
         # Iterate over each residue and implement gaussian mixture model
         for res, data in self.results.train_data_per_type.items():
             gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, 3))
@@ -381,7 +388,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         hmm_kwargs : dict
             Additional parameters for hmmlearn.hmm.GaussianHMM
         """
-        self.results["HMM"] = {}
         # Iterate over each residue and implement gaussian-hidden markov model
         for resname, data in self.results.train_data_per_type.items():
             hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
@@ -474,7 +480,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.show()
 
     def predict_states(self):
-        self.results['HMM_Pred'] = {}
         for resname, data in self.results.train_data_per_type.items():
             shape = data[1].shape
             hmm = self.results['HMM'][resname]
@@ -484,7 +489,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Save prediction result of each residue
             self.results['HMM_Pred'][resname] = prediction
         # TODO - May usable for verbose option
-        self.predict_plot()
+        # self.predict_plot()
 
     def predict_plot(self):
         t = np.linspace(8, 10, self.n_frames)
@@ -500,82 +505,87 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.show()
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
-    def getis_ord_stat(self, weight_matrix, leaflet, lassign):
+    def getis_ord(self):
+        self.getis_ord_stat(self.results["upper_weight_all"], 0)
+        self.getis_ord_stat(self.results["lower_weight_all"], 1)
 
+    def getis_ord_stat(self, weight_matrix_all, leaflet):
         """
-        Getis-Ord Local Spatial Autocorrelation Statistics calculation based on the predicted order states
-        of each lipid and the weighting factors between neighbored lipids.
+            Getis-Ord Local Spatial Autocorrelation Statistics calculation based on the predicted order states
+            of each lipid and the weighting factors between neighbored lipids.
 
-        Be aware that this function is far from being elegant but it should do its job.
+            Be aware that this function is far from being elegant but it should do its job.
 
-        Parameters
-        ----------
-        weight_matrix : numpy.ndarray
-            Weight matrix for all lipid in a leaflet at current time step
-        leaflet : int
-            0 = upper leaflet, 1 = lower leafet
-        lassign : numpy.ndarray
-            Leaflet assignment for each molecule at each step of time
+            Parameters
+            ----------
+            weight_matrix_all : numpy.ndarray
+                Weight matrix for all lipid in a leaflet at current time step
+            leaflet : int
+                0 = upper leaflet, 1 = lower leafet
+            lassign : numpy.ndarray
+                Leaflet assignment for each molecule at each step of time
 
-        Returns
-        -------
-        g_star_i : list of numpy.ndarrays
-            G*i values for each lipid at each time step
-        w_ii_all : list of numpy.ndarrays
-            Self-influence of the lipids
-        """
+            Returns
+            -------
+            g_star_i : list of numpy.ndarrays
+                G*i values for each lipid at each time step
+            w_ii_all : list of numpy.ndarrays
+                Self-influence of the lipids
+            """
+        # Get the number of frames
+        nframes = self.n_frames
 
         # Initialize empty lists to store the G*i values and the self-influence of the lipids in a lipid
         g_star_i = []
         w_ii_all = []
 
-        # Get the weightmatrix of the leaflet at the current time step
+        # Iterate over frames
+        for step in range(nframes):
+            # Get the weightmatrix of the leaflet at the current time step
+            weight_matrix = weight_matrix_all[step]
 
-        # Number of lipids in the leaflet
-        n = weight_matrix.shape[0]
+            # Number of lipids in the leaflet
+            n = weight_matrix.shape[0]
 
-        # In case the code was already executed beforehand
-        weight_matrix[range(n), range(n)] = 0.
+            # In case the code was already executed beforehand
+            weight_matrix[range(n), range(n)] = 0.
 
-        # Get the order state of each lipid in the leaflet at the current time step
-        # 1. Step: (lassign[ idxDPPC ][:, step] == leaflet) -> Which lipids are in the leaflet
-        # 2. Step: orderDPPC[:, step][ ... ] --> What are their order parameters
-        # TODO Make it deterministic
-        do_dppc = []  # orderDPPC[:, step][lassign[idxDPPC][:, step] == leaflet]
-        do_dipc = []  # orderDIPC[:, step][lassign[idxDIPC][:, step] == leaflet]
-        do_chol = []  # orderCHOL[:, step][lassign[idxCHOL][:, step] == leaflet]
+            # Get the order state of each lipid in the leaflet at the current time step
+            # 1. Step: Which lipids are in the leaflet
+            # 2. Step: What are their order parameters
+            temp = []
+            for res, data in self.results.train_data_per_type.items():
+                temp.append(self.results["HMM_Pred"][res][:, step][data[2] == leaflet])
 
-        # Put all the order states in one array -> The order of the lipids must be the same as in the system!!!
-        order_states = np.concatenate([do_dppc, do_dipc, do_chol])
+            # Put all the order states in one array -> The order of the lipids must be the same as in the system!!!
+            order_states = np.concatenate(temp)
 
-        # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
-        nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
+            # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
+            nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
 
-        # Parameters for the Getis-Ord statistic
-        w_ii = np.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
-        weight_matrix[range(n), range(n)] = w_ii
-        w_star_i = np.sum(weight_matrix, axis=-1)  # + w_ii
-        s_star_1i = np.sum(weight_matrix ** 2, axis=-1)  # + w_ii**2
+            # Parameters for the Getis-Ord statistic
+            w_ii = np.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
+            weight_matrix[range(n), range(n)] = w_ii
+            w_star_i = np.sum(weight_matrix, axis=-1)  # + w_ii
+            s_star_1i = np.sum(weight_matrix ** 2, axis=-1)  # + w_ii**2
 
-        # Empirical standard deviation over all order states in the leaflet
-        s = np.std(order_states, ddof=1)
+            # Empirical standard deviation over all order states in the leaflet
+            s = np.std(order_states, ddof=1)
 
-        # Employ matrix-vector multiplication
-        so = weight_matrix @ order_states
+            # Employ matrix-vector multiplication
+            so = weight_matrix @ order_states
 
-        # Calculate the nominator for G*i
-        nom = so - w_star_i * 0.5
+            # Calculate the nominator for G*i
+            nom = so - w_star_i * 0.5
 
-        # Calculate the denominator for G*i
-        denom = s * np.sqrt((n * s_star_1i - w_star_i ** 2) / (n - 1))
+            # Calculate the denominator for G*i
+            denom = s * np.sqrt((n * s_star_1i - w_star_i ** 2) / (n - 1))
 
-        g_star = nom / denom
+            g_star = nom / denom
 
-        assert not np.any(nneighbor < 1), "Lipid found without a neighbor!"
+            assert not np.any(nneighbor < 1), "Lipid found without a neighbor!"
 
-        # TODO Results for Clustering
-        #  Should be saved in self.result
-        g_star_i.append(g_star)
-        w_ii_all.append(w_ii)
+            g_star_i.append(g_star)
+            w_ii_all.append(w_ii)
+        self.results['Getis_Ord'][leaflet] = {f"g_star_i_{leaflet}": g_star_i , f"w_ii_{leaflet}": w_ii_all}
 
-        return g_star_i, w_ii_all
