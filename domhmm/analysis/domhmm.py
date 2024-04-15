@@ -706,3 +706,138 @@ class PropertyCalculation(LeafletAnalysisBase):
                 g_star_i += list(g_star)
 
         return g_star_i
+
+# ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
+    def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f):
+
+        """
+        Assign lipids as core members (aka lipids with a high positive autocorrelation)
+        depending on the Getis-Ord spatial local autocorrelation statistic.
+
+        Parameters
+        ----------
+        weight_matrix_f : numpy.ndarray
+            Matrix containing the weight factors between all lipid pairs at one time step
+        g_star_i_f : numpy.ndarray
+            Getis-Ord spatial local autocorrelation statistic for every lipid at one time step
+        order_states_f: numpy.ndarray
+            Order states for every lipid at one time step
+        w_ii_f: numpy.ndarray
+            Self-influence weight factor for every lipid at one time step
+
+
+        Returns
+        -------
+        core_lipids : numpy.ndarray (bool)
+           Contains a TRUE value if the lipid is a core member, otherwise it FALSE
+        """
+
+        # Define boundary of the rection region
+        z1_a = 2.017  # 1.750 #1.307
+        z_a = -1.271
+
+        # Assign core members according to their auto-correlation
+        core_lipids = g_star_i_f > z1_a
+
+        # Assign lipids with a mid-range auto-correlation (-z_1-a, z_1-a) * Ordered
+        low_corr = (g_star_i_f <= z1_a) & (g_star_i_f >= z_a) & (order_states_f == 1)
+
+        # Add iteratively new lipids to the core members
+        n_cores_old = np.inf
+        n_cores_new = np.sum(core_lipids)
+
+        # Iterate until self-consistency is reached
+        while n_cores_old != n_cores_new:
+            # Check how tightly the lipids are connected to the core members
+            new_core_lipids = (weight_matrix_f[core_lipids].sum(0) > w_ii_f) & low_corr
+
+            # Assign lipids to core members if condition is full-filled
+            core_lipids[new_core_lipids] = True
+
+            # Update number of core lipids
+            n_cores_old = n_cores_new
+            n_cores_new = np.sum(core_lipids)
+
+        return core_lipids
+
+    def hierarchical_clustering(self, weight_matrix_f, w_ii_f, core_lipids):
+
+        """
+        Hierarchical clustering approach to identify spatial related Lo domains.
+
+        Parameters
+        ----------
+        weight_matrix_f : numpy.ndarray
+            Matrix containing the weight factors between all lipid pairs at one time step
+        w_ii_f: numpy.ndarray
+            Self-influence weight factor for every lipid at one time step
+        core_lipids : numpy.ndarray
+            Array contains information which lipid is assigned as core member
+
+        Returns
+        -------
+        clusters : dict
+            The dictionary contains each found cluster
+
+        """
+
+        # Merge iteratively clusters
+        n_clusters_old = np.inf
+        n_clusters_new = np.sum(core_lipids)
+
+        # Get the indices of the core lipids
+        core_lipids_id = np.where(core_lipids)[0]
+
+        # Store clusters in a Python dictionary
+        # Initialize all core lipids as clusters
+        clusters = dict(
+            zip(
+                core_lipids_id.astype("U"),
+                [[id] for id in core_lipids_id]
+            )
+        )
+
+        # Iterate until self-consistency is reached
+        while n_clusters_old != n_clusters_new:
+
+            # Get a list of the IDs of current clusters
+            cluster_ids = list(clusters.keys())
+
+            # Iterate over all clusters i
+            for i, id_i in enumerate(cluster_ids):
+
+                # If cluster i was already merged and deleted, skip it!
+                if id_i not in clusters.keys(): continue
+
+                # The cluster weights are defined as the sum
+                # over the weights of all lipid members
+                cluster_weights_i = np.sum(weight_matrix_f[clusters[id_i]], axis=0)
+
+                # Compare cluster weights to the self-influence of each lipid
+                merge_condition_i = cluster_weights_i > w_ii_f
+
+                # Iterate over all clusters j
+                for id_j in cluster_ids[(i + 1):]:
+
+                    # Do not merge a cluster with itself
+                    if id_i == id_j: continue
+                    # If cluster j was already merged and deleted, skip it!
+                    if id_j not in clusters.keys(): continue
+
+                    # Calculate cluster weights and compare to lipids self-influence
+                    cluster_weights_j = np.sum(weight_matrix_f[clusters[id_j]], axis=0)
+                    merge_condition_j = cluster_weights_j > w_ii_f
+
+                    # If the condition is fullfilled for any lipid -> Merge the clusters
+                    if np.any(merge_condition_i[clusters[id_j]]) or np.any(merge_condition_j[clusters[id_i]]):
+                        # Merge cluster j into cluster i
+                        clusters[id_i] += clusters[id_j]
+
+                        # Delete cluster j from the cluster dict
+                        del clusters[id_j]
+
+            # Update cluster numbers
+            n_clusters_old = n_clusters_new
+            n_clusters_new = len(clusters.keys())
+
+        return clusters
