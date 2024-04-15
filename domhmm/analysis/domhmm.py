@@ -357,7 +357,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.HMM(hmm_kwargs=hmm_kwargs)
         self.getis_ord()
 
-
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
     def GMM(self, gmm_kwargs):
         """
@@ -467,7 +466,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     def plot_hmm_result(self):
         for resname, ghmm in self.results['HMM'].items():
             plt.semilogy(np.arange(len(ghmm.monitor_.history) - 1), np.diff(np.array(ghmm.monitor_.history)),
-                          ls="-", label=resname, lw=2)
+                         ls="-", label=resname, lw=2)
         plt.legend(fontsize=15)
         plt.semilogy(np.arange(100), np.repeat(1E-4, 100), color="k", ls="--", lw=2)
         plt.xlim(0, 100)
@@ -587,5 +586,123 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             g_star_i.append(g_star)
             w_ii_all.append(w_ii)
-        self.results['Getis_Ord'][leaflet] = {f"g_star_i_{leaflet}": g_star_i , f"w_ii_{leaflet}": w_ii_all}
+        self.results['Getis_Ord'][leaflet] = {f"g_star_i_{leaflet}": g_star_i, f"w_ii_{leaflet}": w_ii_all}
 
+    def getis_ord_plot(self):
+        g_star_i_temp = [[] for _ in range(2)]
+        for step in range(self.n_frames):
+            buffer_0 = 0
+            buffer_1 = 0
+            temp_0 = []
+            temp_1 = []
+            for res, data in self.results.train_data_per_type.items():
+                temp = np.where(self.results["HMM_Pred"][res][:, step][data[2] == 0])[0].shape[0]
+                temp_0.append(temp + buffer_0)
+                buffer_0 += temp
+                temp = np.where(self.results["HMM_Pred"][res][:, step][data[2] == 1])[0].shape[0]
+                temp_1.append(temp + buffer_1)
+                buffer_1 += temp
+            for i in range(0, len(temp_0)):
+                # Error about indexing
+                # Find a better way
+                g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step][:temp_0[i]],
+                                                   self.results['Getis_Ord'][1]['g_star_i_1'][step][:temp_1[i]]))
+
+        for each in g_star_i_temp:
+            plt.hist(each, bins=np.linspace(-3, 3, 201), density=True, histtype="step", lw=2)
+
+        plt.legend(fontsize=15, loc="upper left", ncols=2)
+
+        plt.xlim(-3, 3)
+        plt.ylim(0, .9)
+
+        xl = plt.xlabel("$G^*_i$", fontsize=18)
+        plt.ylabel("$p(G^*_i)$", fontsize=18)
+        plt.tick_params(labelsize=11)
+
+        plt.title("a", fontsize=20, fontweight="bold", loc="left")
+        plt.show()
+
+    def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
+
+        """
+        Getis-Ord Local Spatial Autocorrelation Statistics calculation based on the predicted order states
+        of each lipid and the weighting factors between neighbored lipids.
+
+        Be aware that this function is far from being elegant but it should do its job.
+
+        Parameters
+        ----------
+        weight_matrix_all : numpy.ndarray
+            Weight matrices for all lipid in a leaflet at each time step
+        leaflet : int
+            0 = upper leaflet, 1 = lower leafet
+
+        Returns
+        -------
+        g_star_i : list of numpy.ndarrays
+            G*i values for each lipid at each time step
+        """
+
+        # Get the number of frames
+        nframes = self.n_frames
+
+        # Initialize empty lists to store the G*i values and the self-influence of the lipids in a lipid
+        g_star_i = []
+
+        # Do 10 permutations per frame
+        n_permut = 10
+
+        # Iterate over frames
+        for step in tqdm(range(nframes)):
+
+            for permut in range(n_permut):
+                # Get the weightmatrix of the leaflet at the current time step
+                weight_matrix = weight_matrix_all[step]
+
+                # Number of lipids in the leaflet
+                n = weight_matrix.shape[0]
+
+                # In case the code was already executed beforehand
+                weight_matrix[range(n), range(n)] = 0.0
+
+                # Get the order state of each lipid in the leaflet at the current time step
+                # 1. Step: Which lipids are in the leaflet
+                # 2. Step: What are their order parameters
+                temp = []
+                for res, data in self.results.train_data_per_type.items():
+                    temp.append(self.results["HMM_Pred"][res][:, step][data[2] == leaflet])
+
+                # Put all the order states in one array -> The order of the lipids must be the same as in the system!!!
+                order_states = np.concatenate(temp)
+
+                np.random.shuffle(order_states)
+
+                # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
+                nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
+
+                # Parameters for the Getis-Ord statistic
+                w_ii = np.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
+                weight_matrix[range(n), range(n)] = w_ii
+                w_star_i = np.sum(weight_matrix, axis=-1)  # + w_ii
+                s_star_1i = np.sum(weight_matrix ** 2, axis=-1)  # + w_ii**2
+
+                # Empirical standard deviation over all order states in the leaflet
+                s = np.std(order_states, ddof=1)
+
+                # Employ matrix-vector multiplication
+                so = weight_matrix @ order_states
+
+                # Calculate the nominator for G*i
+                nom = so - w_star_i * 0.5
+
+                # Calculate the denominator for G*i
+                denom = s * np.sqrt((n * s_star_1i - w_star_i ** 2) / (n - 1))
+
+                g_star = nom / denom
+
+                assert not np.any(nneighbor < 1), "Lipid found without a neighbor!"
+
+                g_star_i += list(g_star)
+
+        return g_star_i
