@@ -350,7 +350,6 @@ class PropertyCalculation(LeafletAnalysisBase):
                       "max_iter": 10000, "n_init": 20,
                       "warm_start": False, "covariance_type": "full"}
         self.GMM(gmm_kwargs=gmm_kwargs)
-        # TODO Change number of iterations to 1000 or 2000
         hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 1000,
                       "algorithm": "viterbi", "covariance_type": "full",
                       "init_params": "st", "params": "stmc"}
@@ -392,15 +391,15 @@ class PropertyCalculation(LeafletAnalysisBase):
         for resname, data in self.results.train_data_per_type.items():
             hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
             self.results["HMM"][resname] = hmm
-        # TODO Plot hidden markov model tolerance graph in verbose option
+        # Plot result of hmm
         self.plot_hmm_result()
 
         # Make predictions based on HMM model
         self.predict_states()
         # Validate states and result prediction
         self.state_validate()
-        # TODO - May usable for verbose option
-        #   self.predict_plot()
+        # Plot prediction result
+        self.predict_plot()
 
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
 
