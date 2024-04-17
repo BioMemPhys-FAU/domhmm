@@ -351,7 +351,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                       "warm_start": False, "covariance_type": "full"}
         self.GMM(gmm_kwargs=gmm_kwargs)
         # TODO Change number of iterations to 1000 or 2000
-        hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 20,
+        hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 1000,
                       "algorithm": "viterbi", "covariance_type": "full",
                       "init_params": "st", "params": "stmc"}
         self.HMM(hmm_kwargs=hmm_kwargs)
@@ -393,12 +393,14 @@ class PropertyCalculation(LeafletAnalysisBase):
             hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
             self.results["HMM"][resname] = hmm
         # TODO Plot hidden markov model tolerance graph in verbose option
-        #   self.plot_hmm_result()
+        self.plot_hmm_result()
 
         # Make predictions based on HMM model
         self.predict_states()
         # Validate states and result prediction
-        # TODO Decide how to validate HMM (by checking result models' means)
+        self.state_validate()
+        # TODO - May usable for verbose option
+        #   self.predict_plot()
 
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
 
@@ -488,8 +490,16 @@ class PropertyCalculation(LeafletAnalysisBase):
             prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
             # Save prediction result of each residue
             self.results['HMM_Pred'][resname] = prediction
-        # TODO - May usable for verbose option
-        # self.predict_plot()
+
+    def state_validate(self):
+        """
+        Validate state assignments of HMM model by checking means of the model of each residue.
+        """
+        for resname, gmm in self.results["HMM"].items():
+            means = gmm.means_
+            diff_percents = (means[0, 0] - means[1, 0]) / means[0, 0]
+            if diff_percents > 0.1 :
+                self.results['HMM_Pred'][resname] = np.abs(self.results['HMM_Pred'][resname] - 1)
 
     def predict_plot(self):
         t = np.linspace(8, 10, self.n_frames)
@@ -586,14 +596,18 @@ class PropertyCalculation(LeafletAnalysisBase):
         for step in range(self.n_frames):
             index_dict_0 = self.get_leaflet_step_order_index(leaflet=0)
             index_dict_1 = self.get_leaflet_step_order_index(leaflet=1)
-            temp_index_list = []
+            temp_index_list_0 = [0]
+            temp_index_list_1 = [0]
             for resname in self.unique_resnames:
-                temp_index_list.append([index_dict_0[resname],index_dict_1[resname]])
+                temp_index_list_0.append(temp_index_list_0[-1] + len(index_dict_0[resname]) - 1)
+                temp_index_list_1.append(temp_index_list_1[-1] + len(index_dict_1[resname]) - 1 )
             for i in range(resnum):
-                g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step][temp_index_list[i][0]],
-                                                   self.results['Getis_Ord'][1]['g_star_i_1'][step][temp_index_list[i][0]]))
+                g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step]
+                                                   [temp_index_list_0[i]:temp_index_list_0[i+1]],
+                                                   self.results['Getis_Ord'][1]['g_star_i_1'][step]
+                                                   [temp_index_list_1[i]:temp_index_list_1[i+1]]))
 
-        for i in range(0, len(g_star_i_temp)):
+        for i in range(resnum):
             plt.hist(g_star_i_temp[i], bins=np.linspace(-3, 3, 201), density=True, histtype="step", lw=2,
                      label=self.unique_resnames[i])
 
@@ -862,5 +876,5 @@ class PropertyCalculation(LeafletAnalysisBase):
         result = {}
         for res, data in self.results.train_data_per_type.items():
             indexes = np.where(data[2] == leaflet)
-            result[res] = indexes
+            result[res] = indexes[0]
         return result

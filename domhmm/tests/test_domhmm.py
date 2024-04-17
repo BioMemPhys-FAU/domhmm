@@ -36,4 +36,4 @@ def test_run():
                                membrane_select= membrane_select,
                                heads= heads,
                                tails=tails)\
-        .run(start=10, stop=20)
+        .run(start=0, stop=100)
