@@ -356,6 +356,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                       "init_params": "st", "params": "stmc"}
         self.HMM(hmm_kwargs=hmm_kwargs)
         self.getis_ord()
+        self.getis_ord_plot()
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
     def GMM(self, gmm_kwargs):
@@ -394,10 +395,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         # TODO Plot hidden markov model tolerance graph in verbose option
         #   self.plot_hmm_result()
 
-        # TODO Decide how to validate HMM (checking result models' means?)
-
         # Make predictions based on HMM model
         self.predict_states()
+        # Validate states and result prediction
+        # TODO Decide how to validate HMM (by checking result models' means)
 
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
 
@@ -513,8 +514,6 @@ class PropertyCalculation(LeafletAnalysisBase):
             Getis-Ord Local Spatial Autocorrelation Statistics calculation based on the predicted order states
             of each lipid and the weighting factors between neighbored lipids.
 
-            Be aware that this function is far from being elegant but it should do its job.
-
             Parameters
             ----------
             weight_matrix_all : numpy.ndarray
@@ -550,14 +549,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             weight_matrix[range(n), range(n)] = 0.
 
             # Get the order state of each lipid in the leaflet at the current time step
-            # 1. Step: Which lipids are in the leaflet
-            # 2. Step: What are their order parameters
-            temp = []
-            for res, data in self.results.train_data_per_type.items():
-                temp.append(self.results["HMM_Pred"][res][:, step][data[2] == leaflet])
-
-            # Put all the order states in one array -> The order of the lipids must be the same as in the system!!!
-            order_states = np.concatenate(temp)
+            order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
 
             # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
             nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
@@ -589,27 +581,21 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.results['Getis_Ord'][leaflet] = {f"g_star_i_{leaflet}": g_star_i, f"w_ii_{leaflet}": w_ii_all}
 
     def getis_ord_plot(self):
-        g_star_i_temp = [[] for _ in range(2)]
+        resnum = len(self.unique_resnames)
+        g_star_i_temp = [[] for _ in range(resnum)]
         for step in range(self.n_frames):
-            buffer_0 = 0
-            buffer_1 = 0
-            temp_0 = []
-            temp_1 = []
-            for res, data in self.results.train_data_per_type.items():
-                temp = np.where(self.results["HMM_Pred"][res][:, step][data[2] == 0])[0].shape[0]
-                temp_0.append(temp + buffer_0)
-                buffer_0 += temp
-                temp = np.where(self.results["HMM_Pred"][res][:, step][data[2] == 1])[0].shape[0]
-                temp_1.append(temp + buffer_1)
-                buffer_1 += temp
-            for i in range(0, len(temp_0)):
-                # Error about indexing
-                # Find a better way
-                g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step][:temp_0[i]],
-                                                   self.results['Getis_Ord'][1]['g_star_i_1'][step][:temp_1[i]]))
+            index_dict_0 = self.get_leaflet_step_order_index(leaflet=0)
+            index_dict_1 = self.get_leaflet_step_order_index(leaflet=1)
+            temp_index_list = []
+            for resname in self.unique_resnames:
+                temp_index_list.append([index_dict_0[resname],index_dict_1[resname]])
+            for i in range(resnum):
+                g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step][temp_index_list[i][0]],
+                                                   self.results['Getis_Ord'][1]['g_star_i_1'][step][temp_index_list[i][0]]))
 
-        for each in g_star_i_temp:
-            plt.hist(each, bins=np.linspace(-3, 3, 201), density=True, histtype="step", lw=2)
+        for i in range(0, len(g_star_i_temp)):
+            plt.hist(g_star_i_temp[i], bins=np.linspace(-3, 3, 201), density=True, histtype="step", lw=2,
+                     label=self.unique_resnames[i])
 
         plt.legend(fontsize=15, loc="upper left", ncols=2)
 
@@ -628,8 +614,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         Getis-Ord Local Spatial Autocorrelation Statistics calculation based on the predicted order states
         of each lipid and the weighting factors between neighbored lipids.
-
-        Be aware that this function is far from being elegant but it should do its job.
 
         Parameters
         ----------
@@ -667,14 +651,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 weight_matrix[range(n), range(n)] = 0.0
 
                 # Get the order state of each lipid in the leaflet at the current time step
-                # 1. Step: Which lipids are in the leaflet
-                # 2. Step: What are their order parameters
-                temp = []
-                for res, data in self.results.train_data_per_type.items():
-                    temp.append(self.results["HMM_Pred"][res][:, step][data[2] == leaflet])
-
-                # Put all the order states in one array -> The order of the lipids must be the same as in the system!!!
-                order_states = np.concatenate(temp)
+                order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
 
                 np.random.shuffle(order_states)
 
@@ -707,7 +684,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return g_star_i
 
-# ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
+    # ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
     def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f):
 
         """
@@ -841,3 +818,49 @@ class PropertyCalculation(LeafletAnalysisBase):
             n_clusters_new = len(clusters.keys())
 
         return clusters
+
+    # ------------------------------ HELPER FUNCTIONS ---------------------------------------------------------------- #
+    def get_leaflet_step_order(self, leaflet, step):
+        """
+        Receive residue's order state with respect to the leaflet
+
+        Parameters
+        ----------
+        leaflet : numpy.ndarray
+            leaflet index
+        step: numpy.ndarray
+            step index
+
+        Returns
+        -------
+        order_states : numpy.ndarray
+            Numpy array contains order state results of the leaflet at step in order of system's residues
+        """
+        temp = []
+        for res, data in self.results.train_data_per_type.items():
+            temp.append(self.results["HMM_Pred"][res][:, step][data[2] == leaflet])
+
+        order_states = np.concatenate(temp)
+        return order_states
+
+    def get_leaflet_step_order_index(self, leaflet):
+        """
+        Receive residue's indexes in order state result with respect to the leaflet
+
+        Parameters
+        ----------
+        leaflet : numpy.ndarray
+            leaflet index
+        step: numpy.ndarray
+            step index
+
+        Returns
+        -------
+        order_states : numpy.ndarray
+            Numpy array contains residue indexes of the leaflet at step in order of system's residues
+        """
+        result = {}
+        for res, data in self.results.train_data_per_type.items():
+            indexes = np.where(data[2] == leaflet)
+            result[res] = indexes
+        return result
