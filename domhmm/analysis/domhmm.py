@@ -156,7 +156,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Number of points in the plane
         coor_xy = self.surface_lipids_per_frame[str(leaflet)].positions
         ncoor = coor_xy.shape[0]
-        # TODO Boxdim is selected in 2D for basic implementation. It will be changed to 3D with required implementations
         bx = boxdim[0]
         by = boxdim[1]
         # Create periodic images of the coordinates
@@ -177,7 +176,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         # There is the (rare!) possibility that two points have the exact same xy positions,
         # to prevent issues at further calculation steps, the qhull_option "QJ" was employed to introduce small random
         # displacement of the points to resolve these issue.
-        # TODO Decide Voronoi dimension. Keep in 2D or change to 3D
         vor = Voronoi(pbc, qhull_options="QJ")
 
         # Iterate over all members of the unit cell and calculate their occupied area
