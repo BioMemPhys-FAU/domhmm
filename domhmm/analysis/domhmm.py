@@ -344,8 +344,6 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.results.train_data_per_type[f"{rsn}"][1] = np.array(self.results.train_data_per_type[f"{rsn}"][1])
             self.results.train_data_per_type[f"{rsn}"][2] = np.array(self.results.train_data_per_type[f"{rsn}"][2])
         # -------------------------------------------------------------
-        # TODO Add post-processing parts to here:
-        #  Hierarchical Clustering
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
                       "max_iter": 10000, "n_init": 20,
                       "warm_start": False, "covariance_type": "full"}
@@ -355,7 +353,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                       "init_params": "st", "params": "stmc"}
         self.HMM(hmm_kwargs=hmm_kwargs)
         self.getis_ord()
-        self.getis_ord_plot()
+        self.clustering()
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
     def GMM(self, gmm_kwargs):
@@ -497,7 +495,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         for resname, gmm in self.results["HMM"].items():
             means = gmm.means_
             diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
-            if diff_percents > 0.1 :
+            if diff_percents > 0.1:
                 self.results['HMM_Pred'][resname] = np.abs(self.results['HMM_Pred'][resname] - 1)
 
     def predict_plot(self):
@@ -517,6 +515,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     def getis_ord(self):
         self.getis_ord_stat(self.results["upper_weight_all"], 0)
         self.getis_ord_stat(self.results["lower_weight_all"], 1)
+        self.getis_ord_plot()
 
     def getis_ord_stat(self, weight_matrix_all, leaflet):
         """
@@ -599,12 +598,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             temp_index_list_1 = [0]
             for resname in self.unique_resnames:
                 temp_index_list_0.append(temp_index_list_0[-1] + len(index_dict_0[resname]) - 1)
-                temp_index_list_1.append(temp_index_list_1[-1] + len(index_dict_1[resname]) - 1 )
+                temp_index_list_1.append(temp_index_list_1[-1] + len(index_dict_1[resname]) - 1)
             for i in range(resnum):
                 g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step]
-                                                   [temp_index_list_0[i]:temp_index_list_0[i+1]],
+                                                   [temp_index_list_0[i]:temp_index_list_0[i + 1]],
                                                    self.results['Getis_Ord'][1]['g_star_i_1'][step]
-                                                   [temp_index_list_1[i]:temp_index_list_1[i+1]]))
+                                                   [temp_index_list_1[i]:temp_index_list_1[i + 1]]))
 
         for i in range(resnum):
             plt.hist(g_star_i_temp[i], bins=np.linspace(-3, 3, 201), density=True, histtype="step", lw=2,
@@ -698,6 +697,70 @@ class PropertyCalculation(LeafletAnalysisBase):
         return g_star_i
 
     # ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
+    def clustering(self):
+        """
+        Runs hierarchical clustering and plots clustering results in different frames.
+        """
+        # TODO Decide on which frames to plot
+        frame_list = [3, 50, 98]
+        fig, ax = plt.subplots(1, len(frame_list), figsize=(20, 5))
+
+        # Iterate over three frames illustrate the clustering results
+        for k, i in enumerate(frame_list):
+            order_states_0 = self.get_leaflet_step_order(0, i)
+
+            # Clustering
+            # ----------------------------------------------------------------------------------------------------------------------
+            core_lipids = self.assign_core_lipids(weight_matrix_f=self.results["upper_weight_all"][i],
+                                                  g_star_i_f=self.results['Getis_Ord'][0]['g_star_i_0'][i],
+                                                  order_states_f=order_states_0,
+                                                  w_ii_f= self.results["Getis_Ord"][0]["w_ii_0"][i])
+
+            clusters = self.hierarchical_clustering(weight_matrix_f=self.results["upper_weight_all"][i],
+                                                    w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
+                                                    core_lipids=core_lipids)
+
+            # Plot coordinates
+            # ----------------------------------------------------------------------------------------------------------------------
+            residue_indexes = self.get_leaflet_step_order_index(leaflet = 0)
+            positions = self.leaflet_selection['0'].positions
+            for resname, index in residue_indexes.items():
+                ax[k].scatter(positions[index, 0],
+                          positions[index, 1], marker="s", alpha=1, s=5, label=resname)
+
+            # Choose color scheme for clustering coloring
+            colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
+
+            # Iterate over clusters and plot the residues
+            print(f"Number of clusters in frame {i}: {len(clusters.values())}")
+            for j, val in enumerate(clusters.values()):
+                idx = np.array(list(val), dtype=int)
+                ax[k].scatter(positions[idx, 0],
+                              positions[idx, 1],
+                              s=100, marker="o", color=colors[j], zorder=-10)
+
+            # Plot cosmetics
+            ax[k].set_ylim(-5, 138)
+            ax[k].set_xlim(-5, 138)
+
+            ax[k].set_xticks([])
+            ax[k].set_yticks([])
+
+            ax[1].legend(ncol=3, loc="lower center", bbox_to_anchor=(0.5, -0.15), fontsize=15, frameon=False)
+
+            ax[k].set_aspect("equal")
+
+        plt.subplots_adjust(wspace=-0.45)
+        ax[0].set_title("a", fontsize=20, fontweight="bold", loc="left")
+        ax[1].set_title("b", fontsize=20, fontweight="bold", loc="left")
+        ax[2].set_title("c", fontsize=20, fontweight="bold", loc="left")
+
+        ax[0].text(s=r"$t=8\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[1].text(s=r"$t=9\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[2].text(s=r"$t=10\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
+
+        plt.show()
+
     def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f):
 
         """
@@ -874,6 +937,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         result = {}
         for res, data in self.results.train_data_per_type.items():
-            indexes = np.where(data[2] == leaflet)
-            result[res] = indexes[0]
+            indexes = data[0][data[2] == leaflet]
+            # Decreasing one since Python array index system
+            result[res] = indexes - 1
         return result
