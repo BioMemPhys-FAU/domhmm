@@ -17,23 +17,13 @@ def test_run():
     path2xtc = "domhmm/tests/data/md_center_mol_last2mus.xtc"
     path2tpr = "domhmm/tests/data/mem.tpr"
     uni = mda.Universe(path2tpr, path2xtc)
-    # TODO Parameters of PropertyCalculation
-    #   * leaflet_kwargs:
-    #       * Is select option correct
-    #       * Is pbc (periodic boundary condtion) is correct
-    #   * heads & tails list
-    #       * why and how to select
-    #       * error if not given
 
     # CHOL is out for this run because it doesn't have two tails. Not standard phospholipid
     membrane_select = "resname DPPC DIPC"
-    heads = {"DPPC": ["NC3", "PO4"],
-             "DIPC": ["NC3", "PO4"]}
     tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
              "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
     domhmm.PropertyCalculation(universe_or_atomgroup=uni,
                                leaflet_kwargs={"select": "name PO4", "pbc": True},
                                membrane_select= membrane_select,
-                               heads= heads,
                                tails=tails)\
-        .run(start=10, stop=20)
+        .run(start=0, stop=100)

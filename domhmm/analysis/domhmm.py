@@ -7,19 +7,11 @@ This module contains the :class:`LocalFluctuation` class.
 """
 
 from .base import LeafletAnalysisBase
-
-# from typing import Union, TYPE_CHECKING, Dict, Any
-
 import numpy as np
-# from MDAnalysis.analysis import distances
+import matplotlib.pyplot as plt
 from sklearn import mixture
 from hmmlearn.hmm import GaussianHMM
-# from scipy import stats
-from scipy.spatial import Voronoi, ConvexHull  # voronoi_plot_2d
-# import sys
-# import memsurfer
-
-# import os
+from scipy.spatial import Voronoi, ConvexHull
 from tqdm import tqdm
 
 
@@ -41,10 +33,20 @@ class PropertyCalculation(LeafletAnalysisBase):
         ----------
         """
 
-        # Altough sterols maybe do not play a larger role in the future for the domain identification it seems to be
+        # Although sterols maybe do not play a larger role in the future for the domain identification it seems to be
         # a good idea to keep this functionality
         self.resid_selection_sterols = {}
-        self.resid_selection_sterols_heads = {}
+
+        # Initialize result storage dictionaries
+        self.results.train_data_per_type = {}
+        self.results.GMM = {}
+        self.results.HMM = {}
+        self.results.HMM_Pred = {}
+        self.results.Getis_Ord = {}
+
+        # Initalize weight matrix storage for each leaflet.
+        setattr(self.results, "upper_weight_all", [])
+        setattr(self.results, "lower_weight_all", [])
 
         # Next, a dictionary for EACH selected resid will be created. That's pretty much, but it is important to have
         # the order parameters for each lipid over the whole trajectory for the domain identification
@@ -55,226 +57,84 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Select specific resid
             resid_selection = self.universe.select_atoms(f"resid {resid}")
             # Get its lipid type
-            resname = np.unique(resid_selection.resnames)[0]
+            resname = resid_selection.resnames[0]
+
+            # Init results for order parameters -> For each resid we should have an array containing the order
+            # parameters for each frame
+            setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
+            getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
+
+            # Iterate over leaflet tails
+            n_tails = len(self.tails[resname])
+            for i in range(n_tails):
+                # Init storage for SCC values for each lipid
+                getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
+
+            # Store the area per lipid for each lipid
+            getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
 
             # Check leaflet assignment -> based on RESID
-            # LEAFLET 0?
             if resid in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids:
-
-                # Init results for order parameters -> For each resid we should have an array containing the order
-                # parameters for each frame
-                setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
                 getattr(self.results, f'id{resid}')['Leaflet'] = 0  # -> Store information about leaflet assignment
-                getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
-
-                # Iterate over leaflet tails
-                n_tails = len(self.tails[resname])
-                for i in range(n_tails):
-                    n_pairs = len(self.tails[resname][i]) // 2
-
-                    # Init storage for P2 values for each lipid
-                    getattr(self.results, f'id{resid}')[f'P2_{i}'] = np.zeros((self.n_frames, n_pairs),
-                                                                              dtype=np.float32)
-
-                # Store 3-D position of head group for each lipid
-                getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros((self.n_frames, 3), dtype=np.float32)
-
-                # Store the area per lipid for each lipid
-                getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
-
-                # LEAFLET 1?
             elif resid in self.leaflet_selection["1"].resids and resid not in self.leaflet_selection["0"].resids:
-
-                # Init results for order parameters -> For each resid we should have an array containing the order
-                # parameters for each frame
-                setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
                 getattr(self.results, f'id{resid}')['Leaflet'] = 1  # -> Store information about leaflet assignment
-                getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
-
-                # Iterate over leaflet tails
-                n_tails = len(self.tails[resname])
-                for i in range(n_tails):
-                    n_pairs = len(self.tails[resname][i]) // 2
-
-                    # Init storage for P2 values for each lipid
-                    getattr(self.results, f'id{resid}')[f'P2_{i}'] = np.zeros((self.n_frames, n_pairs),
-                                                                              dtype=np.float32)
-
-                # Store 3-D position of head group for each lipid
-                getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros((self.n_frames, 3), dtype=np.float32)
-
-                # Store the area per lipid for each lipid
-                getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
-
-                # STEROL?
-            elif (resid not in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids
-                  and resname in self.sterols):
-
-                # Sterols are not assigned to a specific leaflet -> They can flip. Maybe it is unlikely that it
-                # happens in some membrane (especially atomistic ones) but it can happen and the code keeps track of
-                # them.
-
-                # Make a MDAnalysis atom selection for each resid. For the other lipids this was already done in the
-                # LeafletAnalysisBase class
-                self.resid_selection_sterols[str(resid)] = resid_selection.intersection(self.sterols_tail[resname])
-                self.resid_selection_sterols_heads[str(resid)] = resid_selection.intersection(
-                    self.sterols_head[resname])
-
-                # Init results for order parameters -> For each resid we should have an array containing the order
-                # parameters for each frame
-                setattr(self.results, f'id{resid}', {})
-                # Init storage array for leaflet assignment
-                getattr(self.results, f'id{resid}')['Leaflet'] = np.zeros((self.n_frames), dtype=np.float32)
-                # Resname of the sterol compound
-                getattr(self.results, f'id{resid}')['Resname'] = resname
-                # For sterol only one P2 value is calculated but for each frame
-                getattr(self.results, f'id{resid}')['P2_0'] = np.zeros((self.n_frames), dtype=np.float32)
-                # Also sterols can get an area per lipid assigned
-                getattr(self.results, f'id{resid}')['APL'] = np.zeros((self.n_frames), dtype=np.float32)
-                # Init storage array for head group position for each sterol
-                getattr(self.results, f'id{resid}')[f'Heads'] = np.zeros((self.n_frames, 3), dtype=np.float32)
-
-                # NOTHING?
             else:
-                raise ValueError(f'{resname} with resid {resid} not found in leaflets or sterol list!')
+                raise ValueError(f'{resname} with resid {resid} not found in leaflets')
 
-    def calc_p2(self, pair, reference_axis):
+    def calc_order_parameter(self, chain):
 
         """
-        Calculates the deuterium order parameter according to equation (1) for each pair.
+        Calculate average Scc order parameters per acyl chain according to the equation:
+
+        S_cc = (3 * cos( theta )^2 - 1) / 2,
+
+        where theta describes the angle between the z-axis of the system and the vector between two subsequent tail beads.
 
         Parameters
         ----------
-        pair: MDAnalysis atom selection
-            selection group containing the two atoms for the director calculation
+        chain : Selection
+            MDAnalysis Selection object
 
-        reference_axis: numpy.array
-            numpy array containing the reference vector for the angle calculation.
+        Returns
+        -------
+        s_cc : numpy.ndarray
+            Mean S_cc parameter for the selected chain of each residue
         """
 
-        r = pair.positions[0] - pair.positions[1]
-        r /= np.sqrt(np.sum(r ** 2))
+        # Separate the coordinates according to their residue index
+        ridx = np.where(np.diff(chain.resids) > 0)[0] + 1
 
-        # Dot product between membrane normal (z axis) and orientation vector
-        dot_prod = np.dot(r, reference_axis)
-        a = np.arccos(dot_prod)  # Angle in radians
-        P2 = 0.5 * (3 * np.cos(a) ** 2 - 1)
+        pos = np.array(np.split(chain.positions, ridx))
 
-        # Flip sign of order parameters
-        # P2 = -1 * P2
+        # Calculate the normalized orientation vector between two subsequent tail beads
+        vec = np.diff(pos, axis=1)
 
-        return P2
+        vec_norm = np.sqrt((vec ** 2).sum(axis=-1))
 
-    def get_p2_per_lipid(self, resid_tails_selection_leaflet, leaflet, resid_heads_selection_leaflet, local_normals,
-                         refZ):
+        vec /= vec_norm.reshape(-1, vec.shape[1], 1)
+        # TODO z axis multiplication inside. It needs to be changed in future work
+        # Choose the z-axis as membrane normal and take care of the machine precision
+        dot_prod = np.clip(vec[:, :, 2], -1., 1.)
 
+        # Calculate the order parameter
+        s_cc = 0.5 * (3 * dot_prod ** 2 - 1)
+
+        return s_cc.mean(-1)
+
+    def order_parameter(self):
         """
-        Applies P2 calculation for each C-H pair in an individual lipid for each leaflet.
-
-        Parameters
-        ----------
-        resid_tails_selection_leaflet : dictionary
-            Contains MDAnalysis atom selection for tail group of individual lipids per leaflet
-        leaflet : int
-            Leaflet of interest
-        resid_heads_selection_leaflet : dictionary
-            Contains MDAnalysis atom selection for head group of individual lipids per leaflet
-        local_normals : dictionary
-            Containing local normals per lipid -> keys are the resids
-        refZ : bool
-            Using the z-axis as reference axis or the local normal defined per lipid?
-
-
+        Calculation of scc order parameter for each chain of each residue.
         """
+        # Iterate over each tail with chain id
+        for chain, tail in self.resid_tails_selection.items():
+            # SCC calculation
+            s_cc = self.calc_order_parameter(tail)
 
-        # Iterate over resids in leaflet
-        for key in resid_heads_selection_leaflet.keys():
+            # Saving result with iterating overall corresponding residues
+            for i, resid in enumerate(np.unique(tail.resids)):
+                self.results[f'id{resid}'][f'SCC_{chain}'][self.index] = s_cc[i]
 
-            # Check if leaflet is correct -> Sanity check
-            assert getattr(self.results, f'id{key}')[
-                       'Leaflet'] == leaflet, '!!!-----ERROR-----!!!\nWrong leaflet\n!!!-----ERROR-----!!!'
-
-            # Store head position -> Center of Mass of head group selection
-            getattr(self.results, f'id{key}')[f'Heads'][self.index] = resid_heads_selection_leaflet[
-                key].center_of_mass()
-
-            # Get resname
-            rsn = getattr(self.results, f'id{key}')['Resname']
-
-            # Iterate over number of acyl chains in lipid named "rsn"
-            for n_chain in range(len(self.tails[rsn])):
-
-                # self.tails[rsn][n_chain] contains atoms names in tail, if the input is correctly given it should look like this:
-                # I.E. -> ["C1", "H1R", "C1", "H1S", ...]
-
-                # Iterate over these pairs -> I.E. ("C1","H1R"), ("C1", "H1S"), ... -> In this order the P2 values should be also stored
-                for j in range(len(self.tails[rsn][n_chain]) // 2):
-
-                    if refZ:
-                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, j] = self.calc_p2(
-                            pair=resid_tails_selection_leaflet[str(key)][str(n_chain)][j],
-                            reference_axis=np.array([0, 0, 1]))
-                    else:
-                        getattr(self.results, f'id{key}')[f'P2_{n_chain}'][self.index, j] = self.calc_p2(
-                            pair=resid_tails_selection_leaflet[str(key)][str(n_chain)][j],
-                            reference_axis=local_normals[f"{key}"])
-
-    # def get_local_area_normal(self, leaflet, boxdim, periodic = True, exactness_level = 10):
-    #
-    #     """
-    #     Calculate area per lipid and local membrane normal with MemSurfer library.
-    #
-    #     Parameters
-    #     ----------
-    #
-    #     leaflet: int
-    #         Top or bottom leaflet
-    #     boxdim: np.array
-    #         Box dimensions in x, y, z
-    #     periodic: bool
-    #         Usage of periodic boundary conditions during simulation
-    #     exactness_level: int
-    #         Approximating surface using Poisson reconstruction
-    #     """
-    #
-    #     #Prepare box dimensions -> Seems to be used also for box width calculation (like bbox[1,:] - bbox[0, :]). First row where therefore the lower limit and second the upper limit
-    #     bbox = np.zeros( (2, 3) )
-    #     bbox[1, :] = boxdim
-    #
-    #     old_stdout = sys.stdout # backup current stdout
-    #     sys.stdout = open(os.devnull, "w")
-    #     mem = memsurfer.Membrane( points = self.surface_lipids_per_frame[ str(leaflet) ].positions,
-    #                               labels = self.surface_lipids_per_frame[ str(leaflet) ].resids.astype("U"),
-    #                               bbox = bbox,
-    #                               periodic = periodic,
-    #                               boundary_layer = 0.2 #Default value
-    #                              )
-    #
-    #     #Put points back into box
-    #     mem.fit_points_to_box_xy()
-    #
-    #
-    #     #Approximate surface -> Uses as standard 18 k-neighbours for normal calculation
-    #     mem.compute_approx_surface(exactness_level = exactness_level)
-    #
-    #     #Compute membrane surfaces based on the approximated surface calculated above:
-    #     # - memb_planar := Planar projections of points on the smoothed surface
-    #     # - memb_smooth := Points of the smoothed surface
-    #     # - memb_exact  := Exact coordinates of lipids from trajectory
-    #     mem.compute_membrane_surface()
-    #
-    #     local_normals = mem.memb_smooth.compute_normals()
-    #
-    #     local_area_per_lipid = mem.memb_smooth.compute_pointareas()
-    #     sys.stdout = old_stdout # reset old stdout
-    #
-    #     local_normals_dict = dict( zip(mem.labels, local_normals) )
-    #
-    #     for resid, apl in zip(mem.labels, local_area_per_lipid): getattr(self.results, f'id{resid}')[f'APL'][self.index] = apl
-    #
-    #     return local_normals_dict
-
-    def area_per_lipid_vor(self, coor_xy, bx, by):
+    def area_per_lipid_vor(self, leaflet, boxdim):
 
         """
         Calculation of the area per lipid employing Voronoi tessellation on coordinates mapped to the xy plane.
@@ -282,26 +142,22 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Parameters
         ----------
-        coor_xy : numpy.ndarray
-            Mapped positions of the lipid headgroups
-        bx : float
-            Length of box vector in x direction
-        by : float
-            Length of box vector in y direction
+        leaflet : string
+            Index to decide upper/lower leaflet
+        boxdim : array
+            Length of box vectors in all directions
 
         Returns
         -------
-        apl : numpy.ndarray
-            Area per lipid for each residue.
         vor : Voronoi Tesselation
             Scipy's Voronoi Diagram object
         """
 
         # Number of points in the plane
+        coor_xy = self.surface_lipids_per_frame[str(leaflet)].positions
         ncoor = coor_xy.shape[0]
-        # TODO - This is used for corrdinates = Is it headgroups ?
-        #   self.surface_lipids_per_frame[str(leaflet)].positions,
-
+        bx = boxdim[0]
+        by = boxdim[1]
         # Create periodic images of the coordinates
         # to take periodic boundary conditions into account
         pbc = np.zeros((9 * ncoor, 2), dtype=np.float32)
@@ -320,13 +176,75 @@ class PropertyCalculation(LeafletAnalysisBase):
         # There is the (rare!) possibility that two points have the exact same xy positions,
         # to prevent issues at further calculation steps, the qhull_option "QJ" was employed to introduce small random
         # displacement of the points to resolve these issue.
-        # TODO Decide Voronoi dimension. Keep in 2D or change to 3D
         vor = Voronoi(pbc, qhull_options="QJ")
 
         # Iterate over all members of the unit cell and calculate their occupied area
         apl = np.array([ConvexHull(vor.vertices[vor.regions[vor.point_region[i]]]).volume for i in range(ncoor)])
 
-        return apl, vor
+        # Save result of area per lipid
+        for i in range(0, len(self.surface_lipids_per_frame[str(leaflet)].resnums)):
+            resid = self.surface_lipids_per_frame[str(leaflet)].resnums[i]
+            getattr(self.results, f'id{resid}')[f'APL'][self.index] = apl[i]
+
+        return vor
+
+    def weight_matrix(self, vor, leaflet):
+
+        """
+        Calculate the weight factors between neighbored lipid pairs based on a Voronoi tessellation.
+
+        Parameters
+        ----------
+        vor : Voronoi Tesselation
+            Scipy's Voronoi Diagram object
+        leaflet : string
+            Index to decide upper/lower leaflet
+
+        Returns
+        -------
+        weight_matrix : numpy.ndarray
+            Weight factors wij between neighbored lipid pairs.
+            Is 0 if lipids are not directly neighbored.
+        """
+
+        # Number of points in the plane
+        coor_xy = self.surface_lipids_per_frame[str(leaflet)].positions
+        ncoor = coor_xy.shape[0]
+
+        # Calculate the distance for all pairs of points between which a ridge exists
+        dij = vor.points[vor.ridge_points[:, 0]] - vor.points[vor.ridge_points[:, 1]]
+        dij = np.sqrt(np.sum(dij ** 2, axis=1))
+
+        # There is the (rare!) possibility that two points have the exact same xy positions,
+        # to prevent issues at further calculation steps, their distance is set to a very small
+        # distance of 4.7 Angstrom (2 times the VdW radius of a regular bead in MARTINI3)
+        dij[dij < 1E-5] = 4.7
+
+        # Calculate the distance for all pairs of vertices connected via a ridge
+        vert_idx = np.array(vor.ridge_vertices)
+        bij = vor.vertices[vert_idx[:, 0]] - vor.vertices[vert_idx[:, 1]]
+        bij = np.sqrt(np.sum(bij ** 2, axis=1))
+
+        # INFO: vor.ridge_points and vor.ridge_vertices should be sorted -> Check vor.ridge_dict
+
+        # Calculate weight factor
+        wij = bij / dij
+
+        # Setup an empty array to store the weight factors for each lipid
+        weight_matrix = np.zeros((ncoor, ncoor))
+
+        # Select all indices of ridges that contain members of the unit cell
+        mask_unit_cell = np.logical_or(vor.ridge_points[:, 0] < ncoor, vor.ridge_points[:, 1] < ncoor)
+
+        # Apply the modulus operator since some of the indices in "unit_cell_point" will point to coordinates outside
+        # the unit cell. Applying the modulus operator "%" will allow an indexing of the "weight_matrix". However, some
+        # of the indices in "unit_cell_point" will be doubled that shouldn't be an issue since the same weight factor is
+        # then just put several times in the same entry of the array (no summing or something similar!)
+        unit_cell_point = vor.ridge_points[mask_unit_cell] % ncoor
+
+        weight_matrix[unit_cell_point[:, 0], unit_cell_point[:, 1]] = wij[mask_unit_cell]
+        weight_matrix[unit_cell_point[:, 1], unit_cell_point[:, 0]] = wij[mask_unit_cell]
+        return weight_matrix
 
     def _single_frame(self):
         """
@@ -339,19 +257,11 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Iterate over leafelts
         for leaflet in range(2):
-
             self.surface_lipids_per_frame[str(leaflet)] = self.leaflet_selection[str(leaflet)]
-
-            for sterol in self.sterols:
-                self.surface_lipids_per_frame[str(leaflet)] += self.sterols_head[sterol].select_atoms(
-                    " around 12 global group leaflet", leaflet=self.leaflet_selection[str(leaflet)])
 
         if self.surface_lipids_per_frame["0"].select_atoms("group leaf1",
                                                            leaf1=self.surface_lipids_per_frame["1"]):
-            raise ValueError("Atoms in both leaflets!")
-
-        # print(self.leaflet_selection[ str(leaflet) ].n_atoms)
-        # print(self.surface_lipids_per_frame[ str(leaflet) ].n_atoms)
+            raise ValueError("Atoms in both leaflets !")
 
         # Get number of frame from trajectory
         self.frame = self.universe.trajectory.ts.frame
@@ -360,54 +270,17 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
-        # local_normals_dict_0 = self.get_local_area_normal(leaflet=0, boxdim=boxdim, periodic=True, exactness_level=10)
-        # local_normals_dict_1 = self.get_local_area_normal(leaflet=1, boxdim=boxdim, periodic=True, exactness_level=10)
-        # TODO Add Voronoi area calculation:
-        #  upper/lower_apl saved in data with residue id
-        #  upper/lower_vor used in weight matrix calculation
+        upper_vor = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim)
+        lower_vor = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim)
+        # TODO Local normal calculation
 
         # ------------------------------ Order parameter ------------------------------------------------------------- #
-        self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_0, leaflet=0,
-                              resid_heads_selection_leaflet=self.resid_heads_selection_0,
-                              local_normals= None, refZ=self.refZ)
-        self.get_p2_per_lipid(resid_tails_selection_leaflet=self.resid_tails_selection_1, leaflet=1,
-                              resid_heads_selection_leaflet=self.resid_heads_selection_1,
-                              local_normals= None, refZ=self.refZ)
-        # TODO Add order parameter calculation
-
-        # TODO Decide how to deal with weight matrix based on Voronoi diagram
-
-        # Sterols
-        for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
-
-            if key in self.surface_lipids_per_frame["0"].resids and key not in self.surface_lipids_per_frame[
-                "1"].resids:
-                # Check closest distance to leaflet
-                getattr(self.results, f'id{key}')['Leaflet'][self.index] = 0
-
-            elif key in self.surface_lipids_per_frame["1"].resids and key not in self.surface_lipids_per_frame[
-                "0"].resids:
-                # Check closest distance to leaflet
-                getattr(self.results, f'id{key}')['Leaflet'][self.index] = 1
-
-            elif key in self.surface_lipids_per_frame["0"].resids and key in self.surface_lipids_per_frame["1"].resids:
-                print("!!!---WARNING---!!!")
-                print(f"Cholesterol with ID {key} is in both leaflets!")
-
-            elif key not in self.surface_lipids_per_frame["1"].resids and key not in self.surface_lipids_per_frame[
-                "0"].resids:
-                # Cholesterol is not assigned to a specific leaflet -> resides in the mid of the membrane
-                getattr(self.results, f'id{key}')['Leaflet'][self.index] = 2
-
-            else:
-                ValueError("Cholesterol isn't anywhere! That shouldn't happen! Time for Scully and Moulder!")
-
-            # Store head position
-            getattr(self.results, f'id{key}')[f'Heads'][self.index] = self.resid_selection_sterols_heads[
-                str(key)].center_of_mass()
-
-            getattr(self.results, f'id{key}')[f'P2_0'][self.index] = self.calc_p2(
-                pair=self.resid_selection_sterols[str(key)], reference_axis=np.array([0, 0, 1]))
+        self.order_parameter()
+        # ------------------------------ Weight Matrix --------------------------------------------------------------- #
+        upper_weight_matrix = self.weight_matrix(upper_vor, leaflet=0)
+        lower_weight_matrix = self.weight_matrix(lower_vor, leaflet=1)
+        self.results["upper_weight_all"].append(upper_weight_matrix)
+        self.results["lower_weight_all"].append(lower_weight_matrix)
 
     def _conclude(self):
 
@@ -421,51 +294,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Make a dictionary for the calculated values of each lipid type for each leaflet
         # -----------------------------------------------------------------------
 
-        """
-        The result should be a dictionary with the following structure:
-
-            - p2_per_type
-                - Leaf0
-                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs)
-                    - TypeA_1 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs) 
-                    - TypeB_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs) 
-                    - ...
-                - Leaf1
-                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfPairs) 
-                    - ...
-
-            - apl_per_type
-                - Leaf0
-                    - TypeA -> (NumberOfLipids, NumberOfFrames)
-                    - TypeB -> (NumberOfLipids, NumberOfFrames)
-                    - ...
-                - Leaf1
-                    - TypeA -> (NumberOfLipids, NumberOfFrames)
-                    - ...
-
-        """
-
-        # Initialize storage dictionary
-
-        self.results.p2_per_type = {}
-        self.results.apl_per_type = {}
-
-        # Iterate over leaflets -> 0 top, 1 bottom
-        for i in range(2):
-
-            # Make dictionary for each leaflet
-            self.results.p2_per_type[f"Leaf{i}"] = {}
-            self.results.apl_per_type[f"Leaf{i}"] = {}
-
-            # Iterate over resnames in each leaflet
-            for rsn in np.unique(self.leaflet_selection[str(i)].resnames):
-
-                # Iterate over number of acyl chains in lipid named "rsn"
-                for n_chain in range(len(self.tails[rsn])):
-                    # Make a list for each acyl chain in resn
-                    self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = []
-
-                self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"] = []
+        for rsn in self.unique_resnames:
+            # Create each leaflet's lipid types 3D empty array.
+            # Array will fill with order parameters of tails, area per lipid and leaflet information
+            num_tails = len(self.tails[rsn])
+            self.results.train_data_per_type[f"{rsn}"] = [[] for _ in range(3)]
 
         # -------------------------------------------------------------
 
@@ -475,23 +308,23 @@ class PropertyCalculation(LeafletAnalysisBase):
         for resid in self.membrane_unique_resids:
 
             # Grab leaflet and resname
-            leaflet = getattr(self.results, f'id{resid}')['Leaflet']
             rsn = getattr(self.results, f'id{resid}')['Resname']
 
             # Check if lipid is a sterol compound or not
             if rsn not in self.sterols:
-
-                # Iterate over chains -> For a normal phospholipid that should be 2
-                for n_chain in range(len(self.tails[rsn])):
-                    # Get individual lipid p2 values for corresponding chain
-                    indv_p2 = getattr(self.results, f'id{resid}')[f'P2_{n_chain}']
-
-                    # Add it to the lipid type list
-                    self.results.p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{n_chain}"].append(indv_p2)
-
+                self.results.train_data_per_type[f"{rsn}"][0].append(resid)
                 # Get area per lipid for specific residue
                 apl = getattr(self.results, f'id{resid}')['APL']
-                self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"].append(apl)
+                temp_result_array = [apl]
+                # Iterate over chains -> For a normal phospholipid that should be 2
+                for n_chain in range(len(self.tails[rsn])):
+                    # Get individual lipid scc values for corresponding chain
+                    indv_scc = getattr(self.results, f'id{resid}')[f'SCC_{n_chain}']
+                    temp_result_array.append(indv_scc)
+                # Add order parameter list and take transpose of it for HMM and GMM training requirements
+                self.results.train_data_per_type[f"{rsn}"][1].append(np.array(temp_result_array).transpose())
+                # Add leaflet information
+                self.results.train_data_per_type[f"{rsn}"][2].append(self.results[f'id{resid}']["Leaflet"])
 
             elif rsn in self.sterols:
                 pass
@@ -503,424 +336,606 @@ class PropertyCalculation(LeafletAnalysisBase):
         # -------------------------------------------------------------
 
         # Transform lists to arrays
-
-        # Iterate over leaflets
-        for i in range(2):
-
-            # Iterate over lipid in leaflet
-            for rsn in np.unique(self.leaflet_selection[str(i)].resnames):
-
-                # Check for sterol compound
-                if rsn not in self.sterols:
-
-                    # Iterate over chain
-                    for n_chain in range(len(self.tails[rsn])):
-                        # Transform list to array
-                        self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"] = np.array(
-                            self.results.p2_per_type[f"Leaf{i}"][f"{rsn}_{n_chain}"])
-
-                    # Just transform for area per lipid
-                    self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"] = np.array(
-                        self.results.apl_per_type[f"Leaf{i}"][f"{rsn}"])
-
+        for rsn in self.unique_resnames:
+            # If number of tail of some residues are more than 2, this line will throw error
+            self.results.train_data_per_type[f"{rsn}"][0] = np.array(self.results.train_data_per_type[f"{rsn}"][0])
+            self.results.train_data_per_type[f"{rsn}"][1] = np.array(self.results.train_data_per_type[f"{rsn}"][1])
+            self.results.train_data_per_type[f"{rsn}"][2] = np.array(self.results.train_data_per_type[f"{rsn}"][2])
         # -------------------------------------------------------------
-        # -------------------------------------------------------------
-
-        # ---------------------------------------------------------------------------
-        # Make a dictionary with averaged P2 values per C-H2 (or C-H) group PER chain
-        # ---------------------------------------------------------------------------
-
-        """
-        The result should be a dictionary with the following structure:
-
-            - mean_p2_per_type
-                - Leaf0
-                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms)
-                    - TypeA_1 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
-                    - TypeB_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
-                    - ...
-                - Leaf1
-                    - TypeA_0 -> ( NumberOfLipids, NumberOfFrames, NumberOfAcylCAtoms) 
-                    - ...
-
-        That is not necessary for the area per lipid since this is just a scalar
-        """
-
-        self.results.mean_p2_per_type = {}
-
-        # Iterate over leaflets
-        for leaf_key, leaf in zip(self.results.p2_per_type.keys(), self.results.p2_per_type.values()):
-
-            self.results.mean_p2_per_type[leaf_key] = {}
-
-            # Iterate over lipid types
-            for key, val in zip(self.tails.keys(), self.tails.values()):
-
-                # Iterate over chains for each lipid type
-                for i, chain in enumerate(val):
-
-                    # Check if lipid type is in leaflet
-                    if f"{key}_{i}" in leaf.keys():
-
-                        # Get all pairs in chain
-                        pairs_in_chain = np.array_split(chain, len(chain) // 2)
-
-                        # Adding a dummy array ensures that double bonds at the end of an acyl chain are taken
-                        # into account
-                        pairs_in_chain += [np.array(["dummy", "dummy"])]
-
-                        n_pairs = len(pairs_in_chain)
-
-                        order_per_chain = []
-
-                        # Iterate over pairs
-                        for j in range(n_pairs - 2 + 1):
-
-                            # Check if a pair has the same aliphatic C-Atom
-
-                            # If so -> Calculate the average (i.e. C1-H1S and C1-H1R)
-                            # I transpose the resulting arrays several times to get a more logical shape of the
-                            # resulting array
-                            if pairs_in_chain[j][0] == pairs_in_chain[j + 1][0]:
-                                order_per_chain.append(leaf[f"{key}_{i}"][:, :, j:j + 2].mean(-1).T)
-
-                            # If there is a C-Atom UNEQUAL to the former AND the following C-Atom -> Assume double bond
-                            # -> No average over pairs
-
-                            # Edge case:
-                            # j = 0 -> j-1 = -1 
-                            # Should not matter since latest atom in aliphatic name is named differently than first one
-                            # -> Should also work for double bonds at the first place of the
-                            elif pairs_in_chain[j][0] != pairs_in_chain[j + 1][0] and pairs_in_chain[j][0] != \
-                                    pairs_in_chain[j - 1][0]:
-                                order_per_chain.append(leaf[f"{key}_{i}"][:, :, j].T)
-
-                            # If just the following C-Atom is unequal pass on
-                            elif pairs_in_chain[j][0] != pairs_in_chain[j + 1][0]:
-                                pass
-
-                            else:
-                                raise ValueError(
-                                    f"Something odd in merging order parameters for {key} in chain {i} per CH2 happened!")
-
-                        self.results.mean_p2_per_type[leaf_key][f"{key}_{i}"] = np.array(order_per_chain).T
-
-                    else:
-                        pass
-
-        # -------------------------------------------------------------
-        # -------------------------------------------------------------
-
-        # ---------------------------------------------
-        # Make a dictionary with values for cholesterol
-        # ---------------------------------------------
-
-        """
-        Sterol are able to flip-flop between leaflets, they are there for special treated and have their own output data
-         structure
-
-        - Sterols
-            - SterolA
-                - Leaf
-                    - Leaflet assignments (NSterols, NFrames)
-                - P2
-                    - P2 values (NSterols, NFrames)
-            - SterolB
-                - Leaf
-                    - ...
-            - ...
-        """
-
-        self.results["Sterols"] = {}
-
-        for sterol in self.sterols: self.results["Sterols"][sterol] = {"Leaf": [], "P2": []}
-
-        for key, val in zip(self.resid_selection_sterols.keys(), self.resid_selection_sterols.values()):
-            rsn = getattr(self.results, f'id{resid}')['Resname']
-
-            self.results["Sterols"][rsn]["Leaf"].append(getattr(self.results, f'id{key}')['Leaflet'])
-            self.results["Sterols"][rsn]["P2_0"].append(getattr(self.results, f'id{key}')[f'P2_0'])
-
-        for sterol in self.sterols:
-            self.results["Sterols"][sterol]["Leaf"] = np.array(self.results["Sterols"][sterol]["Leaf"])
-            self.results["Sterols"][sterol]["P2"] = np.array(self.results["Sterols"][sterol]["P2"])
+        gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
+                      "max_iter": 10000, "n_init": 20,
+                      "warm_start": False, "covariance_type": "full"}
+        self.GMM(gmm_kwargs=gmm_kwargs)
+        hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 1000,
+                      "algorithm": "viterbi", "covariance_type": "full",
+                      "init_params": "st", "params": "stmc"}
+        self.HMM(hmm_kwargs=hmm_kwargs)
+        self.getis_ord()
+        self.clustering()
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
-    def GMM(self, n_repeats, start_frame, gmm_kwargs={}):
-
-        self.results["GMM"] = {}
-
+    def GMM(self, gmm_kwargs):
         """
-        Structure as follows:
-
-            - GMM
-                - Leaf0
-                    - LipidA
-                        - GMM Results Tail 1
-                        - GMM Results Tail 2
-                        - ..
-                        - GMM Results APL
-                    - ...
-                - Leaf1
-                    - LipidA
-                        - ...
-
-
-        """
-
-        # Iterate over leaflets
-        for idx, leafgroup in zip(self.leaflet_selection.keys(), self.leaflet_selection.values()):
-            # Init empty dictionary for each leaflet
-            self.results["GMM"][f"Leaf{idx}"] = {}
-
-        self.get_gmm_order_parameters(leaflet=0, n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-        self.get_gmm_order_parameters(leaflet=1, n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-
-        self.get_gmm_area_per_lipid(leaflet=0, n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-        self.get_gmm_area_per_lipid(leaflet=1, n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-
-    def get_gmm_order_parameters(self, n_repeats, leaflet, start_frame, gmm_kwargs):
-
-        # Get lipid types in leaflet
-        leaflet_resnames = np.unique(self.leaflet_resids[str(leaflet)].resnames)
-
-        # Iterate over lipids in leaflet
-        for rsn in leaflet_resnames:
-
-            if rsn in self.sterols: continue
-
-            # Iterate over tails (e.g. for standard phospholipids that 2)
-            for i, tail in enumerate(self.tails[rsn]):
-                self.results["GMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"] = self.fit_gmm(
-                    property_=self.results.mean_p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{i}"].mean(2),
-                    n_repeats=n_repeats, start_frame=start_frame, gmm_kwargs=gmm_kwargs)
-
-    def get_gmm_area_per_lipid(self, n_repeats, leaflet, start_frame, gmm_kwargs):
-
-        # Get lipid types in leaflet
-        leaflet_resnames = np.unique(self.leaflet_resids[str(leaflet)].resnames)
-
-        # Iterate over lipids in leaflet
-        for rsn in leaflet_resnames:
-
-            if rsn in self.sterols: continue
-
-            self.results["GMM"][f"Leaf{leaflet}"][f"{rsn}_APL"] = self.fit_gmm(
-                property_=self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"], n_repeats=n_repeats,
-                start_frame=start_frame, gmm_kwargs=gmm_kwargs, apl=True)
-
-    def fit_gmm(self, property_, gmm_kwargs, n_repeats, start_frame, apl=False):
-
-        """
-        Fit a Gaussian Mixture Model for each lipid type to the results of the property calculation.
-        This is done here for each leaflet separately!
-
+        Fit Gaussian Mixture
 
         Parameters
         ----------
-        property_ : numpy.array
-            Input data for the gaussian mixture model ( Shape: (NLipids, NFrames) )
+        gmm_kwargs : dict
+            Additional parameters for mixture.GaussianMixture
+        """
+        # Iterate over each residue and implement gaussian mixture model
+        for res, data in self.results.train_data_per_type.items():
+            gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, 3))
+            self.results["GMM"][res] = gmm
 
+        # Check for convergence
+        for resname, each in self.results["GMM"].items():
+            if not each.converged_:
+                print(f"{resname} Gaussian Mixture Model is not converged.")
+
+    # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
+
+    def HMM(self, hmm_kwargs):
+        """
+        Create Gaussian based Hidden Markov Models for each residue type
+        Parameters
+        ----------
+        hmm_kwargs : dict
+            Additional parameters for hmmlearn.hmm.GaussianHMM
+        """
+        # Iterate over each residue and implement gaussian-hidden markov model
+        for resname, data in self.results.train_data_per_type.items():
+            hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
+            self.results["HMM"][resname] = hmm
+        # Plot result of hmm
+        self.plot_hmm_result()
+
+        # Make predictions based on HMM model
+        self.predict_states()
+        # Validate states and result prediction
+        self.state_validate()
+        # Plot prediction result
+        self.predict_plot()
+
+    def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
+
+        """
+        Fit several HMM models to the data and return the best one.
+
+        Parameters
+        ----------
+        data : numpy.ndarray
+            Data of the single lipid properties for one lipid type at each time step
+        gmm : GaussianMixture Model
+            Scikit-learn object
+        n_repeats : int
+            Number of independent fits
+        dim : int
+            Dimension of lipid property space
+
+        hmm_kwargs: dict
+            Additional parameters for Hidden Markov Model
+
+        Returns
+        -------
+        best_ghmm : GaussianHMM
+            hmmlearn object
 
         """
 
-        assert self.n_frames == property_.shape[1], "Wrong input shape for the fitting of the GMM!"
+        # Specify the length of the sequence for each lipid
+        n_lipids = data.shape[0]
+        lengths = np.repeat(self.n_frames, n_lipids)
 
-        # ---------------------------------------Prep data---------------------------------------#
+        # The HMM fitting is started multiple times from
+        # different starting conditions
 
-        # Take arithmetic mean over chain order parameters
-        property_flatten = property_[:,start_frame:].flatten() # Shape change (NLipids, NFrames) -> (NLipids * NFrames,)
-
-        # ---------------------------------------Gaussian Mixture---------------------------------------#
-
-        # Run the GaussianMixture Model for two components
+        # Initialize the best score with minus infinity
         best_score = -np.inf
 
-        for n in tqdm(range(n_repeats)):
-
-            GM_n = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(property_flatten.reshape((-1, 1)))
-
-            score_n = GM_n.score(property_.flatten().reshape((-1, 1)))
-
-            if score_n > best_score:
-                GM = GM_n
-                best_score = score_n
-
-            del GM_n
-
-        # ---------------------------------------Gaussian Mixture Results---------------------------------------#
-
-        if apl == False:
-            # The Gaussian distribution with the highest mean corresponds to the ordered state
-            param_o = np.argmax(GM.means_)
-            # The Gaussian distribution with the lowest mean corresponds to the disordered state
-            param_d = np.argmin(GM.means_)
-        else:
-            # The Gaussian distribution with the lowest mean corresponds to the ordered state
-            param_o = np.argmin(GM.means_)
-            # The Gaussian distribution with the highest mean corresponds to the disordered state
-            param_d = np.argmax(GM.means_)
-
-        # Get mean and variance of the fitted Gaussian distributions
-        mu_o, var_o, weights_o = GM.means_[param_o], GM.covariances_[param_o][0], GM.weights_[param_o]
-        mu_d, var_d, weights_d = GM.means_[param_d], GM.covariances_[param_d][0], GM.weights_[param_d]
-
-        sig_o = np.sqrt(var_o)
-        sig_d = np.sqrt(var_d)
-
-        # ---------------------------------------Intermediate Distribution---------------------------------------#
-        mu_I = (sig_d * mu_o + sig_o * mu_d) / (sig_d + sig_o)
-        sig_I = np.min([np.abs(mu_o - mu_I), np.abs(mu_d - mu_I)]) / 3
-        var_I = sig_I ** 2
-        weights_I = (weights_d + weights_o) / 2
-
-        # ----------------------------------------Conclude----------------------------------------#
-        # Put the fitted results in an easy to access format
-        fit_results = np.empty((3, 3), dtype=np.float32)
-
-        fit_results[0, 0], fit_results[0, 1], fit_results[0, 2] = mu_d, var_d, weights_d
-        fit_results[1, 0], fit_results[1, 1], fit_results[1, 2] = mu_I, var_I, weights_I
-        fit_results[2, 0], fit_results[2, 1], fit_results[2, 2] = mu_o, var_o, weights_o
-
-        return fit_results
-
-    # ------------------------------ HIDDEN MARKOW MODEL ------------------------------------------------------------- #
-
-    def HMM(self, n_repeats, start_frame, hmm_kwargs={}):
-
-        if "GMM" not in self.results.keys() or len(self.results["GMM"]) == 0:
-            print("!!!---WARNING---!!!")
-            print("No Gaussian Mixture Model data found! Please run GMM first!")
-            return
-
-        else:
-            pass
-
-        self.results["HMM"] = {}
-
-        """
-        Structure as follows:
-
-            - HMM
-                - Leaf0
-                    - LipidA
-                        - Trained HMM for Tail 1 of Lipid A
-                        - Trained HMM for Tail 2 of Lipid A
-                        - Trained HMM for APL of Lipid A
-                    - ...
-                - Leaf1
-                    - LipidA
-                        - ...
-
-
-        """
-
-        # Iterate over leaflets
-        for idx, leafgroup in zip(self.leaflet_selection.keys(), self.leaflet_selection.values()):
-            # Init empty dictionary for each leaflet
-            self.results["HMM"][f"Leaf{idx}"] = {}
-
-        self.get_hmm_order_parameters(leaflet=0, n_repeats=n_repeats, start_frame=start_frame, hmm_kwargs=hmm_kwargs)
-        self.get_hmm_order_parameters(leaflet=1, n_repeats=n_repeats, start_frame=start_frame, hmm_kwargs=hmm_kwargs)
-
-        self.get_hmm_area_per_lipid(leaflet=0, n_repeats=n_repeats, start_frame=start_frame, hmm_kwargs=hmm_kwargs)
-        self.get_hmm_area_per_lipid(leaflet=1, n_repeats=n_repeats, start_frame=start_frame, hmm_kwargs=hmm_kwargs)
-
-    def get_hmm_order_parameters(self, leaflet, n_repeats, start_frame, hmm_kwargs):
-
-        # Get lipid types in leaflet
-        leaflet_resnames = np.unique(self.leaflet_resids[str(leaflet)].resnames)
-
-        # Iterate over lipids in leaflet
-        for rsn in leaflet_resnames:
-
-            if rsn in self.sterols: continue
-
-            # Iterate over tails (e.g. for standard phospholipids that 2)
-            for i, tail in enumerate(self.tails[rsn]):
-                self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"] = self.fit_hmm(
-                    property_=self.results.mean_p2_per_type[f"Leaf{leaflet}"][f"{rsn}_{i}"].mean(2),
-                    init_params=self.results.GMM[f"Leaf{leaflet}"][f"{rsn}_{i}"],
-                    n_repeats=n_repeats,
-                    start_frame=start_frame,
-                    hmm_kwargs=hmm_kwargs)
-
-    def get_hmm_area_per_lipid(self, leaflet, n_repeats, start_frame, hmm_kwargs):
-
-        # Get lipid types in leaflet
-        leaflet_resnames = np.unique(self.leaflet_resids[str(leaflet)].resnames)
-
-        # Iterate over lipids in leaflet
-        for rsn in leaflet_resnames:
-
-            if rsn in self.sterols: continue
-
-            self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_APL"] = self.fit_hmm(
-                property_=self.results.apl_per_type[f"Leaf{leaflet}"][f"{rsn}"],
-                init_params=self.results.GMM[f"Leaf{leaflet}"][f"{rsn}_APL"],
-                n_repeats=n_repeats,
-                start_frame=start_frame,
-                hmm_kwargs=hmm_kwargs)
-
-    def fit_hmm(self, property_, init_params, n_repeats, start_frame, hmm_kwargs):
-
-        assert self.n_frames == property_.shape[1], "Wrong input shape for the fitting of the HMM!"
-
-        n_lipids = property_.shape[0]
-
-        means_ = init_params[:, 0].reshape(3, -1)
-        vars_ = init_params[:, 1].reshape(3, -1)
-        weights_ = init_params[:, 2].reshape(3, -1)
-
-        best_score = -np.inf
-
+        # Re-start the HMM fitting 10 times
         for i in tqdm(range(n_repeats)):
 
-            GHMM_n = GaussianHMM(n_components=3, means_prior=means_, covars_prior=vars_, **hmm_kwargs)
+            # Initialize a HMM for one lipid type
+            ghmm_i = GaussianHMM(n_components=2,
+                                 means_prior=gmm.means_,
+                                 covars_prior=gmm.covariances_,
+                                 **hmm_kwargs)
 
-            GHMM_n.fit(property_[:, start_frame:].flatten().reshape(-1, 1),
-                       lengths=np.repeat(self.n_frames - start_frame, n_lipids))
+            # Train the HMM based on the data for every lipid and frame
+            ghmm_i.fit(data.reshape(-1, dim),
+                       lengths=lengths)
 
-            score_n = GHMM_n.score(property_[:, start_frame:].flatten().reshape(-1, 1),
-                                   lengths=np.repeat(self.n_frames - start_frame, n_lipids))
+            # Obtain the log-likelihood
+            # probability of the current model
+            score_i = ghmm_i.score(data.reshape(-1, dim),
+                                   lengths=lengths)
 
-            if score_n > best_score:
-                best_score = score_n
-                GHMM = GHMM_n
+            # Check if the quality of the result improved
+            if score_i > best_score:
+                best_score = score_i
+                best_ghmm = ghmm_i
 
-            del GHMM_n
+            # Delete the current model
+            del ghmm_i
 
-        return GHMM
+        return best_ghmm
+
+    def plot_hmm_result(self):
+        for resname, ghmm in self.results['HMM'].items():
+            plt.semilogy(np.arange(len(ghmm.monitor_.history) - 1), np.diff(np.array(ghmm.monitor_.history)),
+                         ls="-", label=resname, lw=2)
+        plt.legend(fontsize=15)
+        plt.semilogy(np.arange(100), np.repeat(1E-4, 100), color="k", ls="--", lw=2)
+        plt.xlim(0, 100)
+        plt.ylim(1E-5, 15E5)
+        plt.ylabel(r"$\Delta(log(\hat{L}))$", fontsize=18)
+        plt.xlabel("Iterations", fontsize=18)
+        plt.tick_params(axis="both", labelsize=11)
+        plt.text(s="Tolerance 1e-4", x=1, y=1E-4 + 0.00005, color="k", fontsize=15)
+        plt.title("a", fontsize=20, fontweight="bold", loc="left")
+        plt.show()
 
     def predict_states(self):
+        for resname, data in self.results.train_data_per_type.items():
+            shape = data[1].shape
+            hmm = self.results['HMM'][resname]
+            # Lengths consists of number of frames and number of residues
+            lengths = np.repeat(shape[1], shape[0])
+            prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+            # Save prediction result of each residue
+            self.results['HMM_Pred'][resname] = prediction
 
-        for resid in self.memsele.resids:
+    def state_validate(self):
+        """
+        Validate state assignments of HMM model by checking means of the model of each residue.
+        """
+        for resname, gmm in self.results["HMM"].items():
+            means = gmm.means_
+            diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
+            if diff_percents > 0.1:
+                self.results['HMM_Pred'][resname] = np.abs(self.results['HMM_Pred'][resname] - 1)
 
-            rsn = getattr(self.results, f'id{resid}')["Resname"]
-            leaflet = getattr(self.results, f'id{resid}')["Leaflet"]
+    def predict_plot(self):
+        t = np.linspace(8, 10, self.n_frames)
+        for resname in self.unique_resnames:
+            plt.plot(t, self.results['HMM_Pred'][resname].mean(0), label=resname)
+        plt.xticks([8, 8.5, 9, 9.5, 10])
+        plt.xlabel(r"t ($\mu$s)", fontsize=18)
+        plt.ylabel(r"$\bar{O}_{Lipid}$", fontsize=18)
+        plt.legend(fontsize=15, ncols=1, loc="lower left")
+        plt.ylim(0, 1)
+        plt.xlim(8, 10)
+        plt.title("b", fontsize=20, fontweight="bold", loc="left")
+        plt.show()
 
-            if rsn not in self.sterols:
+    # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
+    def getis_ord(self):
+        self.getis_ord_stat(self.results["upper_weight_all"], 0)
+        self.getis_ord_stat(self.results["lower_weight_all"], 1)
+        self.getis_ord_plot()
 
-                # ---------------------------------------------------------P2 Prediction---------------------------------------------------------#
-                # Iterate over tails (e.g. for standard phospholipids that 2)
-                for i, tail in enumerate(self.tails[rsn]):
-                    X = getattr(self.results, f'id{resid}')[f"P2_{i}"].mean(1)
+    def getis_ord_stat(self, weight_matrix_all, leaflet):
+        """
+            Getis-Ord Local Spatial Autocorrelation Statistics calculation based on the predicted order states
+            of each lipid and the weighting factors between neighbored lipids.
 
-                    sorted_means = np.argsort(self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"].means_[:, 0])
+            Parameters
+            ----------
+            weight_matrix_all : numpy.ndarray
+                Weight matrix for all lipid in a leaflet at current time step
+            leaflet : int
+                0 = upper leaflet, 1 = lower leafet
+            lassign : numpy.ndarray
+                Leaflet assignment for each molecule at each step of time
 
-                    predX = self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_{i}"].predict(X.reshape(-1, 1))
+            Returns
+            -------
+            g_star_i : list of numpy.ndarrays
+                G*i values for each lipid at each time step
+            w_ii_all : list of numpy.ndarrays
+                Self-influence of the lipids
+            """
+        # Get the number of frames
+        nframes = self.n_frames
 
-                    re_predX = np.array([sorted_means[predX_i] for predX_i in predX])
+        # Initialize empty lists to store the G*i values and the self-influence of the lipids in a lipid
+        g_star_i = []
+        w_ii_all = []
 
-                    getattr(self.results, f'id{resid}')[f"Pred_P2_{i}"] = re_predX
+        # Iterate over frames
+        for step in range(nframes):
+            # Get the weightmatrix of the leaflet at the current time step
+            weight_matrix = weight_matrix_all[step]
 
-                # ---------------------------------------------------------APL Prediction---------------------------------------------------------#
-                X = getattr(self.results, f'id{resid}')[f"APL"]
+            # Number of lipids in the leaflet
+            n = weight_matrix.shape[0]
 
-                sorted_means = np.argsort(-1 * self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_APL"].means_[:, 0])
+            # In case the code was already executed beforehand
+            weight_matrix[range(n), range(n)] = 0.
 
-                predX = self.results["HMM"][f"Leaf{leaflet}"][f"{rsn}_APL"].predict(X.reshape(-1, 1))
+            # Get the order state of each lipid in the leaflet at the current time step
+            order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
 
-                re_predX = np.array([sorted_means[predX_i] for predX_i in predX])
+            # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
+            nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
 
-                getattr(self.results, f'id{resid}')["Pred_APL"] = re_predX
+            # Parameters for the Getis-Ord statistic
+            w_ii = np.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
+            weight_matrix[range(n), range(n)] = w_ii
+            w_star_i = np.sum(weight_matrix, axis=-1)  # + w_ii
+            s_star_1i = np.sum(weight_matrix ** 2, axis=-1)  # + w_ii**2
+
+            # Empirical standard deviation over all order states in the leaflet
+            s = np.std(order_states, ddof=1)
+
+            # Employ matrix-vector multiplication
+            so = weight_matrix @ order_states
+
+            # Calculate the nominator for G*i
+            nom = so - w_star_i * 0.5
+
+            # Calculate the denominator for G*i
+            denom = s * np.sqrt((n * s_star_1i - w_star_i ** 2) / (n - 1))
+
+            g_star = nom / denom
+
+            assert not np.any(nneighbor < 1), "Lipid found without a neighbor!"
+
+            g_star_i.append(g_star)
+            w_ii_all.append(w_ii)
+        self.results['Getis_Ord'][leaflet] = {f"g_star_i_{leaflet}": g_star_i, f"w_ii_{leaflet}": w_ii_all}
+
+    def getis_ord_plot(self):
+        resnum = len(self.unique_resnames)
+        g_star_i_temp = [[] for _ in range(resnum)]
+        for step in range(self.n_frames):
+            index_dict_0 = self.get_leaflet_step_order_index(leaflet=0)
+            index_dict_1 = self.get_leaflet_step_order_index(leaflet=1)
+            temp_index_list_0 = [0]
+            temp_index_list_1 = [0]
+            for resname in self.unique_resnames:
+                temp_index_list_0.append(temp_index_list_0[-1] + len(index_dict_0[resname]) - 1)
+                temp_index_list_1.append(temp_index_list_1[-1] + len(index_dict_1[resname]) - 1)
+            for i in range(resnum):
+                g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step]
+                                                   [temp_index_list_0[i]:temp_index_list_0[i + 1]],
+                                                   self.results['Getis_Ord'][1]['g_star_i_1'][step]
+                                                   [temp_index_list_1[i]:temp_index_list_1[i + 1]]))
+
+        for i in range(resnum):
+            plt.hist(g_star_i_temp[i], bins=np.linspace(-3, 3, 201), density=True, histtype="step", lw=2,
+                     label=self.unique_resnames[i])
+
+        plt.legend(fontsize=15, loc="upper left", ncols=2)
+
+        plt.xlim(-3, 3)
+        plt.ylim(0, .9)
+
+        xl = plt.xlabel("$G^*_i$", fontsize=18)
+        plt.ylabel("$p(G^*_i)$", fontsize=18)
+        plt.tick_params(labelsize=11)
+
+        plt.title("a", fontsize=20, fontweight="bold", loc="left")
+        plt.show()
+
+    def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
+
+        """
+        Getis-Ord Local Spatial Autocorrelation Statistics calculation based on the predicted order states
+        of each lipid and the weighting factors between neighbored lipids.
+
+        Parameters
+        ----------
+        weight_matrix_all : numpy.ndarray
+            Weight matrices for all lipid in a leaflet at each time step
+        leaflet : int
+            0 = upper leaflet, 1 = lower leafet
+
+        Returns
+        -------
+        g_star_i : list of numpy.ndarrays
+            G*i values for each lipid at each time step
+        """
+
+        # Get the number of frames
+        nframes = self.n_frames
+
+        # Initialize empty lists to store the G*i values and the self-influence of the lipids in a lipid
+        g_star_i = []
+
+        # Do 10 permutations per frame
+        n_permut = 10
+
+        # Iterate over frames
+        for step in tqdm(range(nframes)):
+
+            for permut in range(n_permut):
+                # Get the weightmatrix of the leaflet at the current time step
+                weight_matrix = weight_matrix_all[step]
+
+                # Number of lipids in the leaflet
+                n = weight_matrix.shape[0]
+
+                # In case the code was already executed beforehand
+                weight_matrix[range(n), range(n)] = 0.0
+
+                # Get the order state of each lipid in the leaflet at the current time step
+                order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
+
+                np.random.shuffle(order_states)
+
+                # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
+                nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
+
+                # Parameters for the Getis-Ord statistic
+                w_ii = np.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
+                weight_matrix[range(n), range(n)] = w_ii
+                w_star_i = np.sum(weight_matrix, axis=-1)  # + w_ii
+                s_star_1i = np.sum(weight_matrix ** 2, axis=-1)  # + w_ii**2
+
+                # Empirical standard deviation over all order states in the leaflet
+                s = np.std(order_states, ddof=1)
+
+                # Employ matrix-vector multiplication
+                so = weight_matrix @ order_states
+
+                # Calculate the nominator for G*i
+                nom = so - w_star_i * 0.5
+
+                # Calculate the denominator for G*i
+                denom = s * np.sqrt((n * s_star_1i - w_star_i ** 2) / (n - 1))
+
+                g_star = nom / denom
+
+                assert not np.any(nneighbor < 1), "Lipid found without a neighbor!"
+
+                g_star_i += list(g_star)
+
+        return g_star_i
+
+    # ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
+    def clustering(self):
+        """
+        Runs hierarchical clustering and plots clustering results in different frames.
+        """
+        # TODO Decide on which frames to plot
+        frame_list = [3, 50, 98]
+        fig, ax = plt.subplots(1, len(frame_list), figsize=(20, 5))
+
+        # Iterate over three frames illustrate the clustering results
+        for k, i in enumerate(frame_list):
+            order_states_0 = self.get_leaflet_step_order(0, i)
+
+            # Clustering
+            # ----------------------------------------------------------------------------------------------------------------------
+            core_lipids = self.assign_core_lipids(weight_matrix_f=self.results["upper_weight_all"][i],
+                                                  g_star_i_f=self.results['Getis_Ord'][0]['g_star_i_0'][i],
+                                                  order_states_f=order_states_0,
+                                                  w_ii_f= self.results["Getis_Ord"][0]["w_ii_0"][i])
+
+            clusters = self.hierarchical_clustering(weight_matrix_f=self.results["upper_weight_all"][i],
+                                                    w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
+                                                    core_lipids=core_lipids)
+
+            # Plot coordinates
+            # ----------------------------------------------------------------------------------------------------------------------
+            residue_indexes = self.get_leaflet_step_order_index(leaflet = 0)
+            positions = self.leaflet_selection['0'].positions
+            for resname, index in residue_indexes.items():
+                ax[k].scatter(positions[index, 0],
+                          positions[index, 1], marker="s", alpha=1, s=5, label=resname)
+
+            # Choose color scheme for clustering coloring
+            colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
+
+            # Iterate over clusters and plot the residues
+            print(f"Number of clusters in frame {i}: {len(clusters.values())}")
+            for j, val in enumerate(clusters.values()):
+                idx = np.array(list(val), dtype=int)
+                ax[k].scatter(positions[idx, 0],
+                              positions[idx, 1],
+                              s=100, marker="o", color=colors[j], zorder=-10)
+
+            # Plot cosmetics
+            ax[k].set_ylim(-5, 138)
+            ax[k].set_xlim(-5, 138)
+
+            ax[k].set_xticks([])
+            ax[k].set_yticks([])
+
+            ax[1].legend(ncol=3, loc="lower center", bbox_to_anchor=(0.5, -0.15), fontsize=15, frameon=False)
+
+            ax[k].set_aspect("equal")
+
+        plt.subplots_adjust(wspace=-0.45)
+        ax[0].set_title("a", fontsize=20, fontweight="bold", loc="left")
+        ax[1].set_title("b", fontsize=20, fontweight="bold", loc="left")
+        ax[2].set_title("c", fontsize=20, fontweight="bold", loc="left")
+
+        ax[0].text(s=r"$t=8\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[1].text(s=r"$t=9\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[2].text(s=r"$t=10\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
+
+        plt.show()
+
+    def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f):
+
+        """
+        Assign lipids as core members (aka lipids with a high positive autocorrelation)
+        depending on the Getis-Ord spatial local autocorrelation statistic.
+
+        Parameters
+        ----------
+        weight_matrix_f : numpy.ndarray
+            Matrix containing the weight factors between all lipid pairs at one time step
+        g_star_i_f : numpy.ndarray
+            Getis-Ord spatial local autocorrelation statistic for every lipid at one time step
+        order_states_f: numpy.ndarray
+            Order states for every lipid at one time step
+        w_ii_f: numpy.ndarray
+            Self-influence weight factor for every lipid at one time step
+
+
+        Returns
+        -------
+        core_lipids : numpy.ndarray (bool)
+           Contains a TRUE value if the lipid is a core member, otherwise it FALSE
+        """
+
+        # Define boundary of the rection region
+        z1_a = 2.017  # 1.750 #1.307
+        z_a = -1.271
+
+        # Assign core members according to their auto-correlation
+        core_lipids = g_star_i_f > z1_a
+
+        # Assign lipids with a mid-range auto-correlation (-z_1-a, z_1-a) * Ordered
+        low_corr = (g_star_i_f <= z1_a) & (g_star_i_f >= z_a) & (order_states_f == 1)
+
+        # Add iteratively new lipids to the core members
+        n_cores_old = np.inf
+        n_cores_new = np.sum(core_lipids)
+
+        # Iterate until self-consistency is reached
+        while n_cores_old != n_cores_new:
+            # Check how tightly the lipids are connected to the core members
+            new_core_lipids = (weight_matrix_f[core_lipids].sum(0) > w_ii_f) & low_corr
+
+            # Assign lipids to core members if condition is full-filled
+            core_lipids[new_core_lipids] = True
+
+            # Update number of core lipids
+            n_cores_old = n_cores_new
+            n_cores_new = np.sum(core_lipids)
+
+        return core_lipids
+
+    def hierarchical_clustering(self, weight_matrix_f, w_ii_f, core_lipids):
+
+        """
+        Hierarchical clustering approach to identify spatial related Lo domains.
+
+        Parameters
+        ----------
+        weight_matrix_f : numpy.ndarray
+            Matrix containing the weight factors between all lipid pairs at one time step
+        w_ii_f: numpy.ndarray
+            Self-influence weight factor for every lipid at one time step
+        core_lipids : numpy.ndarray
+            Array contains information which lipid is assigned as core member
+
+        Returns
+        -------
+        clusters : dict
+            The dictionary contains each found cluster
+
+        """
+
+        # Merge iteratively clusters
+        n_clusters_old = np.inf
+        n_clusters_new = np.sum(core_lipids)
+
+        # Get the indices of the core lipids
+        core_lipids_id = np.where(core_lipids)[0]
+
+        # Store clusters in a Python dictionary
+        # Initialize all core lipids as clusters
+        clusters = dict(
+            zip(
+                core_lipids_id.astype("U"),
+                [[id] for id in core_lipids_id]
+            )
+        )
+
+        # Iterate until self-consistency is reached
+        while n_clusters_old != n_clusters_new:
+
+            # Get a list of the IDs of current clusters
+            cluster_ids = list(clusters.keys())
+
+            # Iterate over all clusters i
+            for i, id_i in enumerate(cluster_ids):
+
+                # If cluster i was already merged and deleted, skip it!
+                if id_i not in clusters.keys(): continue
+
+                # The cluster weights are defined as the sum
+                # over the weights of all lipid members
+                cluster_weights_i = np.sum(weight_matrix_f[clusters[id_i]], axis=0)
+
+                # Compare cluster weights to the self-influence of each lipid
+                merge_condition_i = cluster_weights_i > w_ii_f
+
+                # Iterate over all clusters j
+                for id_j in cluster_ids[(i + 1):]:
+
+                    # Do not merge a cluster with itself
+                    if id_i == id_j: continue
+                    # If cluster j was already merged and deleted, skip it!
+                    if id_j not in clusters.keys(): continue
+
+                    # Calculate cluster weights and compare to lipids self-influence
+                    cluster_weights_j = np.sum(weight_matrix_f[clusters[id_j]], axis=0)
+                    merge_condition_j = cluster_weights_j > w_ii_f
+
+                    # If the condition is fullfilled for any lipid -> Merge the clusters
+                    if np.any(merge_condition_i[clusters[id_j]]) or np.any(merge_condition_j[clusters[id_i]]):
+                        # Merge cluster j into cluster i
+                        clusters[id_i] += clusters[id_j]
+
+                        # Delete cluster j from the cluster dict
+                        del clusters[id_j]
+
+            # Update cluster numbers
+            n_clusters_old = n_clusters_new
+            n_clusters_new = len(clusters.keys())
+
+        return clusters
+
+    # ------------------------------ HELPER FUNCTIONS ---------------------------------------------------------------- #
+    def get_leaflet_step_order(self, leaflet, step):
+        """
+        Receive residue's order state with respect to the leaflet
+
+        Parameters
+        ----------
+        leaflet : numpy.ndarray
+            leaflet index
+        step: numpy.ndarray
+            step index
+
+        Returns
+        -------
+        order_states : numpy.ndarray
+            Numpy array contains order state results of the leaflet at step in order of system's residues
+        """
+        temp = []
+        for res, data in self.results.train_data_per_type.items():
+            temp.append(self.results["HMM_Pred"][res][:, step][data[2] == leaflet])
+
+        order_states = np.concatenate(temp)
+        return order_states
+
+    def get_leaflet_step_order_index(self, leaflet):
+        """
+        Receive residue's indexes in order state result with respect to the leaflet
+
+        Parameters
+        ----------
+        leaflet : numpy.ndarray
+            leaflet index
+        step: numpy.ndarray
+            step index
+
+        Returns
+        -------
+        order_states : numpy.ndarray
+            Numpy array contains residue indexes of the leaflet at step in order of system's residues
+        """
+        result = {}
+        for res, data in self.results.train_data_per_type.items():
+            indexes = data[0][data[2] == leaflet]
+            # Decreasing one since Python array index system
+            result[res] = indexes - 1
+        return result
