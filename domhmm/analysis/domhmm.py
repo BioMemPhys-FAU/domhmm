@@ -496,7 +496,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         for resname, gmm in self.results["HMM"].items():
             means = gmm.means_
-            diff_percents = (means[0, 0] - means[1, 0]) / means[0, 0]
+            diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
             if diff_percents > 0.1 :
                 self.results['HMM_Pred'][resname] = np.abs(self.results['HMM_Pred'][resname] - 1)
 
