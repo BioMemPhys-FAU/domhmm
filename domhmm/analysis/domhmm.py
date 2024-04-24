@@ -63,15 +63,17 @@ class PropertyCalculation(LeafletAnalysisBase):
             # parameters for each frame
             setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
             getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
-
-            # Iterate over leaflet tails
-            n_tails = len(self.tails[resname])
-            for i in range(n_tails):
-                # Init storage for SCC values for each lipid
-                getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
-
             # Store the area per lipid for each lipid
             getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
+
+            if resname in self.sterols:
+                getattr(self.results, f'id{resid}')[f'SCC_{resname}'] = np.zeros(self.n_frames, dtype=np.float32)
+            else:
+                # Iterate over leaflet tails
+                n_tails = len(self.tails[resname])
+                for i in range(n_tails):
+                    # Init storage for SCC values for each lipid
+                    getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
 
             # Check leaflet assignment -> based on RESID
             if resid in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids:
@@ -133,6 +135,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Saving result with iterating overall corresponding residues
             for i, resid in enumerate(np.unique(tail.resids)):
                 self.results[f'id{resid}'][f'SCC_{chain}'][self.index] = s_cc[i]
+        for resname, tail in self.sterols_tail.items():
+            s_cc = self.calc_order_parameter(tail)
+
+            # Saving result with iterating overall corresponding residues
+            for i, resid in enumerate(np.unique(tail.resids)):
+                self.results[f'id{resid}'][f'SCC_{resname}'][self.index] = s_cc[i]
 
     def area_per_lipid_vor(self, leaflet, boxdim):
 
@@ -297,7 +305,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         for rsn in self.unique_resnames:
             # Create each leaflet's lipid types 3D empty array.
             # Array will fill with order parameters of tails, area per lipid and leaflet information
-            num_tails = len(self.tails[rsn])
             self.results.train_data_per_type[f"{rsn}"] = [[] for _ in range(3)]
 
         # -------------------------------------------------------------
@@ -327,7 +334,17 @@ class PropertyCalculation(LeafletAnalysisBase):
                 self.results.train_data_per_type[f"{rsn}"][2].append(self.results[f'id{resid}']["Leaflet"])
 
             elif rsn in self.sterols:
-                pass
+                self.results.train_data_per_type[f"{rsn}"][0].append(resid)
+                # Get area per lipid for specific residue
+                apl = getattr(self.results, f'id{resid}')['APL']
+                temp_result_array = [apl]
+                # Get individual lipid scc values for corresponding chain
+                indv_scc = getattr(self.results, f'id{resid}')[f'SCC_{rsn}']
+                temp_result_array.append(indv_scc)
+                # Add order parameter list and take transpose of it for HMM and GMM training requirements
+                self.results.train_data_per_type[f"{rsn}"][1].append(np.array(temp_result_array).transpose())
+                # Add leaflet information
+                self.results.train_data_per_type[f"{rsn}"][2].append(self.results[f'id{resid}']["Leaflet"])
 
             # NOTHING?
             else:
@@ -338,9 +355,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Transform lists to arrays
         for rsn in self.unique_resnames:
             # If number of tail of some residues are more than 2, this line will throw error
-            self.results.train_data_per_type[f"{rsn}"][0] = np.array(self.results.train_data_per_type[f"{rsn}"][0])
-            self.results.train_data_per_type[f"{rsn}"][1] = np.array(self.results.train_data_per_type[f"{rsn}"][1])
-            self.results.train_data_per_type[f"{rsn}"][2] = np.array(self.results.train_data_per_type[f"{rsn}"][2])
+            for i in range(len(self.results.train_data_per_type[f"{rsn}"])):
+                self.results.train_data_per_type[f"{rsn}"][i] = np.array(self.results.train_data_per_type[f"{rsn}"][i])
+
         # -------------------------------------------------------------
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
                       "max_iter": 10000, "n_init": 20,
@@ -365,7 +382,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         # Iterate over each residue and implement gaussian mixture model
         for res, data in self.results.train_data_per_type.items():
-            gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, 3))
+            gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, data[1].shape[2]))
             self.results["GMM"][res] = gmm
 
         # Check for convergence
@@ -397,7 +414,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Plot prediction result
         self.predict_plot()
 
-    def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
+    def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10):
 
         """
         Fit several HMM models to the data and return the best one.
@@ -425,6 +442,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Specify the length of the sequence for each lipid
         n_lipids = data.shape[0]
+        dim = data.shape[2]
         lengths = np.repeat(self.n_frames, n_lipids)
 
         # The HMM fitting is started multiple times from
