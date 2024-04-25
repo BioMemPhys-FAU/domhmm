@@ -18,12 +18,14 @@ def test_run():
     path2tpr = "domhmm/tests/data/mem.tpr"
     uni = mda.Universe(path2tpr, path2xtc)
 
-    # CHOL is out for this run because it doesn't have two tails. Not standard phospholipid
-    membrane_select = "resname DPPC DIPC"
+    membrane_select = "resname DPPC DIPC CHOL"
     tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
              "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
+    sterols = {"CHOL": ["ROH", "C1"]}
+
     domhmm.PropertyCalculation(universe_or_atomgroup=uni,
                                leaflet_kwargs={"select": "name PO4", "pbc": True},
-                               membrane_select= membrane_select,
+                               membrane_select=membrane_select,
+                               sterols=sterols,
                                tails=tails)\
         .run(start=0, stop=100)

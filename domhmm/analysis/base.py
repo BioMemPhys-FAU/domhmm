@@ -135,6 +135,7 @@ class LeafletAnalysisBase(AnalysisBase):
                 self.leaflet_selection[str(idx)] = leafgroup
 
             for rsn, atoms in self.sterols.items():
+                # TODO Find more user-friendly way for sterol atom selection
                 sterol = self.universe.select_atoms(f"name {atoms[0]}")
                 upper_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection['0'],
                                                         box=self.universe.trajectory.ts.dimensions)

@@ -952,8 +952,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             Numpy array contains residue indexes of the leaflet at step in order of system's residues
         """
         result = {}
-        for res, data in self.results.train_data_per_type.items():
-            indexes = data[0][data[2] == leaflet]
-            # Decreasing one since Python array index system
-            result[res] = indexes - 1
+        # TODO Update required when flip-flop logic is implemented
+        for res in self.unique_resnames:
+            indexes = np.where(self.leaflet_selection[str(leaflet)].resnames == res)[0]
+            result[res] = indexes
         return result
