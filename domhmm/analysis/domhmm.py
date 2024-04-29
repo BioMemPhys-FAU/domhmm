@@ -33,10 +33,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         ----------
         """
 
-        # Although sterols maybe do not play a larger role in the future for the domain identification it seems to be
-        # a good idea to keep this functionality
-        self.resid_selection_sterols = {}
-
         # Initialize result storage dictionaries
         self.results.train_data_per_type = {}
         self.results.GMM = {}
@@ -47,6 +43,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Initalize weight matrix storage for each leaflet.
         setattr(self.results, "upper_weight_all", [])
         setattr(self.results, "lower_weight_all", [])
+
+        # Initialized leaflet assignment array for each frame
+        # TODO self.n_frames may update to more logical number
+        self.leaflet_assignment = np.zeros( (len(self.membrane_unique_resids), self.n_frames), dtype = np.int32 )
 
         # Next, a dictionary for EACH selected resid will be created. That's pretty much, but it is important to have
         # the order parameters for each lipid over the whole trajectory for the domain identification
@@ -259,7 +259,19 @@ class PropertyCalculation(LeafletAnalysisBase):
         Calculate data from a single frame of the trajectory.
         """
 
+        # Get number of frame from trajectory
+        self.frame = self.universe.trajectory.ts.frame
+        # Calculate correct index if skipping step not equals 1 or start point not equals 0
+        self.index = self.frame // self.step - self.start
+
+
         # Make selection of non-flip/flop lipids and flip/flop lipids if there are sterols present
+        # TODO Make this value as input with default value
+        if not self.index % 10:
+            self.get_leaflets()
+            assignment_index = int(self.index/10)
+            self.leaflet_assignment[self.leaflet_selection["0"].resids -1 ,assignment_index] = 0
+            self.leaflet_assignment[self.leaflet_selection["1"].resids - 1, assignment_index] = 1
 
         self.surface_lipids_per_frame = {}
 
@@ -271,10 +283,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                                                            leaf1=self.surface_lipids_per_frame["1"]):
             raise ValueError("Atoms in both leaflets !")
 
-        # Get number of frame from trajectory
-        self.frame = self.universe.trajectory.ts.frame
-        # Calculate correct index if skipping step not equals 1 or start point not equals 0
-        self.index = self.frame // self.step - self.start
+
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
@@ -612,6 +621,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             index_dict_1 = self.get_leaflet_step_order_index(leaflet=1)
             temp_index_list_0 = [0]
             temp_index_list_1 = [0]
+            # TODO Update required with flip-flop
             for resname in self.unique_resnames:
                 temp_index_list_0.append(temp_index_list_0[-1] + len(index_dict_0[resname]) - 1)
                 temp_index_list_1.append(temp_index_list_1[-1] + len(index_dict_1[resname]) - 1)
@@ -930,8 +940,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         temp = []
         for res, data in self.results.train_data_per_type.items():
-            temp.append(self.results["HMM_Pred"][res][:, step][data[2] == leaflet])
-
+            temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[data[0] - 1,int(step / 10)] == leaflet])
         order_states = np.concatenate(temp)
         return order_states
 

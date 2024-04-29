@@ -90,6 +90,8 @@ class LeafletAnalysisBase(AnalysisBase):
 
         self.tails = tails
         self.sterols = sterols
+        
+        self.leaflet_kwargs = leaflet_kwargs
 
         # -----------------------------------------------------------Local membrane properties------------------------ #
         # If local is True then properties are calculated if possible
@@ -118,41 +120,8 @@ class LeafletAnalysisBase(AnalysisBase):
                 self.leaflet_selection[str(i)] = self.universe.select_atoms(leaflet_select[i])
 
         else:
-
-            # Call LeafletFinder to get upper and lower leaflets
-            self.leafletfinder = LeafletFinder(self.universe, **leaflet_kwargs)
-
-            # Check for two leaflets
-            self.n_leaflets = len(self.leafletfinder.groups())
-            assert self.n_leaflets == 2, f"Bilayer is required. {self.n_leaflets} are found."
-
-            # Init empty dict to store AtomGroups -> That would be not necessary but I want the same variables for the
-            # user specified case or the automatic case
-            self.leaflet_selection = {}
-
-            # Iterate over found groups
-            for idx, leafgroup in enumerate(self.leafletfinder.groups_iter()):
-                self.leaflet_selection[str(idx)] = leafgroup
-
-            for rsn, atoms in self.sterols.items():
-                # TODO Find more user-friendly way for sterol atom selection
-                sterol = self.universe.select_atoms(f"name {atoms[0]}")
-                upper_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection['0'],
-                                                        box=self.universe.trajectory.ts.dimensions)
-                lower_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection['1'],
-                                                        box=self.universe.trajectory.ts.dimensions)
-
-                # ...determining the minimum distance to each leaflet for each cholesterol,...
-                upper_sterol = np.min(upper_sterol, axis=1)
-                lower_sterol = np.min(lower_sterol, axis=1)
-
-                # ...the assignment is finished by checking for which leaflet the minimum distance is smallest.
-                upper_sterol = sterol[upper_sterol < lower_sterol]
-                lower_sterol = sterol.difference(upper_sterol)
-
-                # Merge the atom selections for the phospholipids and cholesterol
-                self.leaflet_selection['0'] = self.leaflet_selection['0'] + upper_sterol
-                self.leaflet_selection['1'] = self.leaflet_selection['1'] + lower_sterol
+            self.get_leaflets()
+            
 
         # Save unique residue names
         _, idx = np.unique(self.membrane.resnames, return_index=True)
@@ -165,6 +134,42 @@ class LeafletAnalysisBase(AnalysisBase):
         self.get_leaflet_tails()
 
         self.get_leaflet_sterols()
+    
+    def get_leaflets(self):
+        # Call LeafletFinder to get upper and lower leaflets
+        leafletfinder = LeafletFinder(self.universe, **self.leaflet_kwargs)
+
+        # Check for two leaflets
+        self.n_leaflets = len(leafletfinder.groups())
+        assert self.n_leaflets == 2, f"Bilayer is required. {self.n_leaflets} are found."
+
+        # Init empty dict to store AtomGroups -> That would be not necessary but I want the same variables for the
+        # user specified case or the automatic case
+        self.leaflet_selection = {}
+
+        # Iterate over found groups
+        for idx, leafgroup in enumerate(leafletfinder.groups_iter()):
+            self.leaflet_selection[str(idx)] = leafgroup
+
+        for rsn, atoms in self.sterols.items():
+            # TODO Find more user-friendly way for sterol atom selection
+            sterol = self.universe.select_atoms(f"name {atoms[0]}")
+            upper_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection['0'],
+                                                    box=self.universe.trajectory.ts.dimensions)
+            lower_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection['1'],
+                                                    box=self.universe.trajectory.ts.dimensions)
+
+            # ...determining the minimum distance to each leaflet for each cholesterol,...
+            upper_sterol = np.min(upper_sterol, axis=1)
+            lower_sterol = np.min(lower_sterol, axis=1)
+
+            # ...the assignment is finished by checking for which leaflet the minimum distance is smallest.
+            upper_sterol = sterol[upper_sterol < lower_sterol]
+            lower_sterol = sterol.difference(upper_sterol)
+
+            # Merge the atom selections for the phospholipids and cholesterol
+            self.leaflet_selection['0'] = self.leaflet_selection['0'] + upper_sterol
+            self.leaflet_selection['1'] = self.leaflet_selection['1'] + lower_sterol
 
     def get_leaflet_resids(self):
 
@@ -194,7 +199,7 @@ class LeafletAnalysisBase(AnalysisBase):
             # Iterate over residues in found group and add it to the atomgroup
             for resid in uni_leaf_resids:
                 self.leaflet_resids[idx] += self.universe.select_atoms(f"resid {resid}")
-
+                
     def get_leaflet_sterols(self):
         """
         Make atomgroups for sterols
