@@ -33,10 +33,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         ----------
         """
 
-        # Although sterols maybe do not play a larger role in the future for the domain identification it seems to be
-        # a good idea to keep this functionality
-        self.resid_selection_sterols = {}
-
         # Initialize result storage dictionaries
         self.results.train_data_per_type = {}
         self.results.GMM = {}
@@ -47,6 +43,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Initalize weight matrix storage for each leaflet.
         setattr(self.results, "upper_weight_all", [])
         setattr(self.results, "lower_weight_all", [])
+
+        # Initialized leaflet assignment array for each frame
+        # TODO self.n_frames may update to more logical number
+        self.leaflet_assignment = np.zeros( (len(self.membrane_unique_resids), self.n_frames), dtype = np.int32 )
 
         # Next, a dictionary for EACH selected resid will be created. That's pretty much, but it is important to have
         # the order parameters for each lipid over the whole trajectory for the domain identification
@@ -63,15 +63,17 @@ class PropertyCalculation(LeafletAnalysisBase):
             # parameters for each frame
             setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
             getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
-
-            # Iterate over leaflet tails
-            n_tails = len(self.tails[resname])
-            for i in range(n_tails):
-                # Init storage for SCC values for each lipid
-                getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
-
             # Store the area per lipid for each lipid
             getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
+
+            if resname in self.sterols:
+                getattr(self.results, f'id{resid}')[f'SCC_{resname}'] = np.zeros(self.n_frames, dtype=np.float32)
+            else:
+                # Iterate over leaflet tails
+                n_tails = len(self.tails[resname])
+                for i in range(n_tails):
+                    # Init storage for SCC values for each lipid
+                    getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
 
             # Check leaflet assignment -> based on RESID
             if resid in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids:
@@ -133,6 +135,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Saving result with iterating overall corresponding residues
             for i, resid in enumerate(np.unique(tail.resids)):
                 self.results[f'id{resid}'][f'SCC_{chain}'][self.index] = s_cc[i]
+        for resname, tail in self.sterols_tail.items():
+            s_cc = self.calc_order_parameter(tail)
+
+            # Saving result with iterating overall corresponding residues
+            for i, resid in enumerate(np.unique(tail.resids)):
+                self.results[f'id{resid}'][f'SCC_{resname}'][self.index] = s_cc[i]
 
     def area_per_lipid_vor(self, leaflet, boxdim):
 
@@ -251,7 +259,23 @@ class PropertyCalculation(LeafletAnalysisBase):
         Calculate data from a single frame of the trajectory.
         """
 
-        # Make selection of non-flip/flop lipids and flip/flop lipids if there are sterols present
+        # Get number of frame from trajectory
+        self.frame = self.universe.trajectory.ts.frame
+        # Calculate correct index if skipping step not equals 1 or start point not equals 0
+        self.index = self.frame // self.step - self.start
+
+
+
+        # TODO Make this value as input with default value
+        #   Twice operation in beginning since it starts with 0
+        #   Not sure if self.index is correct value selection for this purpose
+        if not self.index % 10:
+            self.get_leaflets()
+            assignment_index = int(self.index/10)
+            self.uidx = self.leaflet_selection["0"].resids -1
+            self.lidx = self.leaflet_selection["1"].resids - 1
+            self.leaflet_assignment[self.uidx ,assignment_index] = 0
+            self.leaflet_assignment[self.lidx, assignment_index] = 1
 
         self.surface_lipids_per_frame = {}
 
@@ -263,10 +287,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                                                            leaf1=self.surface_lipids_per_frame["1"]):
             raise ValueError("Atoms in both leaflets !")
 
-        # Get number of frame from trajectory
-        self.frame = self.universe.trajectory.ts.frame
-        # Calculate correct index if skipping step not equals 1 or start point not equals 0
-        self.index = self.frame // self.step - self.start
+
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
@@ -297,7 +318,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         for rsn in self.unique_resnames:
             # Create each leaflet's lipid types 3D empty array.
             # Array will fill with order parameters of tails, area per lipid and leaflet information
-            num_tails = len(self.tails[rsn])
             self.results.train_data_per_type[f"{rsn}"] = [[] for _ in range(3)]
 
         # -------------------------------------------------------------
@@ -327,7 +347,17 @@ class PropertyCalculation(LeafletAnalysisBase):
                 self.results.train_data_per_type[f"{rsn}"][2].append(self.results[f'id{resid}']["Leaflet"])
 
             elif rsn in self.sterols:
-                pass
+                self.results.train_data_per_type[f"{rsn}"][0].append(resid)
+                # Get area per lipid for specific residue
+                apl = getattr(self.results, f'id{resid}')['APL']
+                temp_result_array = [apl]
+                # Get individual lipid scc values for corresponding chain
+                indv_scc = getattr(self.results, f'id{resid}')[f'SCC_{rsn}']
+                temp_result_array.append(indv_scc)
+                # Add order parameter list and take transpose of it for HMM and GMM training requirements
+                self.results.train_data_per_type[f"{rsn}"][1].append(np.array(temp_result_array).transpose())
+                # Add leaflet information
+                self.results.train_data_per_type[f"{rsn}"][2].append(self.results[f'id{resid}']["Leaflet"])
 
             # NOTHING?
             else:
@@ -338,9 +368,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Transform lists to arrays
         for rsn in self.unique_resnames:
             # If number of tail of some residues are more than 2, this line will throw error
-            self.results.train_data_per_type[f"{rsn}"][0] = np.array(self.results.train_data_per_type[f"{rsn}"][0])
-            self.results.train_data_per_type[f"{rsn}"][1] = np.array(self.results.train_data_per_type[f"{rsn}"][1])
-            self.results.train_data_per_type[f"{rsn}"][2] = np.array(self.results.train_data_per_type[f"{rsn}"][2])
+            for i in range(len(self.results.train_data_per_type[f"{rsn}"])):
+                self.results.train_data_per_type[f"{rsn}"][i] = np.array(self.results.train_data_per_type[f"{rsn}"][i])
+
         # -------------------------------------------------------------
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
                       "max_iter": 10000, "n_init": 20,
@@ -365,7 +395,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         # Iterate over each residue and implement gaussian mixture model
         for res, data in self.results.train_data_per_type.items():
-            gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, 3))
+            gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, data[1].shape[2]))
             self.results["GMM"][res] = gmm
 
         # Check for convergence
@@ -397,7 +427,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Plot prediction result
         self.predict_plot()
 
-    def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10, dim=3):
+    def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10):
 
         """
         Fit several HMM models to the data and return the best one.
@@ -425,6 +455,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Specify the length of the sequence for each lipid
         n_lipids = data.shape[0]
+        dim = data.shape[2]
         lengths = np.repeat(self.n_frames, n_lipids)
 
         # The HMM fitting is started multiple times from
@@ -594,6 +625,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             index_dict_1 = self.get_leaflet_step_order_index(leaflet=1)
             temp_index_list_0 = [0]
             temp_index_list_1 = [0]
+            # TODO Update required with flip-flop
             for resname in self.unique_resnames:
                 temp_index_list_0.append(temp_index_list_0[-1] + len(index_dict_0[resname]) - 1)
                 temp_index_list_1.append(temp_index_list_1[-1] + len(index_dict_1[resname]) - 1)
@@ -912,8 +944,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         temp = []
         for res, data in self.results.train_data_per_type.items():
-            temp.append(self.results["HMM_Pred"][res][:, step][data[2] == leaflet])
-
+            temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[data[0] - 1,int(step / 10)] == leaflet])
         order_states = np.concatenate(temp)
         return order_states
 
@@ -934,8 +965,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             Numpy array contains residue indexes of the leaflet at step in order of system's residues
         """
         result = {}
-        for res, data in self.results.train_data_per_type.items():
-            indexes = data[0][data[2] == leaflet]
-            # Decreasing one since Python array index system
-            result[res] = indexes - 1
+        # TODO Update required when flip-flop logic is implemented
+        for res in self.unique_resnames:
+            indexes = np.where(self.leaflet_selection[str(leaflet)].resnames == res)[0]
+            result[res] = indexes
         return result
