@@ -265,13 +265,17 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.index = self.frame // self.step - self.start
 
 
-        # Make selection of non-flip/flop lipids and flip/flop lipids if there are sterols present
+
         # TODO Make this value as input with default value
+        #   Twice operation in beginning since it starts with 0
+        #   Not sure if self.index is correct value selection for this purpose
         if not self.index % 10:
             self.get_leaflets()
             assignment_index = int(self.index/10)
-            self.leaflet_assignment[self.leaflet_selection["0"].resids -1 ,assignment_index] = 0
-            self.leaflet_assignment[self.leaflet_selection["1"].resids - 1, assignment_index] = 1
+            self.uidx = self.leaflet_selection["0"].resids -1
+            self.lidx = self.leaflet_selection["1"].resids - 1
+            self.leaflet_assignment[self.uidx ,assignment_index] = 0
+            self.leaflet_assignment[self.lidx, assignment_index] = 1
 
         self.surface_lipids_per_frame = {}
 
