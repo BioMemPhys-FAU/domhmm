@@ -60,6 +60,8 @@ class LeafletAnalysisBase(AnalysisBase):
         :meth:`.run`
     leaflet_kwargs: Optional[dict]
         dictionary containing additional arguments for the MDAnalysis LeafletFinder
+    heads: Optional[dict]
+        dictionary containing resname and atom selection for lipid head groups
     tails: Optional[dict]
         dictionary containing resname and atom selection for lipid tail groups
 
@@ -72,6 +74,7 @@ class LeafletAnalysisBase(AnalysisBase):
             leaflet_kwargs: Dict[str, Any] = {},
             leaflet_select: Union[None, str] = None,
             tails: Dict[str, Any] = {},
+            heads: Dict[str, Any] = {},
             sterols: Dict[str, Any] = {},
             local: bool = False,
             **kwargs
@@ -87,9 +90,11 @@ class LeafletAnalysisBase(AnalysisBase):
         self.universe = universe_or_atomgroup.universe
         self.membrane = universe_or_atomgroup.select_atoms(membrane_select)
         self.membrane_unique_resids = np.unique(self.membrane.resids)
-
+        self.heads = heads
         self.tails = tails
         self.sterols = sterols
+
+        assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
         
         self.leaflet_kwargs = leaflet_kwargs
 
@@ -128,7 +133,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.unique_resnames = self.membrane.resnames[np.sort(idx)]
 
         # Get residues ids in upper and lower leaflet -> self.leaflet_resids
-        self.get_leaflet_resids()
+        self.get_resids()
 
         # Get dictionary with selection of head- and tailgroups in upper and lower leaflets
         self.get_leaflet_tails()
@@ -171,34 +176,27 @@ class LeafletAnalysisBase(AnalysisBase):
             self.leaflet_selection['0'] = self.leaflet_selection['0'] + upper_sterol
             self.leaflet_selection['1'] = self.leaflet_selection['1'] + lower_sterol
 
-    def get_leaflet_resids(self):
-
+    def get_resids(self):
         """
-        Retrieve the residue indices from the leaflet finder groups and store it in a new dictionary.
+        Retrieve the residue indices for each residue and store it in a new dictionary.
 
         Attributes
         ---------- 
-        leaflet_resids: dict
-            dictionary for each leaflet (should be two) containing a selection of residues. -> Is used by
-            get_leaflet_tails()
-
+        residue_ids: dict
+            dictionary for each residue containing residue ids of it.
         """
 
         # Init empty dict to store atom selection of resids
-        self.leaflet_resids = {}
+        self.residue_ids = {}
 
         # Iterate over found leaflets
-        for idx, leafgroup in zip(self.leaflet_selection.keys(), self.leaflet_selection.values()):
-
-            # Init empty selection
-            self.leaflet_resids[idx] = self.universe.select_atoms("")
-
-            # Get unique resids in the leaflet
-            uni_leaf_resids = np.unique(leafgroup.resids)
-
-            # Iterate over residues in found group and add it to the atomgroup
-            for resid in uni_leaf_resids:
-                self.leaflet_resids[idx] += self.universe.select_atoms(f"resid {resid}")
+        for resname, head in self.heads.items():
+            query_str = f"name {head} and resname {resname}"
+            self.residue_ids[resname] = self.universe.select_atoms(query_str).resids
+        for resname, atoms in self.sterols.items():
+            # TODO Find more user-friendly way for sterol atom selection
+            query_str = f"name {atoms[0]} and resname {resname}"
+            self.residue_ids[resname] = self.universe.select_atoms(query_str).resids
                 
     def get_leaflet_sterols(self):
         """

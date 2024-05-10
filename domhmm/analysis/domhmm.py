@@ -39,49 +39,18 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.results.HMM = {}
         self.results.HMM_Pred = {}
         self.results.Getis_Ord = {}
-
+        self.max_tail_len = -1
+        for _, each in self.tails.items():
+            if len(each) > self.max_tail_len:
+                self.max_tail_len = len(each)
+        # Total number of parameters are area per lipid + order parameter for each tail = max_tail_len + 1
+        self.results.train = np.zeros((len(self.membrane_unique_resids), self.n_frames,1 + self.max_tail_len + len(self.sterols)), dtype=np.float32)
         # Initalize weight matrix storage for each leaflet.
         setattr(self.results, "upper_weight_all", [])
         setattr(self.results, "lower_weight_all", [])
 
         # Initialized leaflet assignment array for each frame
-        # TODO self.n_frames may update to more logical number
         self.leaflet_assignment = np.zeros( (len(self.membrane_unique_resids), self.n_frames), dtype = np.int32 )
-
-        # Next, a dictionary for EACH selected resid will be created. That's pretty much, but it is important to have
-        # the order parameters for each lipid over the whole trajectory for the domain identification
-
-        # Iterate over all residues in the selected membrane
-        for resid in self.membrane_unique_resids:
-
-            # Select specific resid
-            resid_selection = self.universe.select_atoms(f"resid {resid}")
-            # Get its lipid type
-            resname = resid_selection.resnames[0]
-
-            # Init results for order parameters -> For each resid we should have an array containing the order
-            # parameters for each frame
-            setattr(self.results, f'id{resid}', {})  # -> Setup an empty dictionary
-            getattr(self.results, f'id{resid}')['Resname'] = resname  # -> Store lipid type
-            # Store the area per lipid for each lipid
-            getattr(self.results, f'id{resid}')[f'APL'] = np.zeros(self.n_frames, dtype=np.float32)
-
-            if resname in self.sterols:
-                getattr(self.results, f'id{resid}')[f'SCC_{resname}'] = np.zeros(self.n_frames, dtype=np.float32)
-            else:
-                # Iterate over leaflet tails
-                n_tails = len(self.tails[resname])
-                for i in range(n_tails):
-                    # Init storage for SCC values for each lipid
-                    getattr(self.results, f'id{resid}')[f'SCC_{i}'] = np.zeros(self.n_frames, dtype=np.float32)
-
-            # Check leaflet assignment -> based on RESID
-            if resid in self.leaflet_selection["0"].resids and resid not in self.leaflet_selection["1"].resids:
-                getattr(self.results, f'id{resid}')['Leaflet'] = 0  # -> Store information about leaflet assignment
-            elif resid in self.leaflet_selection["1"].resids and resid not in self.leaflet_selection["0"].resids:
-                getattr(self.results, f'id{resid}')['Leaflet'] = 1  # -> Store information about leaflet assignment
-            else:
-                raise ValueError(f'{resname} with resid {resid} not found in leaflets')
 
     def calc_order_parameter(self, chain):
 
@@ -131,16 +100,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         for chain, tail in self.resid_tails_selection.items():
             # SCC calculation
             s_cc = self.calc_order_parameter(tail)
-
-            # Saving result with iterating overall corresponding residues
-            for i, resid in enumerate(np.unique(tail.resids)):
-                self.results[f'id{resid}'][f'SCC_{chain}'][self.index] = s_cc[i]
-        for resname, tail in self.sterols_tail.items():
+            _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
+            self.results.train[idx, self.index, 1 + chain] = s_cc
+        for i, (resname, tail) in enumerate(self.sterols_tail.items()):
             s_cc = self.calc_order_parameter(tail)
-
-            # Saving result with iterating overall corresponding residues
-            for i, resid in enumerate(np.unique(tail.resids)):
-                self.results[f'id{resid}'][f'SCC_{resname}'][self.index] = s_cc[i]
+            _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
+            self.results.train[idx, self.index, 1 + self.max_tail_len + i] = s_cc
 
     def area_per_lipid_vor(self, leaflet, boxdim):
 
@@ -190,10 +155,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         apl = np.array([ConvexHull(vor.vertices[vor.regions[vor.point_region[i]]]).volume for i in range(ncoor)])
 
         # Save result of area per lipid
-        for i in range(0, len(self.surface_lipids_per_frame[str(leaflet)].resnums)):
-            resid = self.surface_lipids_per_frame[str(leaflet)].resnums[i]
-            getattr(self.results, f'id{resid}')[f'APL'][self.index] = apl[i]
-
+        # TODO Somewhat contain id list of upper and lower leaflet
+        #   Again not sure if self.index means step
+        if leaflet == 0:
+            self.results.train[self.uidx, self.index, 0] = apl
+        else:
+            self.results.train[self.lidx, self.index, 0] = apl
         return vor
 
     def weight_matrix(self, vor, leaflet):
@@ -264,8 +231,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Calculate correct index if skipping step not equals 1 or start point not equals 0
         self.index = self.frame // self.step - self.start
 
-
-
         # TODO Make this value as input with default value
         #   Twice operation in beginning since it starts with 0
         #   Not sure if self.index is correct value selection for this purpose
@@ -274,8 +239,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             assignment_index = int(self.index/10)
             self.uidx = self.leaflet_selection["0"].resids -1
             self.lidx = self.leaflet_selection["1"].resids - 1
-            self.leaflet_assignment[self.uidx ,assignment_index] = 0
-            self.leaflet_assignment[self.lidx, assignment_index] = 1
+            start_index = assignment_index * 10
+            end_index = (assignment_index + 1) * 10
+            if end_index > len(self.leaflet_assignment):
+                end_index = len(self)
+            self.leaflet_assignment[self.uidx ,start_index:end_index] = 0
+            self.leaflet_assignment[self.lidx, start_index:end_index] = 1
 
         self.surface_lipids_per_frame = {}
 
@@ -311,65 +280,27 @@ class PropertyCalculation(LeafletAnalysisBase):
         Extract the obtained data and put them into a clear and accessible data structure
         """
 
-        # -----------------------------------------------------------------------
-        # Make a dictionary for the calculated values of each lipid type for each leaflet
-        # -----------------------------------------------------------------------
-
-        for rsn in self.unique_resnames:
+        self.results.train_data_per_type = {}
+        for resname in self.unique_resnames:
             # Create each leaflet's lipid types 3D empty array.
             # Array will fill with order parameters of tails, area per lipid and leaflet information
-            self.results.train_data_per_type[f"{rsn}"] = [[] for _ in range(3)]
+            self.results.train_data_per_type[f"{resname}"] = [[] for _ in range(3)]
 
-        # -------------------------------------------------------------
+        for resname, tails in self.tails.items():
+            rsn_ids = self.residue_ids[resname]
+            self.results.train_data_per_type[resname][0] = rsn_ids
+            _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
+            # Select columns of area per lipid and tails' scc parameters
+            self.results.train_data_per_type[resname][1] = self.results.train[idx][:,:,0:len(tails) + 1]
+            self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
 
-        # Fill dictionary with obtained data
-
-        # Iterate over all residues in the selected membrane
-        for resid in self.membrane_unique_resids:
-
-            # Grab leaflet and resname
-            rsn = getattr(self.results, f'id{resid}')['Resname']
-
-            # Check if lipid is a sterol compound or not
-            if rsn not in self.sterols:
-                self.results.train_data_per_type[f"{rsn}"][0].append(resid)
-                # Get area per lipid for specific residue
-                apl = getattr(self.results, f'id{resid}')['APL']
-                temp_result_array = [apl]
-                # Iterate over chains -> For a normal phospholipid that should be 2
-                for n_chain in range(len(self.tails[rsn])):
-                    # Get individual lipid scc values for corresponding chain
-                    indv_scc = getattr(self.results, f'id{resid}')[f'SCC_{n_chain}']
-                    temp_result_array.append(indv_scc)
-                # Add order parameter list and take transpose of it for HMM and GMM training requirements
-                self.results.train_data_per_type[f"{rsn}"][1].append(np.array(temp_result_array).transpose())
-                # Add leaflet information
-                self.results.train_data_per_type[f"{rsn}"][2].append(self.results[f'id{resid}']["Leaflet"])
-
-            elif rsn in self.sterols:
-                self.results.train_data_per_type[f"{rsn}"][0].append(resid)
-                # Get area per lipid for specific residue
-                apl = getattr(self.results, f'id{resid}')['APL']
-                temp_result_array = [apl]
-                # Get individual lipid scc values for corresponding chain
-                indv_scc = getattr(self.results, f'id{resid}')[f'SCC_{rsn}']
-                temp_result_array.append(indv_scc)
-                # Add order parameter list and take transpose of it for HMM and GMM training requirements
-                self.results.train_data_per_type[f"{rsn}"][1].append(np.array(temp_result_array).transpose())
-                # Add leaflet information
-                self.results.train_data_per_type[f"{rsn}"][2].append(self.results[f'id{resid}']["Leaflet"])
-
-            # NOTHING?
-            else:
-                raise ValueError(f'{rsn} with resid {resid} not found in leaflets or sterol list!')
-
-        # -------------------------------------------------------------
-
-        # Transform lists to arrays
-        for rsn in self.unique_resnames:
-            # If number of tail of some residues are more than 2, this line will throw error
-            for i in range(len(self.results.train_data_per_type[f"{rsn}"])):
-                self.results.train_data_per_type[f"{rsn}"][i] = np.array(self.results.train_data_per_type[f"{rsn}"][i])
+        for i, (resname, tail) in enumerate(self.sterols_tail.items()):
+            rsn_ids = self.residue_ids[resname]
+            self.results.train_data_per_type[resname][0] = rsn_ids
+            _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
+            # Select columns of area per lipid and sterol's scc parameter
+            self.results.train_data_per_type[resname][1] = self.results.train[idx][:,:,[0, 1 + self.max_tail_len + i]]
+            self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
 
         # -------------------------------------------------------------
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
@@ -944,7 +875,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         temp = []
         for res, data in self.results.train_data_per_type.items():
-            temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[data[0] - 1,int(step / 10)] == leaflet])
+            temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[data[0] - 1,step] == leaflet])
         order_states = np.concatenate(temp)
         return order_states
 
