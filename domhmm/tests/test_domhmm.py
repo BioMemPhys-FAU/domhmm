@@ -19,6 +19,8 @@ def test_run():
     uni = mda.Universe(path2tpr, path2xtc)
 
     membrane_select = "resname DPPC DIPC CHOL"
+    heads = {"DPPC": "PO4",
+             "DIPC": "PO4"}
     tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
              "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
     sterols = {"CHOL": ["ROH", "C1"]}
@@ -26,6 +28,7 @@ def test_run():
     domhmm.PropertyCalculation(universe_or_atomgroup=uni,
                                leaflet_kwargs={"select": "name PO4", "pbc": True},
                                membrane_select=membrane_select,
+                               heads=heads,
                                sterols=sterols,
                                tails=tails)\
         .run(start=0, stop=100)
