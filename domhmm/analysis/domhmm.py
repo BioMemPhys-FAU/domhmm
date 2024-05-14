@@ -155,8 +155,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         apl = np.array([ConvexHull(vor.vertices[vor.regions[vor.point_region[i]]]).volume for i in range(ncoor)])
 
         # Save result of area per lipid
-        # TODO Somewhat contain id list of upper and lower leaflet
-        #   Again not sure if self.index means step
         if leaflet == 0:
             self.results.train[self.uidx, self.index, 0] = apl
         else:
@@ -231,16 +229,13 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Calculate correct index if skipping step not equals 1 or start point not equals 0
         self.index = self.frame // self.step - self.start
 
-        # TODO Make this value as input with default value
-        #   Twice operation in beginning since it starts with 0
-        #   Not sure if self.index is correct value selection for this purpose
-        if not self.index % 10:
+        if not self.index % self.leaflet_frame_rate:
             self.get_leaflets()
-            assignment_index = int(self.index/10)
+            assignment_index = int(self.index/self.leaflet_frame_rate)
             self.uidx = self.leaflet_selection["0"].resids -1
             self.lidx = self.leaflet_selection["1"].resids - 1
-            start_index = assignment_index * 10
-            end_index = (assignment_index + 1) * 10
+            start_index = assignment_index * self.leaflet_frame_rate
+            end_index = (assignment_index + 1) * self.leaflet_frame_rate
             if end_index > len(self.leaflet_assignment):
                 end_index = len(self)
             self.leaflet_assignment[self.uidx ,start_index:end_index] = 0
@@ -556,7 +551,6 @@ class PropertyCalculation(LeafletAnalysisBase):
             index_dict_1 = self.get_leaflet_step_order_index(leaflet=1)
             temp_index_list_0 = [0]
             temp_index_list_1 = [0]
-            # TODO Update required with flip-flop
             for resname in self.unique_resnames:
                 temp_index_list_0.append(temp_index_list_0[-1] + len(index_dict_0[resname]) - 1)
                 temp_index_list_1.append(temp_index_list_1[-1] + len(index_dict_1[resname]) - 1)
@@ -693,6 +687,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
 
             # Iterate over clusters and plot the residues
+            # TODO Error on idx with out of range of positions when start is 3 and end is 109
             print(f"Number of clusters in frame {i}: {len(clusters.values())}")
             for j, val in enumerate(clusters.values()):
                 idx = np.array(list(val), dtype=int)
@@ -896,7 +891,6 @@ class PropertyCalculation(LeafletAnalysisBase):
             Numpy array contains residue indexes of the leaflet at step in order of system's residues
         """
         result = {}
-        # TODO Update required when flip-flop logic is implemented
         for res in self.unique_resnames:
             indexes = np.where(self.leaflet_selection[str(leaflet)].resnames == res)[0]
             result[res] = indexes

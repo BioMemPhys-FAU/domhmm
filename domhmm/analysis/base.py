@@ -93,6 +93,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.heads = heads
         self.tails = tails
         self.sterols = sterols
+        self.leaflet_frame_rate = 10
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
         
