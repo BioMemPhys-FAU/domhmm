@@ -3,13 +3,13 @@ Unit and regression test for the domhmm package.
 """
 
 # Import package, test suite, and other packages as needed
-import domhmm
-import sys
 import pytest
 import os
 import MDAnalysis as mda
+from ..analysis import base
 
-class TestDomhmm:
+
+class TestBase:
     @pytest.fixture
     def universe(self):
         test_dir = os.path.dirname(__file__)
@@ -27,19 +27,15 @@ class TestDomhmm:
                  "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
         sterols = {"CHOL": ["ROH", "C1"]}
 
-        return domhmm.PropertyCalculation(universe_or_atomgroup=universe,
-                                          leaflet_kwargs={"select": "name PO4", "pbc": True},
-                                          membrane_select=membrane_select,
-                                          heads=heads,
-                                          sterols=sterols,
-                                          tails=tails)
-
-    def test_domhmm_imported(self):
-        """Sample test, will always pass so long as import statement worked"""
-        assert "domhmm" in sys.modules
+        return base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                        leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                        membrane_select=membrane_select,
+                                        heads=heads,
+                                        sterols=sterols,
+                                        tails=tails)
 
     def test_run(self, universe):
-        """Demo testing to try run """
+        """Demo testing for base class """
 
         membrane_select = "resname DPPC DIPC CHOL"
         heads = {"DPPC": "PO4",
@@ -48,11 +44,15 @@ class TestDomhmm:
                  "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
         sterols = {"CHOL": ["ROH", "C1"]}
 
-        domhmm.PropertyCalculation(universe_or_atomgroup=universe,
-                                   leaflet_kwargs={"select": "name PO4", "pbc": True},
-                                   membrane_select=membrane_select,
-                                   heads=heads,
-                                   sterols=sterols,
-                                   tails=tails) \
-            .run(start=0, stop=100)
+        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                 leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                 membrane_select=membrane_select,
+                                 heads=heads,
+                                 sterols=sterols,
+                                 tails=tails)
 
+    def test_check_parameters(self, analysis):
+        assert analysis.membrane_unique_resids.size == 720
+        assert (analysis.unique_resnames == ['DPPC', 'DIPC', 'CHOL']).all()
+        assert len(analysis.leaflet_selection) == 2
+        assert analysis.sterols_tail.keys() == {"CHOL"}
