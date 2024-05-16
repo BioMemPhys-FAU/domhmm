@@ -96,7 +96,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.leaflet_frame_rate = 10
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
-        
+
         self.leaflet_kwargs = leaflet_kwargs
 
         # -----------------------------------------------------------Local membrane properties------------------------ #
@@ -127,7 +127,6 @@ class LeafletAnalysisBase(AnalysisBase):
 
         else:
             self.leaflet_selection = self.get_leaflets()
-            
 
         # Save unique residue names
         _, idx = np.unique(self.membrane.resnames, return_index=True)
@@ -141,8 +140,6 @@ class LeafletAnalysisBase(AnalysisBase):
 
         self.sterols_tail = self.get_leaflet_sterols()
 
-        pass
-    
     def get_leaflets(self):
         # Call LeafletFinder to get upper and lower leaflets
         leafletfinder = LeafletFinder(self.universe, **self.leaflet_kwargs)
@@ -202,7 +199,7 @@ class LeafletAnalysisBase(AnalysisBase):
             query_str = f"name {atoms[0]} and resname {resname}"
             residue_ids[resname] = self.universe.select_atoms(query_str).resids
         return residue_ids
-                
+
     def get_leaflet_sterols(self):
         """
         Make atomgroups for sterols
