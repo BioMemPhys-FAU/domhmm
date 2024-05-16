@@ -230,7 +230,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.index = self.frame // self.step - self.start
 
         if not self.index % self.leaflet_frame_rate:
-            self.get_leaflets()
+            self.leaflet_selection = self.get_leaflets()
             assignment_index = int(self.index/self.leaflet_frame_rate)
             self.uidx = self.leaflet_selection["0"].resids -1
             self.lidx = self.leaflet_selection["1"].resids - 1
