@@ -10,7 +10,7 @@ from ..analysis import base
 
 
 class TestBase:
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def universe(self):
         test_dir = os.path.dirname(__file__)
         path2xtc = os.path.join(test_dir, "data/md_center_mol_last2mus.xtc")
@@ -18,7 +18,7 @@ class TestBase:
         uni = mda.Universe(path2tpr, path2xtc)
         return uni
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def analysis(self, universe):
         membrane_select = "resname DPPC DIPC CHOL"
         heads = {"DPPC": "PO4",
