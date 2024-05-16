@@ -6,6 +6,7 @@ Unit and regression test for the domhmm package.
 import domhmm
 import sys
 import pytest
+import os
 import MDAnalysis as mda
 
 class TestDomhmm:
@@ -16,8 +17,9 @@ class TestDomhmm:
 
     def test_run(self):
         """Demo testing to try run """
-        path2xtc = "data/md_center_mol_last2mus.xtc"
-        path2tpr = "data/mem.tpr"
+        test_dir = os.path.dirname(__file__)
+        path2xtc = os.path.join(test_dir, "data/md_center_mol_last2mus.xtc")
+        path2tpr = os.path.join(test_dir, "data/mem.tpr")
         uni = mda.Universe(path2tpr, path2xtc)
 
         membrane_select = "resname DPPC DIPC CHOL"
