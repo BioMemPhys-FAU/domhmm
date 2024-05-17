@@ -58,6 +58,8 @@ class LeafletAnalysisBase(AnalysisBase):
     frames: numpy.ndarray
         array of Timestep frame indices. Only exists after calling
         :meth:`.run`
+    frac: float
+        fraction of box length in x and y outside the unit cell considered for Voronoi calculation
     leaflet_kwargs: Optional[dict]
         dictionary containing additional arguments for the MDAnalysis LeafletFinder
     heads: Optional[dict]
@@ -77,6 +79,7 @@ class LeafletAnalysisBase(AnalysisBase):
             heads: Dict[str, Any] = {},
             sterols: Dict[str, Any] = {},
             local: bool = False,
+            frac: float = 0.5,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -94,6 +97,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.tails = tails
         self.sterols = sterols
         self.leaflet_frame_rate = 10
+        self.frac = frac
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
