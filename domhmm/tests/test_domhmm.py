@@ -7,6 +7,7 @@ import domhmm
 import sys
 import pytest
 import os
+import pickle
 import MDAnalysis as mda
 
 
@@ -61,8 +62,28 @@ class TestDomhmm:
     def test_calc_order_parameter(self):
         pass
 
-    def test_area_per_lipid_vor(self):
-        pass
+    def test_area_per_lipid_vor(self, analysis):
+        print(analysis)
+        boxdim = analysis.universe.trajectory.ts.dimensions[0:3]
+        upper_vor, upper_apl = analysis.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=analysis.frac)
+        lower_vor, lower_apl = analysis.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=analysis.frac)
+        try:
+            test_dir = os.path.dirname(__file__)
+            with open(os.path.join(test_dir, "data/first_upper_vor.pickle"), "rb") as f:
+                test_upper_vor = pickle.load(f)
+            with open(os.path.join(test_dir, "data/first_upper_apl.pickle"), "rb") as f:
+                test_upper_apl = pickle.load(f)
+            with open(os.path.join(test_dir, "data/lower_lower_vor.pickle"), "rb") as f:
+                test_lower_vor = pickle.load(f)
+            with open(os.path.join(test_dir, "data/first_lower_apl.pickle"), "rb") as f:
+                test_lower_apl = pickle.load(f)
+        except FileNotFoundError:
+            print("Test data files for area per lipid are not found.")
+        assert (test_upper_vor.points == upper_vor.points).all()
+        assert (test_upper_apl == upper_apl).all()
+        assert (test_lower_vor.points == lower_vor.points).all()
+        assert (test_lower_apl == lower_apl).all()
+
 
     def test_weight_matrix(self):
         pass
