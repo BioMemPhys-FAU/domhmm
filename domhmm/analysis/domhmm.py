@@ -107,7 +107,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
             self.results.train[idx, self.index, 1 + self.max_tail_len + i] = s_cc
 
-    def area_per_lipid_vor(self, leaflet, boxdim):
+    def area_per_lipid_vor(self, leaflet, boxdim, frac):
 
         """
         Calculation of the area per lipid employing Voronoi tessellation on coordinates mapped to the xy plane.
@@ -119,6 +119,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             Index to decide upper/lower leaflet
         boxdim : array
             Length of box vectors in all directions
+        frac : float
+            Fraction of box length in x and y outside the unit cell considered for Voronoi calculation 
 
         Returns
         -------
@@ -144,6 +146,21 @@ class PropertyCalculation(LeafletAnalysisBase):
                 pbc[k * ncoor: (k + 1) * ncoor, 1] = coor_xy[:, 1] % by + j * by
 
                 k += 1
+
+        #Create a boolean mask for positions within the unit cell and a smaller fraction of positions outside the unit cell
+        #Check along x-axis
+        f0 = pbc[:, 0] >= -frac * bx
+        f1 = pbc[:, 0] <= bx + frac * bx
+
+        #Check along y-axis
+        f2 = pbc[:, 1] >= -frac * by
+        f3 = pbc[:, 1] <= by + frac * by
+
+        #Merge the four masks together
+        mask = f0 * f1 * f2 * f3
+
+        #Filter the positions of all periodic images
+        pbc = pbc[mask]
 
         # Call scipy's Voronoi implementation
         # There is the (rare!) possibility that two points have the exact same xy positions,
@@ -255,8 +272,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
-        upper_vor = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim)
-        lower_vor = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim)
+        upper_vor = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac = self.frac)
+        lower_vor = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac = self.frac)
         # TODO Local normal calculation
 
         # ------------------------------ Order parameter ------------------------------------------------------------- #
