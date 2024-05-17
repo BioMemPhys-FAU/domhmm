@@ -9,11 +9,13 @@ import sys
 import pytest
 import os
 import pickle
-import numpy
 import MDAnalysis as mda
+
+error_tolerance = 0.001
 
 
 class TestDomhmm:
+
     @pytest.fixture(scope="class")
     def universe(self):
         test_dir = os.path.dirname(__file__)
@@ -94,10 +96,10 @@ class TestDomhmm:
         """Sample test, will always pass so long as import statement worked"""
         assert "domhmm" in sys.modules
 
-    # def test_run(self, analysis):
-    #     """Demo testing to try run """
-    #     analysis.run(start=0, stop=100)
-    #     self.result_parameter_check(analysis)
+    def test_run(self, analysis):
+        """Demo testing to try run """
+        analysis.run(start=0, stop=100)
+        self.result_parameter_check(analysis)
 
     def test_calc_order_parameter(self, analysis, order_parameters_results):
         result = []
@@ -107,27 +109,21 @@ class TestDomhmm:
         for i, (resname, tail) in enumerate(analysis.sterols_tail.items()):
             s_cc = analysis.calc_order_parameter(tail)
             result.append(s_cc)
-        assert (order_parameters_results["SCC_0"] == result[0]).all()
-        assert (order_parameters_results["SCC_1"] == result[1]).all()
-        assert (order_parameters_results["CHOL"] == result[2]).all()
+        assert np.allclose(order_parameters_results["SCC_0"], result[0], error_tolerance)
+        assert np.allclose(order_parameters_results["SCC_1"], result[1], error_tolerance)
+        assert np.allclose(order_parameters_results["CHOL"], result[2], error_tolerance)
 
     def test_area_per_lipid_vor(self, analysis, apl_results):
         boxdim = analysis.universe.trajectory.ts.dimensions[0:3]
         upper_vor, upper_apl = analysis.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=analysis.frac)
         lower_vor, lower_apl = analysis.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=analysis.frac)
-        error_tollerance = 0.001
-        assert np.allclose(apl_results["test_upper_vor"].points, upper_vor.points, error_tollerance)
-        assert np.allclose(apl_results["test_upper_apl"], upper_apl, error_tollerance)
-        assert np.allclose(apl_results["test_lower_vor"].points, lower_vor.points, error_tollerance)
-        assert np.allclose(apl_results["test_lower_apl"], lower_apl, error_tollerance)
-        # assert (apl_results["test_upper_vor"].points == upper_vor.points).all()
-        # assert (apl_results["test_upper_apl"] == upper_apl).all()
-        # assert (apl_results["test_lower_vor"].points == lower_vor.points).all()
-        # assert (apl_results["test_lower_apl"] == lower_apl).all()
-
+        assert np.allclose(apl_results["test_upper_vor"].points, upper_vor.points, error_tolerance)
+        assert np.allclose(apl_results["test_upper_apl"], upper_apl, error_tolerance)
+        assert np.allclose(apl_results["test_lower_vor"].points, lower_vor.points, error_tolerance)
+        assert np.allclose(apl_results["test_lower_apl"], lower_apl, error_tolerance)
 
     def test_weight_matrix(self, analysis, apl_results, weight_results):
         upper_weight = analysis.weight_matrix(apl_results["test_upper_vor"], leaflet=0)
         lower_weight = analysis.weight_matrix(apl_results["test_lower_vor"], leaflet=1)
-        assert (weight_results["test_upper_weight"] == upper_weight).all()
-        assert (weight_results["test_lower_weight"] == lower_weight).all()
+        assert np.allclose(weight_results["test_upper_weight"], upper_weight, error_tolerance)
+        assert np.allclose(weight_results["test_lower_weight"], lower_weight, error_tolerance)
