@@ -66,6 +66,15 @@ class TestDomhmm:
             print("Test data files for area per lipid are not found.")
         return result
 
+    @pytest.fixture(scope="class")
+    def order_parameters_results(self):
+        try:
+            test_dir = os.path.dirname(__file__)
+            with open(os.path.join(test_dir, "data/first_order_parameters.pickle"), "rb") as f:
+                result_dict = pickle.load(f)
+        except FileNotFoundError:
+            print("Test data files for area per lipid are not found.")
+        return result_dict
 
     @staticmethod
     def result_parameter_check(analysis):
@@ -88,9 +97,17 @@ class TestDomhmm:
         analysis.run(start=0, stop=100)
         self.result_parameter_check(analysis)
 
-    def test_calc_order_parameter(self):
-        # TODO
-        pass
+    def test_calc_order_parameter(self, analysis, order_parameters_results):
+        result = []
+        for chain, tail in analysis.resid_tails_selection.items():
+            s_cc = analysis.calc_order_parameter(tail)
+            result.append(s_cc)
+        for i, (resname, tail) in enumerate(analysis.sterols_tail.items()):
+            s_cc = analysis.calc_order_parameter(tail)
+            result.append(s_cc)
+        assert (order_parameters_results["SCC_0"] == result[0]).all()
+        assert (order_parameters_results["SCC_1"] == result[1]).all()
+        assert (order_parameters_results["CHOL"] == result[2]).all()
 
     def test_area_per_lipid_vor(self, analysis, apl_results):
         boxdim = analysis.universe.trajectory.ts.dimensions[0:3]
