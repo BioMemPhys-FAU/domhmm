@@ -9,6 +9,7 @@ import pytest
 import os
 import MDAnalysis as mda
 
+
 class TestDomhmm:
     @pytest.fixture(scope="class")
     def universe(self):
@@ -18,7 +19,7 @@ class TestDomhmm:
         uni = mda.Universe(path2tpr, path2xtc)
         return uni
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def analysis(self, universe):
         membrane_select = "resname DPPC DIPC CHOL"
         heads = {"DPPC": "PO4",
@@ -38,7 +39,22 @@ class TestDomhmm:
         """Sample test, will always pass so long as import statement worked"""
         assert "domhmm" in sys.modules
 
+    @staticmethod
+    def result_parameter_check(analysis):
+        assert analysis.results['GMM']['DPPC'].converged_
+        assert analysis.results['GMM']['DIPC'].converged_
+        assert analysis.results['GMM']['CHOL'].converged_
+        assert len(analysis.results['HMM_Pred']) == 3
+        assert analysis.results['HMM_Pred'].keys() == {'DPPC', 'DIPC', 'CHOL'}
+        assert analysis.results['HMM_Pred']['DPPC'].shape == (302, 100)
+        assert analysis.results['HMM_Pred']['DIPC'].shape == (202, 100)
+        assert analysis.results['HMM_Pred']['CHOL'].shape == (216, 100)
+        assert len(analysis.results['Getis_Ord']) == 2
+
     def test_run(self, analysis):
         """Demo testing to try run """
+        print(analysis.results)
         analysis.run(start=0, stop=100)
+        self.result_parameter_check(analysis)
 
+    # TODO Testing order parameter and area per lipid calculation would be perfect.
