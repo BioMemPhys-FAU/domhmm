@@ -57,4 +57,12 @@ class TestDomhmm:
         analysis.run(start=0, stop=100)
         self.result_parameter_check(analysis)
 
-    # TODO Testing order parameter and area per lipid calculation would be perfect.
+    # TODO tests
+    def test_calc_order_parameter(self):
+        pass
+
+    def test_area_per_lipid_vor(self):
+        pass
+
+    def test_weight_matrix(self):
+        pass
