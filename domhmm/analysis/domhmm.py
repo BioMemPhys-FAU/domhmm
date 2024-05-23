@@ -526,12 +526,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
 
             # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
-            nneighbor = csr_array.sum(weight_matrix > 1E-5, axis=1)
+            nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
             # Parameters for the Getis-Ord statistic
-            w_ii = csr_array.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
+            w_ii = np.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
             weight_matrix[range(n), range(n)] = w_ii
-            w_star_i = csr_array.sum(weight_matrix, axis=-1)  # + w_ii
-            s_star_1i = csr_array.sum(weight_matrix.power(2), axis=-1)  # + w_ii**2
+            w_star_i = np.sum(weight_matrix, axis=-1)  # + w_ii
+            s_star_1i = np.sum(weight_matrix.power(2), axis=-1)  # + w_ii**2
 
             # Empirical standard deviation over all order states in the leaflet
             s = np.std(order_states, ddof=1)
@@ -586,7 +586,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.title("a", fontsize=20, fontweight="bold", loc="left")
         plt.show()
 
-    # TODO Update w.r.t. sparse
     def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
 
         """
