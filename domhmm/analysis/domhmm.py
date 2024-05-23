@@ -482,6 +482,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.getis_ord_stat(self.results["upper_weight_all"], 0)
         self.getis_ord_stat(self.results["lower_weight_all"], 1)
         self.getis_ord_plot()
+        self.results["Getis_Ord"]["Permut_0"] = self.permut_getis_ord_stat(self.results["upper_weight_all"], 0)
+        self.results["Getis_Ord"]["Permut_1"] = self.permut_getis_ord_stat(self.results["lower_weight_all"], 1)
+        self.results["z_score"] = self.z_score_calc()
 
     def getis_ord_stat(self, weight_matrix_all, leaflet):
         """
@@ -661,6 +664,15 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return g_star_i
 
+    def z_score_calc(self):
+        result = {}
+        for i in range(2):
+            z_score = {}
+            getis_ord_permut = self.results["Getis_Ord"][f"Permut_{i}"]
+            z_score["z_a"] = np.quantile(getis_ord_permut, 0.05)
+            z_score["z1_a"] = np.quantile(getis_ord_permut, 0.95)
+            result[i] = z_score
+        return result
     # ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
     def clustering(self):
         """
@@ -679,7 +691,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             core_lipids = self.assign_core_lipids(weight_matrix_f=self.results["upper_weight_all"][i],
                                                   g_star_i_f=self.results['Getis_Ord'][0]['g_star_i_0'][i],
                                                   order_states_f=order_states_0,
-                                                  w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i])
+                                                  w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
+                                                  z_score=self.results["z_score"][0])
 
             clusters = self.hierarchical_clustering(weight_matrix_f=self.results["upper_weight_all"][i],
                                                     w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
@@ -727,7 +740,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         plt.show()
 
-    def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f):
+    def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f, z_score):
 
         """
         Assign lipids as core members (aka lipids with a high positive autocorrelation)
@@ -743,6 +756,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             Order states for every lipid at one time step
         w_ii_f: numpy.ndarray
             Self-influence weight factor for every lipid at one time step
+        z_score: dict
+            Contains boundary of the reaction region
 
 
         Returns
@@ -752,8 +767,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Define boundary of the reaction region
-        z1_a = 2.017  # 1.750 #1.307
-        z_a = -1.271
+        z1_a = z_score["z1_a"]
+        z_a = z_score["z_a"]
 
         # Assign core members according to their auto-correlation
         core_lipids = g_star_i_f > z1_a
