@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from sklearn import mixture
 from hmmlearn.hmm import GaussianHMM
 from scipy.spatial import Voronoi, ConvexHull
+from scipy.sparse import csr_array
 from tqdm import tqdm
 
 
@@ -273,8 +274,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         # ------------------------------ Weight Matrix --------------------------------------------------------------- #
         upper_weight_matrix = self.weight_matrix(upper_vor, leaflet=0)
         lower_weight_matrix = self.weight_matrix(lower_vor, leaflet=1)
-        self.results["upper_weight_all"].append(upper_weight_matrix)
-        self.results["lower_weight_all"].append(lower_weight_matrix)
+        # Keep weight matrices in scipy.sparse.csr_array format since both is sparse matrices
+        self.results["upper_weight_all"].append(csr_array(upper_weight_matrix))
+        self.results["lower_weight_all"].append(csr_array(lower_weight_matrix))
 
     def _conclude(self):
 
@@ -488,7 +490,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             Parameters
             ----------
-            weight_matrix_all : numpy.ndarray
+            weight_matrix_all : sparse.csr_array
                 Weight matrix for all lipid in a leaflet at current time step
             leaflet : int
                 0 = upper leaflet, 1 = lower leafet
@@ -524,13 +526,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
 
             # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
-            nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
-
+            nneighbor = csr_array.sum(weight_matrix > 1E-5, axis=1)
             # Parameters for the Getis-Ord statistic
-            w_ii = np.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
+            w_ii = csr_array.sum(weight_matrix, axis=-1) / nneighbor  # Self-influence!
             weight_matrix[range(n), range(n)] = w_ii
-            w_star_i = np.sum(weight_matrix, axis=-1)  # + w_ii
-            s_star_1i = np.sum(weight_matrix ** 2, axis=-1)  # + w_ii**2
+            w_star_i = csr_array.sum(weight_matrix, axis=-1)  # + w_ii
+            s_star_1i = csr_array.sum(weight_matrix.power(2), axis=-1)  # + w_ii**2
 
             # Empirical standard deviation over all order states in the leaflet
             s = np.std(order_states, ddof=1)
@@ -585,6 +586,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.title("a", fontsize=20, fontweight="bold", loc="left")
         plt.show()
 
+    # TODO Update w.r.t. sparse
     def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
 
         """
@@ -593,7 +595,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Parameters
         ----------
-        weight_matrix_all : numpy.ndarray
+        weight_matrix_all : sparse.csr_array
             Weight matrices for all lipid in a leaflet at each time step
         leaflet : int
             0 = upper leaflet, 1 = lower leafet
@@ -750,7 +752,7 @@ class PropertyCalculation(LeafletAnalysisBase):
            Contains a TRUE value if the lipid is a core member, otherwise it FALSE
         """
 
-        # Define boundary of the rection region
+        # Define boundary of the reaction region
         z1_a = 2.017  # 1.750 #1.307
         z_a = -1.271
 
