@@ -244,8 +244,6 @@ class LeafletAnalysisBase(AnalysisBase):
             # Make for every type an extra dictionary
             # Iterate over tails (e.g. for standard phospholipids that 2)
             for i, tail in enumerate(self.tails[resname]):
-                # Check for correct input
-                assert len(tail) % 2 == 0, 'Error: Selection list for tails must be even'
                 # Prepare a MDAnalysis selection string (I.e. ['C22', 'H2R'] -> 'name C22 or name H2R')
                 tail_sele_str = 'name ' + ' or name '.join(tail)
                 # Select for correct lipid type (I.e. I.e. ['C22', 'H2R'] -> 'name C22 or name H2R' ->
