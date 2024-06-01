@@ -44,13 +44,16 @@ class PropertyCalculation(LeafletAnalysisBase):
             if len(each) > self.max_tail_len:
                 self.max_tail_len = len(each)
         # Total number of parameters are area per lipid + order parameter for each tail = max_tail_len + 1
-        self.results.train = np.zeros((len(self.membrane_unique_resids), self.n_frames,1 + self.max_tail_len + len(self.sterols)), dtype=np.float32)
+        self.results.train = np.zeros(
+            (len(self.membrane_unique_resids), self.n_frames, 1 + self.max_tail_len + len(self.sterols)),
+            dtype=np.float32)
         # Initalize weight matrix storage for each leaflet.
         setattr(self.results, "upper_weight_all", [])
         setattr(self.results, "lower_weight_all", [])
 
         # Initialized leaflet assignment array for each frame
-        self.leaflet_assignment = np.zeros( (len(self.membrane_unique_resids), self.n_frames), dtype = np.int32 )
+        self.leaflet_assignment = np.zeros((len(self.membrane_unique_resids), self.n_frames), dtype=np.int32)
+        self.leaflet_assignment_results = []
 
     def calc_order_parameter(self, chain):
 
@@ -129,7 +132,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Number of points in the plane
-        coor_xy = self.surface_lipids_per_frame[str(leaflet)].positions
+        coor_xy = self.leaflet_selection[str(leaflet)].positions
         ncoor = coor_xy.shape[0]
         bx = boxdim[0]
         by = boxdim[1]
@@ -147,19 +150,19 @@ class PropertyCalculation(LeafletAnalysisBase):
 
                 k += 1
 
-        #Create a boolean mask for positions within the unit cell and a smaller fraction of positions outside the unit cell
-        #Check along x-axis
+        # Create a boolean mask for positions within the unit cell and a smaller fraction of positions outside the unit cell
+        # Check along x-axis
         f0 = pbc[:, 0] >= -frac * bx
         f1 = pbc[:, 0] <= bx + frac * bx
 
-        #Check along y-axis
+        # Check along y-axis
         f2 = pbc[:, 1] >= -frac * by
         f3 = pbc[:, 1] <= by + frac * by
 
-        #Merge the four masks together
+        # Merge the four masks together
         mask = f0 * f1 * f2 * f3
 
-        #Filter the positions of all periodic images
+        # Filter the positions of all periodic images
         pbc = pbc[mask]
 
         # Call scipy's Voronoi implementation
@@ -171,12 +174,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Iterate over all members of the unit cell and calculate their occupied area
         apl = np.array([ConvexHull(vor.vertices[vor.regions[vor.point_region[i]]]).volume for i in range(ncoor)])
 
-        # Save result of area per lipid
-        if leaflet == 0:
-            self.results.train[self.uidx, self.index, 0] = apl
-        else:
-            self.results.train[self.lidx, self.index, 0] = apl
-        return vor
+        return vor, apl
 
     def weight_matrix(self, vor, leaflet):
 
@@ -198,7 +196,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Number of points in the plane
-        coor_xy = self.surface_lipids_per_frame[str(leaflet)].positions
+        coor_xy = self.leaflet_selection[str(leaflet)].positions
         ncoor = coor_xy.shape[0]
 
         # Calculate the distance for all pairs of points between which a ridge exists
@@ -247,33 +245,27 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.index = self.frame // self.step - self.start
 
         if not self.index % self.leaflet_frame_rate:
-            self.get_leaflets()
-            assignment_index = int(self.index/self.leaflet_frame_rate)
-            self.uidx = self.leaflet_selection["0"].resids -1
+            self.leaflet_selection = self.get_leaflets()
+            assignment_index = int(self.index / self.leaflet_frame_rate)
+            self.uidx = self.leaflet_selection["0"].resids - 1
             self.lidx = self.leaflet_selection["1"].resids - 1
             start_index = assignment_index * self.leaflet_frame_rate
             end_index = (assignment_index + 1) * self.leaflet_frame_rate
             if end_index > len(self.leaflet_assignment):
                 end_index = len(self)
-            self.leaflet_assignment[self.uidx ,start_index:end_index] = 0
+            self.leaflet_assignment[self.uidx, start_index:end_index] = 0
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
+            self.leaflet_assignment_results.append(self.leaflet_selection)
 
-        self.surface_lipids_per_frame = {}
-
-        # Iterate over leafelts
-        for leaflet in range(2):
-            self.surface_lipids_per_frame[str(leaflet)] = self.leaflet_selection[str(leaflet)]
-
-        if self.surface_lipids_per_frame["0"].select_atoms("group leaf1",
-                                                           leaf1=self.surface_lipids_per_frame["1"]):
+        if self.leaflet_selection["0"].select_atoms("group leaf1", leaf1=self.leaflet_selection["1"]):
             raise ValueError("Atoms in both leaflets !")
-
-
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
-        upper_vor = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac = self.frac)
-        lower_vor = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac = self.frac)
+        upper_vor, upper_apl = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=self.frac)
+        lower_vor, lower_apl = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=self.frac)
+        self.results.train[self.uidx, self.index, 0] = upper_apl
+        self.results.train[self.lidx, self.index, 0] = lower_apl
         # TODO Local normal calculation
 
         # ------------------------------ Order parameter ------------------------------------------------------------- #
@@ -303,7 +295,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.results.train_data_per_type[resname][0] = rsn_ids
             _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
             # Select columns of area per lipid and tails' scc parameters
-            self.results.train_data_per_type[resname][1] = self.results.train[idx][:,:,0:len(tails) + 1]
+            self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, 0:len(tails) + 1]
             self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
 
         for i, (resname, tail) in enumerate(self.sterols_tail.items()):
@@ -311,7 +303,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.results.train_data_per_type[resname][0] = rsn_ids
             _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
             # Select columns of area per lipid and sterol's scc parameter
-            self.results.train_data_per_type[resname][1] = self.results.train[idx][:,:,[0, 1 + self.max_tail_len + i]]
+            self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, [0, 1 + self.max_tail_len + i]]
             self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
 
         # -------------------------------------------------------------
@@ -564,8 +556,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         resnum = len(self.unique_resnames)
         g_star_i_temp = [[] for _ in range(resnum)]
         for step in range(self.n_frames):
-            index_dict_0 = self.get_leaflet_step_order_index(leaflet=0)
-            index_dict_1 = self.get_leaflet_step_order_index(leaflet=1)
+            index_dict_0 = self.get_leaflet_step_order_index(leaflet=0, step=step)
+            index_dict_1 = self.get_leaflet_step_order_index(leaflet=1, step=step)
             temp_index_list_0 = [0]
             temp_index_list_1 = [0]
             for resname in self.unique_resnames:
@@ -686,7 +678,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             core_lipids = self.assign_core_lipids(weight_matrix_f=self.results["upper_weight_all"][i],
                                                   g_star_i_f=self.results['Getis_Ord'][0]['g_star_i_0'][i],
                                                   order_states_f=order_states_0,
-                                                  w_ii_f= self.results["Getis_Ord"][0]["w_ii_0"][i])
+                                                  w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i])
 
             clusters = self.hierarchical_clustering(weight_matrix_f=self.results["upper_weight_all"][i],
                                                     w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
@@ -694,17 +686,17 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             # Plot coordinates
             # ----------------------------------------------------------------------------------------------------------------------
-            residue_indexes = self.get_leaflet_step_order_index(leaflet = 0)
-            positions = self.leaflet_selection['0'].positions
+            residue_indexes = self.get_leaflet_step_order_index(leaflet=0, step=i)
+            leaflet_assignment_index = int(i / self.leaflet_frame_rate)
+            positions = self.leaflet_assignment_results[leaflet_assignment_index]['0'].positions
             for resname, index in residue_indexes.items():
                 ax[k].scatter(positions[index, 0],
-                          positions[index, 1], marker="s", alpha=1, s=5, label=resname)
+                              positions[index, 1], marker="s", alpha=1, s=5, label=resname)
 
             # Choose color scheme for clustering coloring
             colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
 
             # Iterate over clusters and plot the residues
-            # TODO Error on idx with out of range of positions when start is 3 and end is 109
             print(f"Number of clusters in frame {i}: {len(clusters.values())}")
             for j, val in enumerate(clusters.values()):
                 idx = np.array(list(val), dtype=int)
@@ -887,11 +879,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         temp = []
         for res, data in self.results.train_data_per_type.items():
-            temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[data[0] - 1,step] == leaflet])
+            temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[data[0] - 1, step] == leaflet])
         order_states = np.concatenate(temp)
         return order_states
 
-    def get_leaflet_step_order_index(self, leaflet):
+    def get_leaflet_step_order_index(self, leaflet, step):
         """
         Receive residue's indexes in order state result with respect to the leaflet
 
@@ -909,6 +901,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         result = {}
         for res in self.unique_resnames:
-            indexes = np.where(self.leaflet_selection[str(leaflet)].resnames == res)[0]
+            leaflet_assignment_index = int(step / self.leaflet_frame_rate)
+            indexes = np.where(self.leaflet_assignment_results[leaflet_assignment_index][str(leaflet)].resnames == res)[0]
             result[res] = indexes
         return result

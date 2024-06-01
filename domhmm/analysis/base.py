@@ -100,7 +100,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.frac = frac
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
-        
+
         self.leaflet_kwargs = leaflet_kwargs
 
         # -----------------------------------------------------------Local membrane properties------------------------ #
@@ -130,21 +130,20 @@ class LeafletAnalysisBase(AnalysisBase):
                 self.leaflet_selection[str(i)] = self.universe.select_atoms(leaflet_select[i])
 
         else:
-            self.get_leaflets()
-            
+            self.leaflet_selection = self.get_leaflets()
 
         # Save unique residue names
         _, idx = np.unique(self.membrane.resnames, return_index=True)
         self.unique_resnames = self.membrane.resnames[np.sort(idx)]
 
         # Get residues ids in upper and lower leaflet -> self.leaflet_resids
-        self.get_resids()
+        self.residue_ids = self.get_resids()
 
         # Get dictionary with selection of head- and tailgroups in upper and lower leaflets
-        self.get_leaflet_tails()
+        self.resid_tails_selection = self.get_leaflet_tails()
 
-        self.get_leaflet_sterols()
-    
+        self.sterols_tail = self.get_leaflet_sterols()
+
     def get_leaflets(self):
         # Call LeafletFinder to get upper and lower leaflets
         leafletfinder = LeafletFinder(self.universe, **self.leaflet_kwargs)
@@ -155,18 +154,18 @@ class LeafletAnalysisBase(AnalysisBase):
 
         # Init empty dict to store AtomGroups -> That would be not necessary but I want the same variables for the
         # user specified case or the automatic case
-        self.leaflet_selection = {}
+        leaflet_selection = {}
 
         # Iterate over found groups
         for idx, leafgroup in enumerate(leafletfinder.groups_iter()):
-            self.leaflet_selection[str(idx)] = leafgroup
+            leaflet_selection[str(idx)] = leafgroup
 
         for rsn, atoms in self.sterols.items():
             # TODO Find more user-friendly way for sterol atom selection
             sterol = self.universe.select_atoms(f"name {atoms[0]}")
-            upper_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection['0'],
+            upper_sterol = distances.distance_array(reference=sterol, configuration=leaflet_selection['0'],
                                                     box=self.universe.trajectory.ts.dimensions)
-            lower_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection['1'],
+            lower_sterol = distances.distance_array(reference=sterol, configuration=leaflet_selection['1'],
                                                     box=self.universe.trajectory.ts.dimensions)
 
             # ...determining the minimum distance to each leaflet for each cholesterol,...
@@ -178,8 +177,9 @@ class LeafletAnalysisBase(AnalysisBase):
             lower_sterol = sterol.difference(upper_sterol)
 
             # Merge the atom selections for the phospholipids and cholesterol
-            self.leaflet_selection['0'] = self.leaflet_selection['0'] + upper_sterol
-            self.leaflet_selection['1'] = self.leaflet_selection['1'] + lower_sterol
+            leaflet_selection['0'] = leaflet_selection['0'] + upper_sterol
+            leaflet_selection['1'] = leaflet_selection['1'] + lower_sterol
+        return leaflet_selection
 
     def get_resids(self):
         """
@@ -192,17 +192,18 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         # Init empty dict to store atom selection of resids
-        self.residue_ids = {}
+        residue_ids = {}
 
         # Iterate over found leaflets
         for resname, head in self.heads.items():
             query_str = f"name {head} and resname {resname}"
-            self.residue_ids[resname] = self.universe.select_atoms(query_str).resids
+            residue_ids[resname] = self.universe.select_atoms(query_str).resids
         for resname, atoms in self.sterols.items():
             # TODO Find more user-friendly way for sterol atom selection
             query_str = f"name {atoms[0]} and resname {resname}"
-            self.residue_ids[resname] = self.universe.select_atoms(query_str).resids
-                
+            residue_ids[resname] = self.universe.select_atoms(query_str).resids
+        return residue_ids
+
     def get_leaflet_sterols(self):
         """
         Make atomgroups for sterols
@@ -215,14 +216,15 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         # Init empty dicts
-        self.sterols_tail = {}
+        sterols_tail = {}
 
         # Iterate over sterols -> user input
         for sterol, tail in self.sterols.items():
             # Make atom group for sterol tail selection
             tail_sele_str = 'name ' + ' or name '.join(tail)
             tail_sele_str = f'resname {sterol} and ({tail_sele_str})'
-            self.sterols_tail[sterol] = self.universe.select_atoms(tail_sele_str)
+            sterols_tail[sterol] = self.universe.select_atoms(tail_sele_str)
+        return sterols_tail
 
     def get_leaflet_tails(self):
 
@@ -235,6 +237,7 @@ class LeafletAnalysisBase(AnalysisBase):
             dictionary containing the tail atomgroups for all residues each tail
         """
         # Temporary dictionary for query collection of tails
+        resid_tails_selection = {}
         tail_select_list = {}
         # Iterate over lipid types
         for resname in self.tails.keys():
@@ -252,4 +255,5 @@ class LeafletAnalysisBase(AnalysisBase):
         # Create tail selection dictionary for each chain
         for i, query_list in tail_select_list.items():
             query = " or ".join(query_list)
-            self.resid_tails_selection[i] = self.universe.select_atoms(query)
+            resid_tails_selection[i] = self.universe.select_atoms(query)
+        return resid_tails_selection
