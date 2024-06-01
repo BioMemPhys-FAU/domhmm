@@ -79,22 +79,22 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Separate the coordinates according to their residue index
         ridx = np.where(np.diff(chain.resids) > 0)[0] + 1
 
-        pos = np.array(np.split(chain.positions, ridx))
+        pos = np.split(chain.positions, ridx)
 
         # Calculate the normalized orientation vector between two subsequent tail beads
-        vec = np.diff(pos, axis=1)
+        vec = [np.diff(pos_i, axis=0) for pos_i in pos]
 
-        vec_norm = np.sqrt((vec ** 2).sum(axis=-1))
+        vec_norm = [np.sqrt((vec_i ** 2).sum(axis=-1)) for vec_i in vec]
 
-        vec /= vec_norm.reshape(-1, vec.shape[1], 1)
+        vec = [vec_i / vec_norm_i.reshape(-1, 1) for vec_i, vec_norm_i in zip(vec, vec_norm)]
         # TODO z axis multiplication inside. It needs to be changed in future work
         # Choose the z-axis as membrane normal and take care of the machine precision
-        dot_prod = np.clip(vec[:, :, 2], -1., 1.)
+        dot_prod = [np.clip(vec_i[:, 2], -1., 1.) for vec_i in vec]
 
         # Calculate the order parameter
-        s_cc = 0.5 * (3 * dot_prod ** 2 - 1)
+        s_cc = np.array([np.mean(0.5 * (3 * dot ** 2 - 1)) for dot in dot_prod])
 
-        return s_cc.mean(-1)
+        return s_cc
 
     def order_parameter(self):
         """
