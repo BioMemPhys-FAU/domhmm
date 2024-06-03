@@ -252,8 +252,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.lidx = self.leaflet_selection["1"].resids - 1
             start_index = assignment_index * self.leaflet_frame_rate
             end_index = (assignment_index + 1) * self.leaflet_frame_rate
-            if end_index > len(self.leaflet_assignment):
-                end_index = len(self.leaflet_assignment)
+            if end_index > self.leaflet_assignment.shape[1]:
+                end_index = self.leaflet_assignment.shape[1]
             self.leaflet_assignment[self.uidx, start_index:end_index] = 0
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
             self.leaflet_assignment_results.append(self.leaflet_selection)
