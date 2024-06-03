@@ -5,7 +5,8 @@ LocalFluctuation --- :mod:`elbe.analysis.LocalFluctuation`
 This module contains the :class:`LocalFluctuation` class.
 
 """
-
+import sys
+import logging as log
 from .base import LeafletAnalysisBase
 import numpy as np
 import matplotlib.pyplot as plt
@@ -33,7 +34,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         Attributes
         ----------
         """
-
+        if self.verbose:
+            log.basicConfig(level=log.INFO, stream=sys.stdout)
+        log.info("Preparation Step")
         # Initialize result storage dictionaries
         self.results.train_data_per_type = {}
         self.results.GMM = {}
@@ -285,7 +288,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Extract the obtained data and put them into a clear and accessible data structure
         """
-
+        log.info("Conclusion step is starting.")
         self.results.train_data_per_type = {}
         for resname in self.unique_resnames:
             # Create each leaflet's lipid types 3D empty array.
@@ -312,12 +315,16 @@ class PropertyCalculation(LeafletAnalysisBase):
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
                       "max_iter": 10000, "n_init": 20,
                       "warm_start": False, "covariance_type": "full"}
+        log.info("Gaussian Mixture Model training is starting.")
         self.GMM(gmm_kwargs=gmm_kwargs)
         hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 1000,
                       "algorithm": "viterbi", "covariance_type": "full",
                       "init_params": "st", "params": "stmc"}
+        log.info("Hidden Markov Model training is starting.")
         self.HMM(hmm_kwargs=hmm_kwargs)
+        log.info("Getis-Ord Statistic calculation is starting.")
         self.getis_ord()
+        log.info("Clustering is starting.")
         self.clustering()
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
@@ -331,14 +338,15 @@ class PropertyCalculation(LeafletAnalysisBase):
             Additional parameters for mixture.GaussianMixture
         """
         # Iterate over each residue and implement gaussian mixture model
-        for res, data in self.results.train_data_per_type.items():
+        for resname, data in self.results.train_data_per_type.items():
             gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, data[1].shape[2]))
-            self.results["GMM"][res] = gmm
+            self.results["GMM"][resname] = gmm
+            log.info(f"{resname} Gaussian Mixture Model is trained.")
 
         # Check for convergence
         for resname, each in self.results["GMM"].items():
             if not each.converged_:
-                print(f"{resname} Gaussian Mixture Model is not converged.")
+                log.warning(f"{resname} Gaussian Mixture Model is not converged.")
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
@@ -354,6 +362,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         for resname, data in self.results.train_data_per_type.items():
             hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
             self.results["HMM"][resname] = hmm
+            log.info(f"{resname} Gaussian Hidden Markov Model is trained.")
         # Plot result of hmm
         self.plot_hmm_result()
 
@@ -481,9 +490,12 @@ class PropertyCalculation(LeafletAnalysisBase):
     def getis_ord(self):
         self.getis_ord_stat(self.results["upper_weight_all"], 0)
         self.getis_ord_stat(self.results["lower_weight_all"], 1)
+        log.info("Getis-Ord for leaflets are calculated.")
         self.getis_ord_plot()
+        log.info("Permutations of Getis-Ord are calculated.")
         self.results["Getis_Ord"]["Permut_0"] = self.permut_getis_ord_stat(self.results["upper_weight_all"], 0)
         self.results["Getis_Ord"]["Permut_1"] = self.permut_getis_ord_stat(self.results["lower_weight_all"], 1)
+        log.info("Z score is calculated.")
         self.results["z_score"] = self.z_score_calc()
 
     def getis_ord_stat(self, weight_matrix_all, leaflet):
