@@ -90,7 +90,7 @@ class TestDomhmm:
         assert analysis.results['HMM_Pred']['DPPC'].shape == (302, 100)
         assert analysis.results['HMM_Pred']['DIPC'].shape == (202, 100)
         assert analysis.results['HMM_Pred']['CHOL'].shape == (216, 100)
-        assert len(analysis.results['Getis_Ord']) == 2
+        assert len(analysis.results['Getis_Ord']) == 4
 
     def test_domhmm_imported(self):
         """Sample test, will always pass so long as import statement worked"""

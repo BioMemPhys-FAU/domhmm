@@ -253,7 +253,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             start_index = assignment_index * self.leaflet_frame_rate
             end_index = (assignment_index + 1) * self.leaflet_frame_rate
             if end_index > len(self.leaflet_assignment):
-                end_index = len(self)
+                end_index = len(self.leaflet_assignment)
             self.leaflet_assignment[self.uidx, start_index:end_index] = 0
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
             self.leaflet_assignment_results.append(self.leaflet_selection)
@@ -482,6 +482,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.getis_ord_stat(self.results["upper_weight_all"], 0)
         self.getis_ord_stat(self.results["lower_weight_all"], 1)
         self.getis_ord_plot()
+        self.results["Getis_Ord"]["Permut_0"] = self.permut_getis_ord_stat(self.results["upper_weight_all"], 0)
+        self.results["Getis_Ord"]["Permut_1"] = self.permut_getis_ord_stat(self.results["lower_weight_all"], 1)
+        self.results["z_score"] = self.z_score_calc()
 
     def getis_ord_stat(self, weight_matrix_all, leaflet):
         """
@@ -513,7 +516,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Iterate over frames
         for step in range(nframes):
-            # Get the weightmatrix of the leaflet at the current time step
+            # Get the weight matrix of the leaflet at the current time step
             weight_matrix = weight_matrix_all[step]
 
             # Number of lipids in the leaflet
@@ -661,13 +664,24 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return g_star_i
 
+    def z_score_calc(self):
+        result = {}
+        for i in range(2):
+            z_score = {}
+            getis_ord_permut = self.results["Getis_Ord"][f"Permut_{i}"]
+            z_score["z_a"] = np.quantile(getis_ord_permut, self.p_value)
+            z_score["z1_a"] = np.quantile(getis_ord_permut, 1 - self.p_value)
+            result[i] = z_score
+        return result
     # ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
     def clustering(self):
         """
         Runs hierarchical clustering and plots clustering results in different frames.
         """
-        # TODO Decide on which frames to plot
-        frame_list = [3, 50, 98]
+
+        n_frames = self.n_frames
+        # Plot %5, %50 and %95 points of frame list
+        frame_list = [int(n_frames / 20), int(n_frames / 2), int(n_frames / 1.05)]
         fig, ax = plt.subplots(1, len(frame_list), figsize=(20, 5))
 
         # Iterate over three frames illustrate the clustering results
@@ -679,7 +693,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             core_lipids = self.assign_core_lipids(weight_matrix_f=self.results["upper_weight_all"][i],
                                                   g_star_i_f=self.results['Getis_Ord'][0]['g_star_i_0'][i],
                                                   order_states_f=order_states_0,
-                                                  w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i])
+                                                  w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
+                                                  z_score=self.results["z_score"][0])
 
             clusters = self.hierarchical_clustering(weight_matrix_f=self.results["upper_weight_all"][i],
                                                     w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
@@ -721,13 +736,13 @@ class PropertyCalculation(LeafletAnalysisBase):
         ax[1].set_title("b", fontsize=20, fontweight="bold", loc="left")
         ax[2].set_title("c", fontsize=20, fontweight="bold", loc="left")
 
-        ax[0].text(s=r"$t=8\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
-        ax[1].text(s=r"$t=9\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
-        ax[2].text(s=r"$t=10\, \mu s$", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[0].text(s=f"Frame {frame_list[0]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[1].text(s=f"Frame {frame_list[1]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[2].text(s=f"Frame {frame_list[2]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
 
         plt.show()
 
-    def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f):
+    def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f, z_score):
 
         """
         Assign lipids as core members (aka lipids with a high positive autocorrelation)
@@ -743,6 +758,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             Order states for every lipid at one time step
         w_ii_f: numpy.ndarray
             Self-influence weight factor for every lipid at one time step
+        z_score: dict
+            Contains boundary of the reaction region
 
 
         Returns
@@ -752,8 +769,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Define boundary of the reaction region
-        z1_a = 2.017  # 1.750 #1.307
-        z_a = -1.271
+        z1_a = z_score["z1_a"]
+        z_a = z_score["z_a"]
 
         # Assign core members according to their auto-correlation
         core_lipids = g_star_i_f > z1_a
