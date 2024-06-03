@@ -60,6 +60,8 @@ class LeafletAnalysisBase(AnalysisBase):
         :meth:`.run`
     frac: float
         fraction of box length in x and y outside the unit cell considered for Voronoi calculation
+    p_value: float
+        p_value for z_score calculation
     leaflet_kwargs: Optional[dict]
         dictionary containing additional arguments for the MDAnalysis LeafletFinder
     heads: Optional[dict]
@@ -80,6 +82,7 @@ class LeafletAnalysisBase(AnalysisBase):
             sterols: Dict[str, Any] = {},
             local: bool = False,
             frac: float = 0.5,
+            p_value: float = 0.5,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -98,6 +101,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.sterols = sterols
         self.leaflet_frame_rate = 10
         self.frac = frac
+        self.p_value = p_value
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 

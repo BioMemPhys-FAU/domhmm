@@ -669,8 +669,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         for i in range(2):
             z_score = {}
             getis_ord_permut = self.results["Getis_Ord"][f"Permut_{i}"]
-            z_score["z_a"] = np.quantile(getis_ord_permut, 0.05)
-            z_score["z1_a"] = np.quantile(getis_ord_permut, 0.95)
+            z_score["z_a"] = np.quantile(getis_ord_permut, self.p_value)
+            z_score["z1_a"] = np.quantile(getis_ord_permut, 1 - self.p_value)
             result[i] = z_score
         return result
     # ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
@@ -681,7 +681,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         n_frames = self.n_frames
         # Plot %5, %50 and %95 points of frame list
-        frame_list = [int(n_frames / 20) + 1, int(n_frames / 2) + 1, int(n_frames / 1.05) + 1]
+        frame_list = [int(n_frames / 20), int(n_frames / 2), int(n_frames / 1.05)]
         fig, ax = plt.subplots(1, len(frame_list), figsize=(20, 5))
 
         # Iterate over three frames illustrate the clustering results
