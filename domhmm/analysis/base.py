@@ -82,7 +82,7 @@ class LeafletAnalysisBase(AnalysisBase):
             sterols: Dict[str, Any] = {},
             local: bool = False,
             frac: float = 0.5,
-            p_value: float = 0.5,
+            p_value: float = 0.05,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
