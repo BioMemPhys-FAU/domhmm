@@ -287,6 +287,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         self.results.train_data_per_type = {}
+        resid_dict = {}
         for resname in self.unique_resnames:
             # Create each leaflet's lipid types 3D empty array.
             # Array will fill with order parameters of tails, area per lipid and leaflet information
@@ -296,6 +297,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             rsn_ids = self.residue_ids[resname]
             self.results.train_data_per_type[resname][0] = rsn_ids
             _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
+            resid_dict[resname] = idx
             # Select columns of area per lipid and tails' scc parameters
             self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, 0:len(tails) + 1]
             self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
@@ -305,8 +307,28 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.results.train_data_per_type[resname][0] = rsn_ids
             _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
             # Select columns of area per lipid and sterol's scc parameter
+            resid_dict[resname] = idx
             self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, [0, 1 + self.max_tail_len + i]]
             self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
+
+        if self.asymmetric_membrane:
+            # Save each residues indexes with respect to leaflet assignment
+            self.leaflet_residx = {}
+            for resname, idx in resid_dict.items():
+                leaflet_assign = self.leaflet_assignment[idx]
+                self.leaflet_residx[resname] = {0: [], 1: []}
+                for i in range(len(leaflet_assign)):
+                    if (leaflet_assign[i] == 0).all():
+                        self.leaflet_residx[resname][0].append(idx[i])
+                    elif (leaflet_assign[i] == 1).all():
+                        self.leaflet_residx[resname][1].append(idx[i])
+                    else:
+                        # If a residue is %80 of time belongs to a leaflet, accept it as residue of that leaflet
+                        lower_leaflet_percantage = len(np.nonzero(leaflet_assign == i)[0]) / len(leaflet_assign)
+                        if lower_leaflet_percantage > 0.8:
+                            self.leaflet_residx[resname][1].append(idx[i])
+                        elif lower_leaflet_percantage <= 0.2:
+                            self.leaflet_residx[resname][0].append(idx[i])
 
         # -------------------------------------------------------------
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
@@ -332,13 +354,19 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         # Iterate over each residue and implement gaussian mixture model
         for res, data in self.results.train_data_per_type.items():
-            gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, data[1].shape[2]))
-            self.results["GMM"][res] = gmm
+            if self.asymmetric_membrane:
+                pass
+            else:
+                gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, data[1].shape[2]))
+                self.results["GMM"][res] = gmm
 
         # Check for convergence
-        for resname, each in self.results["GMM"].items():
-            if not each.converged_:
-                print(f"{resname} Gaussian Mixture Model is not converged.")
+        if self.asymmetric_membrane:
+            pass
+        else:
+            for resname, each in self.results["GMM"].items():
+                if not each.converged_:
+                    print(f"{resname} Gaussian Mixture Model is not converged.")
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
