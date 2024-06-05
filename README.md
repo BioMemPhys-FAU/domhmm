@@ -20,6 +20,12 @@ If possible, we strongly recommend that you use
 Below we provide instructions both for `conda` and
 for `pip`.
 
+First clone repository:
+```
+git clone https://github.com/m-a-r-i-u-s/domhmm
+cd domhmm
+```
+
 #### With conda
 
 Ensure that you have [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) installed.
@@ -44,12 +50,6 @@ Build this package from source:
 pip install -e .
 ```
 
-If you want to update your dependencies (which can be risky!), run:
-
-```
-conda update --all
-```
-
 And when you are finished, you can exit the virtual environment with:
 
 ```
@@ -70,6 +70,35 @@ the dependencies required for tests and docs with:
 ```
 pip install -e ".[test,doc]"
 ```
+
+### Example Script
+You can use DomHMM library like in this example script
+```
+import MDAnalysis as mda
+import domhmm
+
+path2xtc = "CHANGE_IT_TO_YOUR_XTC_FILE.xtc"
+path2tpr = "CHANGE_IT_TO_YOUR_TPR_FILE.tpr"
+uni = mda.Universe(path2tpr, path2xtc)
+membrane_select = "resname DPPC DIPC CHOL"
+heads = {"DPPC": "PO4", "DIPC": "PO4"}
+tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
+                 "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
+sterols = {"CHOL": ["ROH", "C1"]}
+
+model = domhmm.PropertyCalculation(universe_or_atomgroup=uni,
+                                       leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                       membrane_select=membrane_select,
+                                       heads=heads,
+                                       sterols=sterols,
+                                       tails=tails)
+model.run()
+```
+- In this example, there are two lipids and one sterol
+- Be aware the order of the tails should be same such as `{"Lipid_1":[[Acyl_Chain_1],[Acyl_Chain_2]], "Lipid_2":[[Acyl_Chain_1],[Acyl_Chain_2]]}`
+- Be aware that for sterol configuration first element of array represents head part and second element represents tail part
+- You can change run configuration to decide start frame, end frame and step size such as `model.run(start=0, stop=100, step=5)`
+- `membrane_select` is used to select residues of membranes. There should be no other residues beside membrane ones
 
 ### Copyright
 
