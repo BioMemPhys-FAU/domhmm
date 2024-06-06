@@ -279,57 +279,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.results["lower_weight_all"].append(csr_array(lower_weight_matrix))
 
     def _conclude(self):
-
         """
         Calculate the final results of the analysis
 
         Extract the obtained data and put them into a clear and accessible data structure
         """
-
-        self.results.train_data_per_type = {}
-        resid_dict = {}
-        for resname in self.unique_resnames:
-            # Create each leaflet's lipid types 3D empty array.
-            # Array will fill with order parameters of tails, area per lipid and leaflet information
-            self.results.train_data_per_type[f"{resname}"] = [[] for _ in range(3)]
-
-        for resname, tails in self.tails.items():
-            rsn_ids = self.residue_ids[resname]
-            self.results.train_data_per_type[resname][0] = rsn_ids
-            _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
-            resid_dict[resname] = idx
-            # Select columns of area per lipid and tails' scc parameters
-            self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, 0:len(tails) + 1]
-            self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
-
-        for i, (resname, tail) in enumerate(self.sterols_tail.items()):
-            rsn_ids = self.residue_ids[resname]
-            self.results.train_data_per_type[resname][0] = rsn_ids
-            _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
-            # Select columns of area per lipid and sterol's scc parameter
-            resid_dict[resname] = idx
-            self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, [0, 1 + self.max_tail_len + i]]
-            self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
-
-        if self.asymmetric_membrane:
-            # Save each residues indexes with respect to leaflet assignment
-            self.leaflet_residx = {}
-            for resname, idx in resid_dict.items():
-                leaflet_assign = self.leaflet_assignment[idx]
-                self.leaflet_residx[resname] = {0: [], 1: []}
-                for i in range(len(leaflet_assign)):
-                    if (leaflet_assign[i] == 0).all():
-                        self.leaflet_residx[resname][0].append(idx[i])
-                    elif (leaflet_assign[i] == 1).all():
-                        self.leaflet_residx[resname][1].append(idx[i])
-                    else:
-                        # If a residue is %80 of time belongs to a leaflet, accept it as residue of that leaflet
-                        lower_leaflet_percantage = len(np.nonzero(leaflet_assign == i)[0]) / len(leaflet_assign)
-                        if lower_leaflet_percantage > 0.8:
-                            self.leaflet_residx[resname][1].append(idx[i])
-                        elif lower_leaflet_percantage <= 0.2:
-                            self.leaflet_residx[resname][0].append(idx[i])
-
+        self.prepare_train_data()
         # -------------------------------------------------------------
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
                       "max_iter": 10000, "n_init": 20,
@@ -341,6 +296,85 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.HMM(hmm_kwargs=hmm_kwargs)
         self.getis_ord()
         self.clustering()
+
+    def prepare_train_data(self):
+        """
+        Prepare train data for GMM and HMM while separating self.results.train with respect to each residue
+        """
+        self.results.train_data_per_type = {}
+        resid_dict = {}
+        for resname in self.unique_resnames:
+            _, idx, _ = np.intersect1d(self.membrane_unique_resids, self.residue_ids[resname], return_indices=1)
+            resid_dict[resname] = idx
+            self.results.train_data_per_type[f"{resname}"] = [[] for _ in range(3)]
+        if self.asymmetric_membrane:
+            # For asymmetric membranes, models will be trained for each leaflets' each residue type
+            leaflet_residx = {}
+            # leaflet_train_residx contains residue indexes that are not too flip-floppy for model training
+            leaflet_train_residx = {}
+            # Save each residues indexes with respect to leaflet assignment
+            for resname, idx in resid_dict.items():
+                leaflet_assign = self.leaflet_assignment[idx]
+                leaflet_train_residx[resname] = {0: [], 1: []}
+                leaflet_residx[resname] = {0: [], 1: []}
+                for i in range(len(leaflet_assign)):
+                    if (leaflet_assign[i] == 0).all():
+                        leaflet_train_residx[resname][0].append(idx[i])
+                        leaflet_residx[resname][0].append(idx[i])
+                    elif (leaflet_assign[i] == 1).all():
+                        leaflet_train_residx[resname][1].append(idx[i])
+                        leaflet_residx[resname][1].append(idx[i])
+                    else:
+                        # If a residue is %80 of time belongs to a leaflet, accept it as residue of that leaflet
+                        lower_leaflet_percantage = len(np.nonzero(leaflet_assign == i)[0]) / len(leaflet_assign)
+                        if lower_leaflet_percantage >= 0.8:
+                            leaflet_train_residx[resname][1].append(idx[i])
+                        elif lower_leaflet_percantage <= 0.2:
+                            leaflet_train_residx[resname][0].append(idx[i])
+                        if lower_leaflet_percantage > 0.5:
+                            leaflet_residx[resname][1].append(idx[i])
+                        else:
+                            leaflet_residx[resname][0].append(idx[i])
+            self.leaflet_residx = leaflet_residx
+            # Prepare rest of train data for each residue
+            for resname, tails in self.tails.items():
+                rsn_ids = self.residue_ids[resname]
+                self.results.train_data_per_type[resname][0] = rsn_ids
+                # Select columns of area per lipid and tails' scc parameters
+                residx = leaflet_train_residx[resname]
+                upper_leaflet_data = self.results.train[residx[0]][:, :, 0:len(tails) + 1]
+                lower_leaflet_data = self.results.train[residx[1]][:, :, 0:len(tails) + 1]
+                self.results.train_data_per_type[resname][1] = [upper_leaflet_data, lower_leaflet_data]
+                self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
+
+            for i, (resname, tail) in enumerate(self.sterols_tail.items()):
+                rsn_ids = self.residue_ids[resname]
+                self.results.train_data_per_type[resname][0] = rsn_ids
+                _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
+                # Select columns of area per lipid and sterol's scc parameter
+                residx = leaflet_train_residx[resname]
+                upper_leaflet_data = self.results.train[residx[0]][:, :, [0, 1 + self.max_tail_len + i]]
+                lower_leaflet_data = self.results.train[residx[1]][:, :, [0, 1 + self.max_tail_len + i]]
+                self.results.train_data_per_type[resname][1] = [upper_leaflet_data, lower_leaflet_data]
+                self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
+        else:
+            # For symmetric membranes, models will be trained for each residue type
+            for resname, tails in self.tails.items():
+                rsn_ids = self.residue_ids[resname]
+                self.results.train_data_per_type[resname][0] = rsn_ids
+                idx = resid_dict[resname]
+                # Select columns of area per lipid and tails' scc parameters
+                self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, 0:len(tails) + 1]
+                self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
+
+            for i, (resname, tail) in enumerate(self.sterols_tail.items()):
+                rsn_ids = self.residue_ids[resname]
+                self.results.train_data_per_type[resname][0] = rsn_ids
+                idx = resid_dict[resname]
+                # Select columns of area per lipid and sterol's scc parameter
+                self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :,
+                                                               [0, 1 + self.max_tail_len + i]]
+                self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
     def GMM(self, gmm_kwargs):
@@ -355,7 +389,13 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Iterate over each residue and implement gaussian mixture model
         for res, data in self.results.train_data_per_type.items():
             if self.asymmetric_membrane:
-                pass
+                temp_dict = {}
+                for leaflet in range(2):
+                    gmm_data = data[1][leaflet]
+                    gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(
+                        gmm_data.reshape(-1, gmm_data.shape[2]))
+                    temp_dict[leaflet] = gmm
+                self.results["GMM"][res] = temp_dict
             else:
                 gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, data[1].shape[2]))
                 self.results["GMM"][res] = gmm
@@ -365,8 +405,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             pass
         else:
             for resname, each in self.results["GMM"].items():
-                if not each.converged_:
-                    print(f"{resname} Gaussian Mixture Model is not converged.")
+                if self.asymmetric_membrane:
+                    if not each[0].converged_ or not each[1].converged_:
+                        print(f"{resname} Gaussian Mixture Model is not converged.")
+                else:
+                    if not each.converged_:
+                        print(f"{resname} Gaussian Mixture Model is not converged.")
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
@@ -380,11 +424,19 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         # Iterate over each residue and implement gaussian-hidden markov model
         for resname, data in self.results.train_data_per_type.items():
-            hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
-            self.results["HMM"][resname] = hmm
+            if self.asymmetric_membrane:
+                temp_dict = {}
+                for leaflet in range(2):
+                    hmm_data = data[1][leaflet]
+                    hmm = self.fit_hmm(data=hmm_data, gmm=self.results["GMM"][resname][leaflet], hmm_kwargs=hmm_kwargs,
+                                       n_repeats=2)
+                    temp_dict[leaflet] = hmm
+                self.results["HMM"][resname] = temp_dict
+            else:
+                hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
+                self.results["HMM"][resname] = hmm
         # Plot result of hmm
         self.plot_hmm_result()
-
         # Make predictions based on HMM model
         self.predict_states()
         # Validate states and result prediction
@@ -459,8 +511,14 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     def plot_hmm_result(self):
         for resname, ghmm in self.results['HMM'].items():
-            plt.semilogy(np.arange(len(ghmm.monitor_.history) - 1), np.diff(np.array(ghmm.monitor_.history)),
-                         ls="-", label=resname, lw=2)
+            if self.asymmetric_membrane:
+                for leaflet in range(2):
+                    plt.semilogy(np.arange(len(ghmm[leaflet].monitor_.history) - 1),
+                                 np.diff(np.array(ghmm[leaflet].monitor_.history)),
+                                 ls="-", label=f"{resname}_{leaflet}", lw=2)
+            else:
+                plt.semilogy(np.arange(len(ghmm.monitor_.history) - 1), np.diff(np.array(ghmm.monitor_.history)),
+                             ls="-", label=resname, lw=2)
         plt.legend(fontsize=15)
         plt.semilogy(np.arange(100), np.repeat(1E-4, 100), color="k", ls="--", lw=2)
         plt.xlim(0, 100)
@@ -473,24 +531,68 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.show()
 
     def predict_states(self):
-        for resname, data in self.results.train_data_per_type.items():
-            shape = data[1].shape
-            hmm = self.results['HMM'][resname]
-            # Lengths consists of number of frames and number of residues
-            lengths = np.repeat(shape[1], shape[0])
-            prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
-            # Save prediction result of each residue
-            self.results['HMM_Pred'][resname] = prediction
+        if self.asymmetric_membrane:
+            # Since we select stable lipids for training, we need all training data of lipids to predict order of
+            # frequently flip-flop doing ones
+            for resname, tails in self.tails.items():
+                temp_array = []
+                for leaflet in range(2):
+                    idx = self.leaflet_residx[resname][leaflet]
+                    data = self.results.train[idx][:, :, 0:len(tails) + 1]
+                    shape = data.shape
+                    hmm = self.results['HMM'][resname][leaflet]
+                    lengths = np.repeat(shape[1], shape[0])
+                    prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+                    prediction = self.hmm_diff_checker(hmm.means_, prediction)
+                    temp_array.append([idx, prediction])
+                idx = np.concatenate((temp_array[0][0], temp_array[1][0])).argsort()
+                result = np.concatenate((temp_array[0][1], temp_array[1][1]))
+                result = result[idx]
+                self.results['HMM_Pred'][resname] = result
+
+            for i, (resname, tail) in enumerate(self.sterols_tail.items()):
+                temp_array = []
+                for leaflet in range(2):
+                    idx = self.leaflet_residx[resname][leaflet]
+                    data = self.results.train[idx][:, :, [0, 1 + self.max_tail_len + i]]
+                    shape = data.shape
+                    hmm = self.results['HMM'][resname][leaflet]
+                    lengths = np.repeat(shape[1], shape[0])
+                    prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+                    prediction = self.hmm_diff_checker(hmm.means_, prediction)
+                    temp_array.append([idx, prediction])
+                idx = np.concatenate((temp_array[0][0], temp_array[1][0])).argsort()
+                result = np.concatenate((temp_array[0][1], temp_array[1][1]))
+                result = result[idx]
+                self.results['HMM_Pred'][resname] = result
+        else:
+            for resname, data in self.results.train_data_per_type.items():
+                shape = data[1].shape
+                hmm = self.results['HMM'][resname]
+                # Lengths consists of number of frames and number of residues
+                lengths = np.repeat(shape[1], shape[0])
+                prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+                # Save prediction result of each residue
+                self.results['HMM_Pred'][resname] = prediction
 
     def state_validate(self):
         """
         Validate state assignments of HMM model by checking means of the model of each residue.
         """
-        for resname, gmm in self.results["HMM"].items():
-            means = gmm.means_
-            diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
-            if diff_percents > 0.1:
-                self.results['HMM_Pred'][resname] = np.abs(self.results['HMM_Pred'][resname] - 1)
+        if not self.asymmetric_membrane:
+            # Asymmetric membrane validation is done in prediction step due to nature of it
+            for resname, gmm in self.results["HMM"].items():
+                means = gmm.means_
+                prediction_results = self.results['HMM_Pred'][resname]
+                self.results['HMM_Pred'][resname] = self.hmm_diff_checker(means, prediction_results)
+
+    @staticmethod
+    def hmm_diff_checker(means, prediction_results):
+        diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
+        if diff_percents > 0.1:
+            return np.abs(prediction_results - 1)
+        else:
+            return prediction_results
 
     def predict_plot(self):
         t = np.linspace(8, 10, self.n_frames)
@@ -701,6 +803,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             z_score["z1_a"] = np.quantile(getis_ord_permut, 1 - self.p_value)
             result[i] = z_score
         return result
+
     # ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
     def clustering(self):
         """
@@ -709,6 +812,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         n_frames = self.n_frames
         # Plot %5, %50 and %95 points of frame list
+        # TODO n_frames are different when start is not equal to 0
         frame_list = [int(n_frames / 20), int(n_frames / 2), int(n_frames / 1.05)]
         fig, ax = plt.subplots(1, len(frame_list), figsize=(20, 5))
 
@@ -948,6 +1052,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         result = {}
         for res in self.unique_resnames:
             leaflet_assignment_index = int(step / self.leaflet_frame_rate)
-            indexes = np.where(self.leaflet_assignment_results[leaflet_assignment_index][str(leaflet)].resnames == res)[0]
+            indexes = np.where(self.leaflet_assignment_results[leaflet_assignment_index][str(leaflet)].resnames == res)[
+                0]
             result[res] = indexes
         return result
