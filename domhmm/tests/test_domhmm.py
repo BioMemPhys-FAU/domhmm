@@ -40,6 +40,24 @@ class TestDomhmm:
                                           sterols=sterols,
                                           tails=tails)
 
+    @pytest.fixture(scope="function")
+    def analysis_asymmetric(self, universe):
+        membrane_select = "resname DPPC DIPC CHOL"
+        heads = {"DPPC": "PO4",
+                 "DIPC": "PO4"}
+        tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
+                 "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
+        sterols = {"CHOL": ["ROH", "C1"]}
+
+        return domhmm.PropertyCalculation(universe_or_atomgroup=universe,
+                                          leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                          membrane_select=membrane_select,
+                                          heads=heads,
+                                          sterols=sterols,
+                                          tails=tails,
+                                          verbose=True,
+                                          asymmetric_membrane=True)
+
     @pytest.fixture(scope="class")
     def apl_results(self):
         result = {}
@@ -92,6 +110,20 @@ class TestDomhmm:
         assert analysis.results['HMM_Pred']['CHOL'].shape == (216, 100)
         assert len(analysis.results['Getis_Ord']) == 4
 
+
+    @staticmethod
+    def asymmetric_result_parameter_check(analysis):
+        for leaflet in range(2):
+            assert analysis.results['GMM']['DPPC'][leaflet].converged_
+            assert analysis.results['GMM']['DIPC'][leaflet].converged_
+            assert analysis.results['GMM']['CHOL'][leaflet].converged_
+        assert len(analysis.results['HMM_Pred']) == 3
+        assert analysis.results['HMM_Pred'].keys() == {'DPPC', 'DIPC', 'CHOL'}
+        assert analysis.results['HMM_Pred']['DPPC'].shape == (302, 100)
+        assert analysis.results['HMM_Pred']['DIPC'].shape == (202, 100)
+        assert analysis.results['HMM_Pred']['CHOL'].shape == (216, 100)
+        assert len(analysis.results['Getis_Ord']) == 4
+
     def test_domhmm_imported(self):
         """Sample test, will always pass so long as import statement worked"""
         assert "domhmm" in sys.modules
@@ -100,6 +132,10 @@ class TestDomhmm:
         """Demo testing to try run """
         analysis.run(start=0, stop=100)
         self.result_parameter_check(analysis)
+
+    def test_run_asymmetric(self, analysis_asymmetric):
+        analysis_asymmetric.run(start=0, stop=100)
+        self.asymmetric_result_parameter_check(analysis_asymmetric)
 
     def test_calc_order_parameter(self, analysis, order_parameters_results):
         result = []
