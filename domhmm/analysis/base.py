@@ -1,19 +1,11 @@
-"""
-Elbe --- :mod:`elbe.analysis.Elbe`
-===========================================================
-
-This module contains the :class:`Elbe` class.
-
-"""
-
 # ----MDANALYSIS---- #
-from MDAnalysis.analysis.base import AnalysisBase
-from MDAnalysis.analysis import distances
-from MDAnalysis.analysis.leaflet import LeafletFinder
-
 # ----PYTHON---- #
 from typing import Union, TYPE_CHECKING, Dict, Any
+
 import numpy as np
+from MDAnalysis.analysis import distances
+from MDAnalysis.analysis.base import AnalysisBase
+from MDAnalysis.analysis.leaflet import LeafletFinder
 
 if TYPE_CHECKING:
     from MDAnalysis.core.universe import Universe, AtomGroup

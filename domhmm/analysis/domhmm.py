@@ -1,28 +1,18 @@
-"""
-LocalFluctuation --- :mod:`elbe.analysis.LocalFluctuation`
-===========================================================
-
-This module contains the :class:`LocalFluctuation` class.
-
-"""
+import matplotlib.pyplot as plt
+import numpy as np
+from hmmlearn.hmm import GaussianHMM
+from scipy.sparse import csr_array
+from scipy.spatial import Voronoi, ConvexHull
+from sklearn import mixture
+from tqdm import tqdm
 
 from .base import LeafletAnalysisBase
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn import mixture
-from hmmlearn.hmm import GaussianHMM
-from scipy.spatial import Voronoi, ConvexHull
-from scipy.sparse import csr_array
-from tqdm import tqdm
 
 
 class PropertyCalculation(LeafletAnalysisBase):
     """
-    The DirectorOrder class calculates a order parameter for each selected lipid according to the formula:
-
-        P2 = 0.5 * (3 * cos(a)^2 - 1), (1)
-
-    where a is the angle between a pre-defined director in the lipid (e.g. C-H or CC) and a reference axis.
+    TODO Change it for documentation
+    Explanation of DomHMM and PropertyCalculation
 
     """
 
@@ -345,6 +335,10 @@ class PropertyCalculation(LeafletAnalysisBase):
     def HMM(self, hmm_kwargs):
         """
         Create Gaussian based Hidden Markov Models for each residue type
+
+        :param hmm_kwargs: Additional parameters for hmmlearn.hmm.GaussianHMM
+        :type hmm_kwargs: dict
+
         Parameters
         ----------
         hmm_kwargs : dict

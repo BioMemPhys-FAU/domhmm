@@ -1,8 +1,8 @@
 API Documentation
 =================
+.. currentmodule:: domhmm
 
 .. autosummary::
-   :toctree: autosummary
-   :recursive:
+   :toctree: generated
 
-   domhmm
+   PropertyCalculation
