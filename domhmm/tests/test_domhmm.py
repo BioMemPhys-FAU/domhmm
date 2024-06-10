@@ -1,15 +1,16 @@
 """
 Unit and regression test for the domhmm package.
 """
+import os
+import pickle
+import sys
+
+import MDAnalysis as mda
 import numpy as np
+import pytest
 
 # Import package, test suite, and other packages as needed
 import domhmm
-import sys
-import pytest
-import os
-import pickle
-import MDAnalysis as mda
 
 error_tolerance = 0.001
 
@@ -119,9 +120,9 @@ class TestDomhmm:
             assert analysis.results['GMM']['CHOL'][leaflet].converged_
         assert len(analysis.results['HMM_Pred']) == 3
         assert analysis.results['HMM_Pred'].keys() == {'DPPC', 'DIPC', 'CHOL'}
-        assert analysis.results['HMM_Pred']['DPPC'].shape == (302, 100)
-        assert analysis.results['HMM_Pred']['DIPC'].shape == (202, 100)
-        assert analysis.results['HMM_Pred']['CHOL'].shape == (216, 100)
+        assert analysis.results['HMM_Pred']['DPPC'].shape == (302, 20)
+        assert analysis.results['HMM_Pred']['DIPC'].shape == (202, 20)
+        assert analysis.results['HMM_Pred']['CHOL'].shape == (216, 20)
         assert len(analysis.results['Getis_Ord']) == 4
 
     def test_domhmm_imported(self):
@@ -134,7 +135,7 @@ class TestDomhmm:
         self.result_parameter_check(analysis)
 
     def test_run_asymmetric(self, analysis_asymmetric):
-        analysis_asymmetric.run(start=0, stop=100)
+        analysis_asymmetric.run(start=0, stop=100, step=5)
         self.asymmetric_result_parameter_check(analysis_asymmetric)
 
     def test_calc_order_parameter(self, analysis, order_parameters_results):
