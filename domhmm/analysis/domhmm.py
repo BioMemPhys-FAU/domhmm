@@ -6,14 +6,15 @@ This module contains the :class:`LocalFluctuation` class.
 
 """
 
-from .base import LeafletAnalysisBase
-import numpy as np
 import matplotlib.pyplot as plt
-from sklearn import mixture
+import numpy as np
 from hmmlearn.hmm import GaussianHMM
-from scipy.spatial import Voronoi, ConvexHull
 from scipy.sparse import csr_array
+from scipy.spatial import Voronoi, ConvexHull
+from sklearn import mixture
 from tqdm import tqdm
+
+from .base import LeafletAnalysisBase
 
 
 class PropertyCalculation(LeafletAnalysisBase):
@@ -401,16 +402,13 @@ class PropertyCalculation(LeafletAnalysisBase):
                 self.results["GMM"][res] = gmm
 
         # Check for convergence
-        if self.asymmetric_membrane:
-            pass
-        else:
-            for resname, each in self.results["GMM"].items():
-                if self.asymmetric_membrane:
-                    if not each[0].converged_ or not each[1].converged_:
-                        print(f"{resname} Gaussian Mixture Model is not converged.")
-                else:
-                    if not each.converged_:
-                        print(f"{resname} Gaussian Mixture Model is not converged.")
+        for resname, each in self.results["GMM"].items():
+            if self.asymmetric_membrane:
+                if not each[0].converged_ or not each[1].converged_:
+                    print(f"{resname} Gaussian Mixture Model is not converged.")
+            else:
+                if not each.converged_:
+                    print(f"{resname} Gaussian Mixture Model is not converged.")
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
