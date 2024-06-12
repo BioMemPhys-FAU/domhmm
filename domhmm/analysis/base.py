@@ -84,6 +84,7 @@ class LeafletAnalysisBase(AnalysisBase):
             frac: float = 0.5,
             p_value: float = 0.05,
             leaflet_frame_rate: int = 1000000,
+            asymmetric_membrane: bool = False,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -103,6 +104,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.leaflet_frame_rate = leaflet_frame_rate
         self.frac = frac
         self.p_value = p_value
+        self.asymmetric_membrane = asymmetric_membrane
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
