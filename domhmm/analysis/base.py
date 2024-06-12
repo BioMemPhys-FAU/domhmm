@@ -1,8 +1,8 @@
 """
-Elbe --- :mod:`elbe.analysis.Elbe`
+DomHMM --- :mod:`domhmm.analysis.LeafletAnalysisBase`
 ===========================================================
 
-This module contains the :class:`Elbe` class.
+This module contains the :class:`LeafletAnalysisBase` class.
 
 """
 
@@ -83,6 +83,7 @@ class LeafletAnalysisBase(AnalysisBase):
             local: bool = False,
             frac: float = 0.5,
             p_value: float = 0.05,
+            leaflet_frame_rate: int = 1000000,
             asymmetric_membrane: bool = False,
             **kwargs
     ):
@@ -100,7 +101,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.heads = heads
         self.tails = tails
         self.sterols = sterols
-        self.leaflet_frame_rate = 10
+        self.leaflet_frame_rate = leaflet_frame_rate
         self.frac = frac
         self.p_value = p_value
         self.asymmetric_membrane = asymmetric_membrane
