@@ -1,8 +1,8 @@
 """
-LocalFluctuation --- :mod:`elbe.analysis.LocalFluctuation`
+PropertyCalculation --- :mod:`domhmm.analysis.PropertyCalculation`
 ===========================================================
 
-This module contains the :class:`LocalFluctuation` class.
+This module contains the :class:`PropertyCalculation` class.
 
 """
 
@@ -245,6 +245,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Calculate correct index if skipping step not equals 1 or start point not equals 0
         self.index = self.frame // self.step - self.start
 
+        #Update leaflet assignment
         if not self.index % self.leaflet_frame_rate:
             self.leaflet_selection = self.get_leaflets()
             assignment_index = int(self.index / self.leaflet_frame_rate)
