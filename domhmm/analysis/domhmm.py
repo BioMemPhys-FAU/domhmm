@@ -327,12 +327,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                         leaflet_residx[resname][1].append(idx[i])
                     else:
                         # If a residue is %80 of time belongs to a leaflet, accept it as residue of that leaflet
-                        lower_leaflet_percantage = len(np.nonzero(leaflet_assign == i)[0]) / len(leaflet_assign)
-                        if lower_leaflet_percantage >= 0.8:
+                        lower_leaflet_percentage = len(np.nonzero(leaflet_assign == i)[0]) / len(leaflet_assign)
+                        if lower_leaflet_percentage >= 0.8:
                             leaflet_train_residx[resname][1].append(idx[i])
-                        elif lower_leaflet_percantage <= 0.2:
+                        elif lower_leaflet_percentage <= 0.2:
                             leaflet_train_residx[resname][0].append(idx[i])
-                        if lower_leaflet_percantage > 0.5:
+                        if lower_leaflet_percentage > 0.5:
                             leaflet_residx[resname][1].append(idx[i])
                         else:
                             leaflet_residx[resname][0].append(idx[i])
