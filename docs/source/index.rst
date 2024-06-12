@@ -10,6 +10,7 @@ Welcome to DomHMM's documentation!
    how-to-use
    tips
    api
+   test
 
 
 
