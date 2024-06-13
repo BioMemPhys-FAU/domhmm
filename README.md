@@ -9,11 +9,11 @@ domhmm
 
 HMM model to determine Lo or Ld domains from coarse grained or atomistic MD simulations.
 
-domhmm is bound by a [Code of Conduct](https://github.com/m-a-r-i-u-s/domhmm/blob/main/CODE_OF_CONDUCT.md).
+DomHMM is bound by a [Code of Conduct](https://github.com/m-a-r-i-u-s/domhmm/blob/main/CODE_OF_CONDUCT.md).
 
 ### Installation
 
-To build domhmm from source,
+To build DomHMM from source,
 we highly recommend using virtual environments.
 If possible, we strongly recommend that you use
 [Anaconda](https://docs.conda.io/en/latest/) as your package manager.
@@ -102,7 +102,7 @@ model.run()
 
 ### Copyright
 
-The domhmm source code is hosted at https://github.com/m-a-r-i-u-s/domhmm
+The DomHMM source code is hosted at https://github.com/m-a-r-i-u-s/domhmm
 and is available under the GNU General Public License, version 2 (see the file [LICENSE](https://github.com/m-a-r-i-u-s/domhmm/blob/main/LICENSE)).
 
 Copyright (c) 2023, Marius FW Trollmann

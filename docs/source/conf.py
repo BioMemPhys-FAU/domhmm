@@ -31,9 +31,9 @@ copyright = (
 author = 'Marius FW Trollmann, Yusuf Eren Tunc'
 
 # The short X.Y version
-version = ''
+version = domhmm.__version__
 # The full version, including alpha/beta/rc tags
-release = ''
+release = domhmm.__version__
 
 
 # -- General configuration ---------------------------------------------------
