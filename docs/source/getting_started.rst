@@ -1,10 +1,11 @@
 Getting Started
 ===============
 
-This page details how to get started with domhmm. 
+This page details how to get start with DomHMM.
 
 .. toctree::
     :caption: Steps:
 
+    what-is-domhmm
     installation
     how-to-use

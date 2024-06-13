@@ -9,11 +9,3 @@ Welcome to DomHMM's documentation!
    tips
    api
    test
-
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`search`
