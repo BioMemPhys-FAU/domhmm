@@ -1,4 +1,4 @@
-How To Use DomHMM
+How to Use DomHMM
 =================
 
 This section is about how to use DomHMM and how to elaborate on results.
@@ -98,7 +98,7 @@ Probability value that is used for z-score calculation. It is a determination pe
 
 * ``verbose``
 
-Verbose option for debugging. Although, DomHMM doesn't print middle values, it shows which steps are done and show middle step plots which may give clues about succession of model.
+Verbose option for debugging. Although, DomHMM doesn't print middle values, it shows which steps are done and shows middle step plots which may give clues about succession of model.
 
 
 Future Optional Parameters
