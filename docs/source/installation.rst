@@ -26,7 +26,7 @@ If you don't have any Python environment, you can create a conda environment by
 
 .. tip::
 
-    Create command creates a conda environment named domhmm and activate command activates it. Whenever you close your terminal, you need to use activate command again.
+    ``conda create`` command creates a conda environment named *domhmm* and ``conda activate`` command starts environment in your terminal. Whenever you close your terminal, you need to use activate command again to restart environment.
 
 After conda environment creation, you can install dependencies via
 
