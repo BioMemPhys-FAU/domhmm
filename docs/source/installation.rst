@@ -44,4 +44,4 @@ For direct installation, you can directly use pip in project directory.
    pip install -e .
 
 
-Check out the :doc:`how-to-use` section as next step.
+Check out the :doc:`how-to-run` section as next step.

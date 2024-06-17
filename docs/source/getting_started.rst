@@ -8,4 +8,5 @@ This page details how to get start with DomHMM.
 
     what-is-domhmm
     installation
-    how-to-use
+    how-to-run
+    post-analysis

@@ -1,4 +1,4 @@
-How to Use DomHMM
+How to Run DomHMM
 =================
 
 This section is about how to use DomHMM and how to elaborate on results.
@@ -6,8 +6,8 @@ This section is about how to use DomHMM and how to elaborate on results.
 .. note::
     In project's ``/example`` directory, you can find real life usage of DomHMM.
 
-Main Parameters
-----------------
+Running DomHMM
+--------------
 
 DomHMM's main class is ``PropertyCalculation``. In a basic example it is initialized as
 
@@ -25,6 +25,10 @@ Then it can be run as
 .. code-block::
 
     model.run(start=start, end=end, step=step)
+
+
+Main Parameters
+----------------
 
 Let's dive into each parameter's details.
 
