@@ -15,8 +15,8 @@ from MDAnalysis.analysis.leaflet import LeafletFinder
 from typing import Union, TYPE_CHECKING, Dict, Any
 import numpy as np
 
-if TYPE_CHECKING:
-    from MDAnalysis.core.universe import Universe, AtomGroup
+#if TYPE_CHECKING:
+from MDAnalysis.core.universe import Universe, AtomGroup
 
 
 class LeafletAnalysisBase(AnalysisBase):
@@ -76,7 +76,7 @@ class LeafletAnalysisBase(AnalysisBase):
             universe_or_atomgroup: Union["Universe", "AtomGroup"],
             membrane_select: str = "all",
             leaflet_kwargs: Dict[str, Any] = {},
-            leaflet_select: Union[None, str] = None,
+            leaflet_select: Union[None, "AtomGroup", str, list] = None,
             tails: Dict[str, Any] = {},
             heads: Dict[str, Any] = {},
             sterols: Dict[str, Any] = {},
@@ -103,6 +103,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.tails = tails
         self.sterols = sterols
         self.leaflet_frame_rate = leaflet_frame_rate
+        self.sterol_frame_rate = sterol_frame_rate
         self.frac = frac
         self.p_value = p_value
         self.asymmetric_membrane = asymmetric_membrane
@@ -227,9 +228,9 @@ class LeafletAnalysisBase(AnalysisBase):
             upper_sterol = sterol[upper_sterol < lower_sterol]
             lower_sterol = sterol.difference(upper_sterol)
 
-            # Merge the atom selections for the phospholipids and cholesterol
-            leaflet_selection['0'] = self.leaflet_selection['0'] | upper_sterol
-            leaflet_selection['1'] = self.leaflet_selection['1'] | lower_sterol
+            # Merge the atom selections for the phospholipids and cholesterol. "+" just adds the second selection on top of the former one.
+            leaflet_selection['0'] = leaflet_selection['0'] + upper_sterol
+            leaflet_selection['1'] = leaflet_selection['1'] + lower_sterol
 
         return leaflet_selection
 
