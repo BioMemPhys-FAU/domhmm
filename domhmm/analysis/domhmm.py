@@ -131,6 +131,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         -------
         vor : Voronoi Tesselation
             Scipy's Voronoi Diagram object
+        apl : Area per lipid
+            Area per lipid based on Scipy's Voronoi Diagram
+        pbc_idx : Indices
+            Unit cell indices for periodic image coordinates
         """
 
         # Number of points in the plane
@@ -140,7 +144,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         by = boxdim[1]
         # Create periodic images of the coordinates
         # to take periodic boundary conditions into account
+
+        #Store coordinates of periodic images
         pbc = np.zeros((9 * ncoor, 2), dtype=np.float32)
+        #Store unit cell indices for coordinates of periodic images
+        pbc_idx = np.arange(9 * ncoor, dtype=np.int64) % ncoor
 
         # Iterate over all possible periodic images
         k = 0
@@ -164,21 +172,24 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Merge the four masks together
         mask = f0 * f1 * f2 * f3
 
-        # Filter the positions of all periodic images
+        # Filter positions and unit cell indices of all periodic images
         pbc = pbc[mask]
+        pbc_idx = pbc_idx[mask]
 
         # Call scipy's Voronoi implementation
         # There is the (rare!) possibility that two points have the exact same xy positions,
         # to prevent issues at further calculation steps, the qhull_option "QJ" was employed to introduce small random
         # displacement of the points to resolve these issue.
+
+        #IMPORTANT: The use of "QJ" makes the resulting Voronoi diagram depending on frac. Values for ridge lengths can vary!
         vor = Voronoi(pbc, qhull_options="QJ")
 
         # Iterate over all members of the unit cell and calculate their occupied area
         apl = np.array([ConvexHull(vor.vertices[vor.regions[vor.point_region[i]]]).volume for i in range(ncoor)])
 
-        return vor, apl
+        return vor, apl, pbc_idx
 
-    def weight_matrix(self, vor, leaflet):
+    def weight_matrix(self, vor, pbc_idx, leaflet):
 
         """
         Calculate the weight factors between neighbored lipid pairs based on a Voronoi tessellation.
@@ -187,6 +198,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         ----------
         vor : Voronoi Tesselation
             Scipy's Voronoi Diagram object
+        pbc_idx : Indices
+            Unit cell indices of periodic image coordinates
         leaflet : string
             Index to decide upper/lower leaflet
 
@@ -230,7 +243,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         # the unit cell. Applying the modulus operator "%" will allow an indexing of the "weight_matrix". However, some
         # of the indices in "unit_cell_point" will be doubled that shouldn't be an issue since the same weight factor is
         # then just put several times in the same entry of the array (no summing or something similar!)
-        unit_cell_point = vor.ridge_points[mask_unit_cell] % ncoor
+        # Previous: unit_cell_point = vor.ridge_points[mask_unit_cell] % ncoor
+
+        #Transform the indices in vor.ridge_points back to unit cell indices -> Filter than for all indices of ridges that contain members of the unit cell
+        unit_cell_point = pbc_idx[ vor.ridge_points ][ mask_unit_cell ]
 
         weight_matrix[unit_cell_point[:, 0], unit_cell_point[:, 1]] = wij[mask_unit_cell]
         weight_matrix[unit_cell_point[:, 1], unit_cell_point[:, 0]] = wij[mask_unit_cell]
@@ -265,8 +281,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
-        upper_vor, upper_apl = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=self.frac)
-        lower_vor, lower_apl = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=self.frac)
+        upper_vor, upper_apl, upper_pbc_idx = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=self.frac)
+        lower_vor, lower_apl, lower_pbc_idx = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=self.frac)
         self.results.train[self.uidx, self.index, 0] = upper_apl
         self.results.train[self.lidx, self.index, 0] = lower_apl
         # TODO Local normal calculation
@@ -274,8 +290,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         # ------------------------------ Order parameter ------------------------------------------------------------- #
         self.order_parameter()
         # ------------------------------ Weight Matrix --------------------------------------------------------------- #
-        upper_weight_matrix = self.weight_matrix(upper_vor, leaflet=0)
-        lower_weight_matrix = self.weight_matrix(lower_vor, leaflet=1)
+        upper_weight_matrix = self.weight_matrix(upper_vor, pbc_idx = upper_pbc_idx, leaflet=0)
+        lower_weight_matrix = self.weight_matrix(lower_vor, pbc_idx = lower_pbc_idx, leaflet=1)
         # Keep weight matrices in scipy.sparse.csr_array format since both is sparse matrices
         self.results["upper_weight_all"].append(csr_array(upper_weight_matrix))
         self.results["lower_weight_all"].append(csr_array(lower_weight_matrix))
