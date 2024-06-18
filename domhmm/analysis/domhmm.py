@@ -55,7 +55,6 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Initialized leaflet assignment array for each frame
         self.leaflet_assignment = np.zeros((len(self.membrane_unique_resids), self.n_frames), dtype=np.int32)
-        self.leaflet_assignment_results = []
 
     def calc_order_parameter(self, chain):
 
@@ -262,19 +261,40 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Calculate correct index if skipping step not equals 1 or start point not equals 0
         self.index = self.frame // self.step - self.start
 
-        #Update leaflet assignment
-        if not self.index % self.leaflet_frame_rate:
-            self.leaflet_selection = self.get_leaflets()
+        #Update leaflet assignment (if leaflet_frame_rate is None, leaflets will never get updated during analysis)
+        if self.leaflet_frame_rate != None and not self.index % self.leaflet_frame_rate:
+            #Call leaflet assignment functions for non-sterol and sterol compounds
+            self.leaflet_selection_no_sterol = self.get_leaflets()
+            self.leaflet_selection = self.get_leaflets_sterol()
+
+            #Write assignments to array
             assignment_index = int(self.index / self.leaflet_frame_rate)
-            self.uidx = self.leaflet_selection["0"].resids - 1
-            self.lidx = self.leaflet_selection["1"].resids - 1
             start_index = assignment_index * self.leaflet_frame_rate
             end_index = (assignment_index + 1) * self.leaflet_frame_rate
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
+
+            self.uidx = self.leaflet_selection["0"].resids - 1
+            self.lidx = self.leaflet_selection["1"].resids - 1
             self.leaflet_assignment[self.uidx, start_index:end_index] = 0
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
-            self.leaflet_assignment_results.append(self.leaflet_selection)
+
+        #Update sterol assignment. Don't do the update if it was already done in the if-statement before
+        if not self.index % self.sterol_frame_rate and (self.leaflet_frame_rate == None or self.index % self.leaflet_frame_rate):
+            #Call leaflet assignment function for sterol compounds
+            self.leaflet_selection = self.get_leaflets_sterol()
+
+            #Write assignments to array
+            assignment_index = int(self.index / self.sterol_frame_rate)
+            start_index = assignment_index * self.sterol_frame_rate
+            end_index = (assignment_index + 1) * self.sterol_frame_rate
+            if end_index > self.leaflet_assignment.shape[1]:
+                end_index = self.leaflet_assignment.shape[1]
+
+            self.uidx = self.leaflet_selection["0"].resids - 1
+            self.lidx = self.leaflet_selection["1"].resids - 1
+            self.leaflet_assignment[self.uidx, start_index:end_index] = 0
+            self.leaflet_assignment[self.lidx, start_index:end_index] = 1
 
         if self.leaflet_selection["0"].select_atoms("group leaf1", leaf1=self.leaflet_selection["1"]):
             raise ValueError("Atoms in both leaflets !")
@@ -705,8 +725,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         resnum = len(self.unique_resnames)
         g_star_i_temp = [[] for _ in range(resnum)]
         for step in range(self.n_frames):
-            index_dict_0 = self.get_leaflet_step_order_index(leaflet=0, step=step)
-            index_dict_1 = self.get_leaflet_step_order_index(leaflet=1, step=step)
+            index_dict_0, pos_dict_0 = self.get_leaflet_step_order_index(leaflet=0, step=step)
+            index_dict_1, pos_dict_1 = self.get_leaflet_step_order_index(leaflet=1, step=step)
             temp_index_list_0 = [0]
             temp_index_list_1 = [0]
             for resname in self.unique_resnames:
@@ -849,12 +869,11 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             # Plot coordinates
             # ----------------------------------------------------------------------------------------------------------------------
-            residue_indexes = self.get_leaflet_step_order_index(leaflet=0, step=i)
-            leaflet_assignment_index = int(i / self.leaflet_frame_rate)
-            positions = self.leaflet_assignment_results[leaflet_assignment_index]['0'].positions
+            residue_indexes, positions = self.get_leaflet_step_order_index(leaflet=0, step=i)
+
             for resname, index in residue_indexes.items():
-                ax[k].scatter(positions[index, 0],
-                              positions[index, 1], marker="s", alpha=1, s=5, label=resname)
+                ax[k].scatter(positions[resname][:, 0],
+                              positions[resname][:, 1], marker="s", alpha=1, s=5, label=resname)
 
             # Choose color scheme for clustering coloring
             colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
@@ -1050,7 +1069,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     def get_leaflet_step_order_index(self, leaflet, step):
         """
-        Receive residue's indexes in order state result with respect to the leaflet
+        Receive residue's indexes and positions for a specific leaflet at any frame of the trajecytory.
 
         Parameters
         ----------
@@ -1061,13 +1080,26 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Returns
         -------
-        order_states : numpy.ndarray
-            Numpy array contains residue indexes of the leaflet at step in order of system's residues
+        indexes : dict
+            dictionary contains numpy.arrays containing residue's indexes for each unique residue type
+        positions : dict
+            dictionary contains numpy.arrays containing residue's positions for each unique residue type
         """
-        result = {}
+
+        leaflet_assignment_step = self.leaflet_assignment[:, step ]
+        leaflet_assignment_mask = leaflet_assignment_step == leaflet
+
+        indexes   = {}
+        positions = {}
+
         for res in self.unique_resnames:
-            leaflet_assignment_index = int(step / self.leaflet_frame_rate)
-            indexes = np.where(self.leaflet_assignment_results[leaflet_assignment_index][str(leaflet)].resnames == res)[
-                0]
-            result[res] = indexes
-        return result
+
+            indexes[res] = np.where( self.membrane.residues[ leaflet_assignment_mask ].resnames == res)[0]
+
+            if res in self.heads.keys():
+                positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(f"resname {res} and name {self.heads[res]}")).positions
+            else:
+                positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(f"resname {res} and name {self.sterols[res]}")).positions
+
+
+        return indexes, positions
