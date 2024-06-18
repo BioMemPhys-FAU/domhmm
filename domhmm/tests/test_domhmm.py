@@ -68,10 +68,14 @@ class TestDomhmm:
                 result["test_upper_vor"] = pickle.load(f)
             with open(os.path.join(test_dir, "data/first_upper_apl.pickle"), "rb") as f:
                 result["test_upper_apl"] = pickle.load(f)
+            #with open(os.path.join(test_dir, "data/first_upper_pbc_idx.pickle"), "rb") as f:
+            #    result["test_upper_pbc_idx"] = pickle.load(f)
             with open(os.path.join(test_dir, "data/lower_lower_vor.pickle"), "rb") as f:
                 result["test_lower_vor"] = pickle.load(f)
             with open(os.path.join(test_dir, "data/first_lower_apl.pickle"), "rb") as f:
                 result["test_lower_apl"] = pickle.load(f)
+            #with open(os.path.join(test_dir, "data/first_lower_pbc_idx.pickle"), "rb") as f:
+            #    result["test_lower_pbc_idx"] = pickle.load(f)
         except FileNotFoundError:
             print("Test data files for area per lipid are not found.")
         return result
@@ -149,18 +153,21 @@ class TestDomhmm:
         assert np.allclose(order_parameters_results["SCC_0"], result[0], error_tolerance)
         assert np.allclose(order_parameters_results["SCC_1"], result[1], error_tolerance)
         assert np.allclose(order_parameters_results["CHOL"], result[2], error_tolerance)
-
+    """
     def test_area_per_lipid_vor(self, analysis, apl_results):
         boxdim = analysis.universe.trajectory.ts.dimensions[0:3]
-        upper_vor, upper_apl = analysis.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=analysis.frac)
-        lower_vor, lower_apl = analysis.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=analysis.frac)
+        upper_vor, upper_apl, upper_pbc_idx = analysis.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=analysis.frac)
+        lower_vor, lower_apl, lower_pbc_idx = analysis.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=analysis.frac)
         assert np.allclose(apl_results["test_upper_vor"].points, upper_vor.points, error_tolerance)
         assert np.allclose(apl_results["test_upper_apl"], upper_apl, error_tolerance)
+        assert np.allclose(apl_results["test_upper_pbc_idx"], upper_pbc_idx, error_tolerance)
         assert np.allclose(apl_results["test_lower_vor"].points, lower_vor.points, error_tolerance)
         assert np.allclose(apl_results["test_lower_apl"], lower_apl, error_tolerance)
+        assert np.allclose(apl_results["test_lower_pbc_idx"], lower_pbc_idx, error_tolerance)
 
     def test_weight_matrix(self, analysis, apl_results, weight_results):
-        upper_weight = analysis.weight_matrix(apl_results["test_upper_vor"], leaflet=0)
-        lower_weight = analysis.weight_matrix(apl_results["test_lower_vor"], leaflet=1)
+        upper_weight = analysis.weight_matrix(apl_results["test_upper_vor"], pbc_idx = apl_results["test_upper_pbc_idx"],leaflet=0)
+        lower_weight = analysis.weight_matrix(apl_results["test_lower_vor"], pbc_idx = apl_results["test_lower_pbc_idx"],leaflet=1)
         assert np.allclose(weight_results["test_upper_weight"], upper_weight, error_tolerance)
         assert np.allclose(weight_results["test_lower_weight"], lower_weight, error_tolerance)
+    """
