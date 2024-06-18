@@ -83,7 +83,8 @@ class LeafletAnalysisBase(AnalysisBase):
             local: bool = False,
             frac: float = 0.5,
             p_value: float = 0.05,
-            leaflet_frame_rate: int = 1000000,
+            leaflet_frame_rate: Union[None, int] = None,
+            sterol_frame_rate: int = 1,
             asymmetric_membrane: bool = False,
             **kwargs
     ):
@@ -120,24 +121,50 @@ class LeafletAnalysisBase(AnalysisBase):
 
         # -----------------------------------------------------------------LEAFLETS----------------------------------- #
 
-        if leaflet_select is not None:
+        if leaflet_select is None:
+            # No information about leaflet assignment is provided. Raise an error and exit.
+            raise ValueError("No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
 
-            # If the argument leaflet_select is not None, the user specified its own leaflet selection. The code just
-            # checks if there are exactly two groups and raises an assertion if not. It then stores the selection
-            # in a dictionary
+        elif isinstance(leaflet_select, list):
+            # If the argument leaflet_select is a list, the user specified their own leaflet selection.
+            # The code checks if there are exactly two groups and raises an assertion if not.
+            # It then stores the provided AtomGroup in a dictionary, or creates the AtomGroup with a provided selection string and stores it in the dictionary.
 
-            assert len(leaflet_select) == 2, (f"Bilayer is required. {len(leaflet_select)} are found in leaflet_select "
-                                              f"list.")
+            assert len(leaflet_select) == 2, (f"A bilayer is required. {len(leaflet_select)} entries found in leaflet_select list.")
 
-            # Init empty dict to store AtomGroups
-            self.leaflet_selection = {}
+            # Initialize empty dictionary to store AtomGroups
+            self.leaflet_selection_no_sterol = {}
 
             # Iterate over both entries
             for i in range(2):
-                self.leaflet_selection[str(i)] = self.universe.select_atoms(leaflet_select[i])
+                # MDAnalysis.AtomGroup was provided as input
+                if isinstance(leaflet_select[i], AtomGroup):
+                    self.leaflet_selection_no_sterol[str(i)] = leaflet_select[i]
+                # Character string was provided as input, assume it contains a selection for an MDAnalysis.AtomGroup
+                elif isinstance(leaflet_select[i], str):
+                    # Try to create a MDAnalysis.AtomGroup, raise a ValueError if not selection group could be provided
+                    try:
+                        self.leaflet_selection_no_sterol[str(i)] = self.universe.select_atoms(leaflet_select[i])
+                    except Exception as e:
+                        raise ValueError("Please provide a valid MDAnalysis selection string!") from e
+
+                    #TODO: Check for atom number in upper and lower leaflet and raise a Warning
+                else:
+                    raise ValueError("Please provide an MDAnalysis.AtomGroup or a valid MDAnalysis selection string!")
+
+                #Iterate over sterol compounds and check if it is part of the phospholipid leaflet assignment
+                for rsn, atoms in self.sterols.items():
+                    if rsn in self.leaflet_selection_no_sterol[str(i)].residues.resnames:
+                        raise ValueError(f"Sterol {rsn} should not be part of the initial leaflet identification! Sterols will be assigned automatically.")
+                    else: pass
+
+        elif leaflet_select.lower() == "auto":
+            # 'auto' should trigger an automated leaflet assignment pipeline (e.g., LeafletFinder provided by MDAnalysis)
+            self.leaflet_selection_no_sterol = self.get_leaflets()
 
         else:
-            self.leaflet_selection = self.get_leaflets()
+            # An unknown argument is provided for leaflet_select
+            raise ValueError("No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
 
         # Save unique residue names
         _, idx = np.unique(self.membrane.resnames, return_index=True)
@@ -152,6 +179,11 @@ class LeafletAnalysisBase(AnalysisBase):
         self.sterols_tail = self.get_leaflet_sterols()
 
     def get_leaflets(self):
+
+        """
+        Automatically assign non-sterol compounds to the upper and lower leaflet of a bilayer using the MDAnalysis.LeafletFinder
+        """
+
         # Call LeafletFinder to get upper and lower leaflets
         leafletfinder = LeafletFinder(self.universe, **self.leaflet_kwargs)
 
@@ -167,12 +199,24 @@ class LeafletAnalysisBase(AnalysisBase):
         for idx, leafgroup in enumerate(leafletfinder.groups_iter()):
             leaflet_selection[str(idx)] = leafgroup
 
+        return leaflet_selection
+
+    def get_leaflets_sterol(self):
+
+        """
+        Assign sterol compounds to to the upper and lower leaflet of a bilayer using a distance cut-off.
+        """
+
+        # Copy dict for leaflet selection without sterols, only the AtomGroups in the copied dict should be updated
+        leaflet_selection = self.leaflet_selection_no_sterol.copy()
+
+        #Iterate over each type of sterol in the membrane
         for rsn, atoms in self.sterols.items():
             # TODO Find more user-friendly way for sterol atom selection
             sterol = self.universe.select_atoms(f"resname {rsn} and name {atoms[0]}")
-            upper_sterol = distances.distance_array(reference=sterol, configuration=leaflet_selection['0'],
+            upper_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection_no_sterol['0'],
                                                     box=self.universe.trajectory.ts.dimensions)
-            lower_sterol = distances.distance_array(reference=sterol, configuration=leaflet_selection['1'],
+            lower_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection_no_sterol['1'],
                                                     box=self.universe.trajectory.ts.dimensions)
 
             # ...determining the minimum distance to each leaflet for each cholesterol,...
@@ -184,8 +228,9 @@ class LeafletAnalysisBase(AnalysisBase):
             lower_sterol = sterol.difference(upper_sterol)
 
             # Merge the atom selections for the phospholipids and cholesterol
-            leaflet_selection['0'] = leaflet_selection['0'] + upper_sterol
-            leaflet_selection['1'] = leaflet_selection['1'] + lower_sterol
+            leaflet_selection['0'] = self.leaflet_selection['0'] | upper_sterol
+            leaflet_selection['1'] = self.leaflet_selection['1'] | lower_sterol
+
         return leaflet_selection
 
     def get_resids(self):
