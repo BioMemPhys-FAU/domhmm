@@ -47,7 +47,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 self.max_tail_len = len(each)
         # Total number of parameters are area per lipid + order parameter for each tail = max_tail_len + 1
         self.results.train = np.zeros(
-            (len(self.membrane_unique_resids), self.n_frames, 1 + self.max_tail_len + len(self.sterols)),
+            (len(self.membrane_unique_resids), self.n_frames, 1 + self.max_tail_len + len(self.sterol_heads)),
             dtype=np.float32)
         # Initalize weight matrix storage for each leaflet.
         setattr(self.results, "upper_weight_all", [])
@@ -106,7 +106,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             s_cc = self.calc_order_parameter(tail)
             _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
             self.results.train[idx, self.index, 1 + chain] = s_cc
-        for i, (resname, tail) in enumerate(self.sterols_tail.items()):
+        for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
             s_cc = self.calc_order_parameter(tail)
             _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
             self.results.train[idx, self.index, 1 + self.max_tail_len + i] = s_cc
@@ -385,7 +385,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 self.results.train_data_per_type[resname][1] = [upper_leaflet_data, lower_leaflet_data]
                 self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
 
-            for i, (resname, tail) in enumerate(self.sterols_tail.items()):
+            for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
                 rsn_ids = self.residue_ids[resname]
                 self.results.train_data_per_type[resname][0] = rsn_ids
                 _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
@@ -405,7 +405,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, 0:len(tails) + 1]
                 self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
 
-            for i, (resname, tail) in enumerate(self.sterols_tail.items()):
+            for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
                 rsn_ids = self.residue_ids[resname]
                 self.results.train_data_per_type[resname][0] = rsn_ids
                 idx = resid_dict[resname]
@@ -585,7 +585,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 result = result[idx]
                 self.results['HMM_Pred'][resname] = result
 
-            for i, (resname, tail) in enumerate(self.sterols_tail.items()):
+            for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
                 temp_array = []
                 for leaflet in range(2):
                     idx = self.leaflet_residx[resname][leaflet]
@@ -877,6 +877,14 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             # Choose color scheme for clustering coloring
             colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
+        
+            #Goto correct frame of the trajectory
+            self.universe.trajectory[self.start:self.stop:self.step][i]
+            
+            #Prepare positions for cluster plotting
+            leaflet_assignment_mask = self.leaflet_assignment[:, i ] == 0
+
+            positions = (self.membrane.residues[leaflet_assignment_mask].atoms & self.all_heads).positions
 
             # Iterate over clusters and plot the residues
             print(f"Number of clusters in frame {i}: {len(clusters.values())}")
@@ -1092,6 +1100,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         indexes   = {}
         positions = {}
 
+        #Goto correct frame of the trajectory
+        self.universe.trajectory[self.start:self.stop:self.step][step]
+
         for res in self.unique_resnames:
 
             indexes[res] = np.where( self.membrane.residues[ leaflet_assignment_mask ].resnames == res)[0]
@@ -1099,7 +1110,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             if res in self.heads.keys():
                 positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(f"resname {res} and name {self.heads[res]}")).positions
             else:
-                positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(f"resname {res} and name {self.sterols[res]}")).positions
+                positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(f"resname {res} and name {self.sterol_heads[res]}")).positions
 
 
         return indexes, positions

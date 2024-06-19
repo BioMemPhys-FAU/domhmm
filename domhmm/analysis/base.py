@@ -79,7 +79,8 @@ class LeafletAnalysisBase(AnalysisBase):
             leaflet_select: Union[None, "AtomGroup", str, list] = None,
             tails: Dict[str, Any] = {},
             heads: Dict[str, Any] = {},
-            sterols: Dict[str, Any] = {},
+            sterol_heads: Dict[str, Any] = {},
+            sterol_tails: Dict[str, Any] = {},
             local: bool = False,
             frac: float = 0.5,
             p_value: float = 0.05,
@@ -101,7 +102,8 @@ class LeafletAnalysisBase(AnalysisBase):
         self.membrane_unique_resids = np.unique(self.membrane.resids)
         self.heads = heads
         self.tails = tails
-        self.sterols = sterols
+        self.sterol_heads = sterol_heads
+        self.sterol_tails = sterol_tails
         self.leaflet_frame_rate = leaflet_frame_rate
         self.sterol_frame_rate = sterol_frame_rate
         self.frac = frac
@@ -154,7 +156,7 @@ class LeafletAnalysisBase(AnalysisBase):
                     raise ValueError("Please provide an MDAnalysis.AtomGroup or a valid MDAnalysis selection string!")
 
                 #Iterate over sterol compounds and check if it is part of the phospholipid leaflet assignment
-                for rsn, atoms in self.sterols.items():
+                for rsn, atoms in self.sterol_heads.items():
                     if rsn in self.leaflet_selection_no_sterol[str(i)].residues.resnames:
                         raise ValueError(f"Sterol {rsn} should not be part of the initial leaflet identification! Sterols will be assigned automatically.")
                     else: pass
@@ -175,9 +177,11 @@ class LeafletAnalysisBase(AnalysisBase):
         self.residue_ids = self.get_resids()
 
         # Get dictionary with selection of head- and tailgroups in upper and lower leaflets
-        self.resid_tails_selection = self.get_leaflet_tails()
+        self.resid_tails_selection = self.get_lipid_tails()
 
-        self.sterols_tail = self.get_leaflet_sterols()
+        self.sterol_tails_selection = self.get_sterol_tails()
+
+        self.all_heads = self.get_heads()
 
     def get_leaflets(self):
 
@@ -209,12 +213,12 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         # Copy dict for leaflet selection without sterols, only the AtomGroups in the copied dict should be updated
-        leaflet_selection = self.leaflet_selection_no_sterol.copy()
+        leaflet_selection = {}
 
         #Iterate over each type of sterol in the membrane
-        for rsn, atoms in self.sterols.items():
+        for rsn, head in self.sterol_heads.items():
             # TODO Find more user-friendly way for sterol atom selection
-            sterol = self.universe.select_atoms(f"resname {rsn} and name {atoms[0]}")
+            sterol = self.universe.select_atoms(f"resname {rsn} and name {head}")
             upper_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection_no_sterol['0'],
                                                     box=self.universe.trajectory.ts.dimensions)
             lower_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection_no_sterol['1'],
@@ -229,8 +233,8 @@ class LeafletAnalysisBase(AnalysisBase):
             lower_sterol = sterol.difference(upper_sterol)
 
             # Merge the atom selections for the phospholipids and cholesterol. "+" just adds the second selection on top of the former one.
-            leaflet_selection['0'] = leaflet_selection['0'] + upper_sterol
-            leaflet_selection['1'] = leaflet_selection['1'] + lower_sterol
+            leaflet_selection['0'] = self.leaflet_selection_no_sterol['0'] + upper_sterol
+            leaflet_selection['1'] = self.leaflet_selection_no_sterol['1'] + lower_sterol
 
         return leaflet_selection
 
@@ -247,17 +251,41 @@ class LeafletAnalysisBase(AnalysisBase):
         # Init empty dict to store atom selection of resids
         residue_ids = {}
 
+
         # Iterate over found leaflets
         for resname, head in self.heads.items():
             query_str = f"name {head} and resname {resname}"
             residue_ids[resname] = self.universe.select_atoms(query_str).resids
-        for resname, atoms in self.sterols.items():
+        for resname, head in self.sterol_heads.items():
             # TODO Find more user-friendly way for sterol atom selection
-            query_str = f"name {atoms[0]} and resname {resname}"
+            query_str = f"name {head} and resname {resname}"
             residue_ids[resname] = self.universe.select_atoms(query_str).resids
         return residue_ids
 
-    def get_leaflet_sterols(self):
+    def get_heads(self):
+        """
+        Make an atomgroup containing all head groups (lipids + sterols).
+
+        Attributes
+        ---------- 
+        all_heads: MDAnalysis.AtomGroup
+            AtomGroup containing headgroups of all lipids and sterols
+        """
+
+        # Init empty dict to store atom selection of resids
+        all_heads = self.universe.select_atoms('')
+
+        # Iterate over found leaflets
+        for resname, head in self.heads.items():
+            query_str = f"name {head} and resname {resname}"
+            all_heads = all_heads | self.universe.select_atoms(query_str)
+        for resname, head in self.sterol_heads.items():
+            # TODO Find more user-friendly way for sterol atom selection
+            query_str = f"name {head} and resname {resname}"
+            all_heads = all_heads | self.universe.select_atoms(query_str)
+        return all_heads
+
+    def get_sterol_tails(self):
         """
         Make atomgroups for sterols
 
@@ -272,14 +300,14 @@ class LeafletAnalysisBase(AnalysisBase):
         sterols_tail = {}
 
         # Iterate over sterols -> user input
-        for sterol, tail in self.sterols.items():
+        for sterol, tail in self.sterol_tails.items():
             # Make atom group for sterol tail selection
             tail_sele_str = 'name ' + ' or name '.join(tail)
             tail_sele_str = f'resname {sterol} and ({tail_sele_str})'
             sterols_tail[sterol] = self.universe.select_atoms(tail_sele_str)
         return sterols_tail
 
-    def get_leaflet_tails(self):
+    def get_lipid_tails(self):
 
         """
         Make atomgroups for tailgroups for each chain of residues
