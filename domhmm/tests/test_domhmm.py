@@ -17,7 +17,7 @@ error_tolerance = 0.001
 
 class TestDomhmm:
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def universe(self):
         test_dir = os.path.dirname(__file__)
         path2xtc = os.path.join(test_dir, "data/md_center_mol_last2mus.xtc")
@@ -74,14 +74,14 @@ class TestDomhmm:
                 result["test_upper_vor"] = pickle.load(f)
             with open(os.path.join(test_dir, "data/first_upper_apl.pickle"), "rb") as f:
                 result["test_upper_apl"] = pickle.load(f)
-            #with open(os.path.join(test_dir, "data/first_upper_pbc_idx.pickle"), "rb") as f:
-            #    result["test_upper_pbc_idx"] = pickle.load(f)
-            with open(os.path.join(test_dir, "data/lower_lower_vor.pickle"), "rb") as f:
+            with open(os.path.join(test_dir, "data/first_upper_pbc_idx.pickle"), "rb") as f:
+               result["test_upper_pbc_idx"] = pickle.load(f)
+            with open(os.path.join(test_dir, "data/first_lower_vor.pickle"), "rb") as f:
                 result["test_lower_vor"] = pickle.load(f)
             with open(os.path.join(test_dir, "data/first_lower_apl.pickle"), "rb") as f:
                 result["test_lower_apl"] = pickle.load(f)
-            #with open(os.path.join(test_dir, "data/first_lower_pbc_idx.pickle"), "rb") as f:
-            #    result["test_lower_pbc_idx"] = pickle.load(f)
+            with open(os.path.join(test_dir, "data/first_lower_pbc_idx.pickle"), "rb") as f:
+               result["test_lower_pbc_idx"] = pickle.load(f)
         except FileNotFoundError:
             print("Test data files for area per lipid are not found.")
         return result
@@ -153,15 +153,17 @@ class TestDomhmm:
         for chain, tail in analysis.resid_tails_selection.items():
             s_cc = analysis.calc_order_parameter(tail)
             result.append(s_cc)
-        for resname, tail in analysis.sterol_tails_selection.items():
+        for i, (resname, tail) in enumerate(analysis.sterol_tails_selection.items()):
             s_cc = analysis.calc_order_parameter(tail)
             result.append(s_cc)
         assert np.allclose(order_parameters_results["SCC_0"], result[0], error_tolerance)
         assert np.allclose(order_parameters_results["SCC_1"], result[1], error_tolerance)
         assert np.allclose(order_parameters_results["CHOL"], result[2], error_tolerance)
-    """
+
     def test_area_per_lipid_vor(self, analysis, apl_results):
         boxdim = analysis.universe.trajectory.ts.dimensions[0:3]
+        analysis.leaflet_selection_no_sterol = analysis.get_leaflets()
+        analysis.leaflet_selection = analysis.get_leaflets_sterol()
         upper_vor, upper_apl, upper_pbc_idx = analysis.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=analysis.frac)
         lower_vor, lower_apl, lower_pbc_idx = analysis.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=analysis.frac)
         assert np.allclose(apl_results["test_upper_vor"].points, upper_vor.points, error_tolerance)
@@ -172,8 +174,10 @@ class TestDomhmm:
         assert np.allclose(apl_results["test_lower_pbc_idx"], lower_pbc_idx, error_tolerance)
 
     def test_weight_matrix(self, analysis, apl_results, weight_results):
+        analysis.leaflet_selection_no_sterol = analysis.get_leaflets()
+        analysis.leaflet_selection = analysis.get_leaflets_sterol()
         upper_weight = analysis.weight_matrix(apl_results["test_upper_vor"], pbc_idx = apl_results["test_upper_pbc_idx"],leaflet=0)
         lower_weight = analysis.weight_matrix(apl_results["test_lower_vor"], pbc_idx = apl_results["test_lower_pbc_idx"],leaflet=1)
         assert np.allclose(weight_results["test_upper_weight"], upper_weight, error_tolerance)
         assert np.allclose(weight_results["test_lower_weight"], lower_weight, error_tolerance)
-    """
+
