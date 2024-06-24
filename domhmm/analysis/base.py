@@ -61,6 +61,8 @@ class LeafletAnalysisBase(AnalysisBase):
         fraction of box length in x and y outside the unit cell considered for Voronoi calculation
     p_value: float
         p_value for z_score calculation
+    verbose: bool
+        verbose option to print intermediate steps
     leaflet_kwargs: Optional[dict]
         dictionary containing additional arguments for the MDAnalysis LeafletFinder
     heads: Optional[dict]
@@ -88,6 +90,8 @@ class LeafletAnalysisBase(AnalysisBase):
             leaflet_frame_rate: Union[None, int] = None,
             sterol_frame_rate: int = 1,
             asymmetric_membrane: bool = False,
+            verbose: bool = False,
+            result_plots: bool = False,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -110,6 +114,8 @@ class LeafletAnalysisBase(AnalysisBase):
         self.frac = frac
         self.p_value = p_value
         self.asymmetric_membrane = asymmetric_membrane
+        self.verbose = verbose
+        self.result_plots = result_plots
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
@@ -282,7 +288,7 @@ class LeafletAnalysisBase(AnalysisBase):
         Make an atomgroup containing all head groups (lipids + sterols).
 
         Attributes
-        ---------- 
+        ----------
         all_heads: MDAnalysis.AtomGroup
             AtomGroup containing headgroups of all lipids and sterols
         """

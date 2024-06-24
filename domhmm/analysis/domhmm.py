@@ -6,6 +6,9 @@ This module contains the :class:`PropertyCalculation` class.
 
 """
 
+import logging as log
+import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
 from hmmlearn.hmm import GaussianHMM
@@ -34,7 +37,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         Attributes
         ----------
         """
-
+        if self.verbose:
+            log.basicConfig(level=log.INFO, stream=sys.stdout)
+        log.info("Preparation Step")
         # Initialize result storage dictionaries
         self.results.train_data_per_type = {}
         self.results.GMM = {}
@@ -322,12 +327,21 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Extract the obtained data and put them into a clear and accessible data structure
         """
+        log.info("Conclusion step is starting.")
         self.prepare_train_data()
         # -------------------------------------------------------------
+        log.info("Gaussian Mixture Model training is starting.")
         self.GMM(gmm_kwargs=self.gmm_kwargs)
+        
+        log.info("Hidden Markov Model training is starting.")
         self.HMM(hmm_kwargs=self.hmm_kwargs)
+        
+        log.info("Getis-Ord Statistic calculation is starting.")
+
         self.getis_ord()
-        self.clustering()
+        log.info("Clustering is starting.")
+        if self.result_plots:
+            self.clustering_plot()
 
     def prepare_train_data(self):
         """
@@ -428,18 +442,20 @@ class PropertyCalculation(LeafletAnalysisBase):
                         gmm_data.reshape(-1, gmm_data.shape[2]))
                     temp_dict[leaflet] = gmm
                 self.results["GMM"][res] = temp_dict
+                log.info(f"Leaflet {leaflet}, {res} Gaussian Mixture Model is trained.")
             else:
                 gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, data[1].shape[2]))
                 self.results["GMM"][res] = gmm
+                log.info(f"{res} Gaussian Mixture Model is trained.")
 
         # Check for convergence
         for resname, each in self.results["GMM"].items():
             if self.asymmetric_membrane:
                 if not each[0].converged_ or not each[1].converged_:
-                    print(f"{resname} Gaussian Mixture Model is not converged.")
+                    log.warning(f"{resname} Gaussian Mixture Model is not converged.")
             else:
                 if not each.converged_:
-                    print(f"{resname} Gaussian Mixture Model is not converged.")
+                    log.warning(f"{resname} Gaussian Mixture Model is not converged.")
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
@@ -461,17 +477,21 @@ class PropertyCalculation(LeafletAnalysisBase):
                                        n_repeats=2)
                     temp_dict[leaflet] = hmm
                 self.results["HMM"][resname] = temp_dict
+                log.info(f"Leaflet {leaflet}, {resname} Gaussian Hidden Markov Model is trained.")
             else:
                 hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
                 self.results["HMM"][resname] = hmm
-        # Plot result of hmm
-        self.plot_hmm_result()
+                log.info(f"{resname} Gaussian Hidden Markov Model is trained.")
+        if self.result_plots:
+            # Plot result of hmm
+            self.plot_hmm_result()
         # Make predictions based on HMM model
         self.predict_states()
         # Validate states and result prediction
         self.state_validate()
-        # Plot prediction result
-        self.predict_plot()
+        if self.result_plots:
+            # Plot prediction result
+            self.predict_plot()
 
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10):
 
@@ -640,9 +660,13 @@ class PropertyCalculation(LeafletAnalysisBase):
     def getis_ord(self):
         self.getis_ord_stat(self.results["upper_weight_all"], 0)
         self.getis_ord_stat(self.results["lower_weight_all"], 1)
-        self.getis_ord_plot()
+        log.info("Getis-Ord for leaflets are calculated.")
+        if self.result_plots:
+            self.getis_ord_plot()
+        log.info("Permutations of Getis-Ord are calculated.")
         self.results["Getis_Ord"]["Permut_0"] = self.permut_getis_ord_stat(self.results["upper_weight_all"], 0)
         self.results["Getis_Ord"]["Permut_1"] = self.permut_getis_ord_stat(self.results["lower_weight_all"], 1)
+        log.info("Z score is calculated.")
         self.results["z_score"] = self.z_score_calc()
 
     def getis_ord_stat(self, weight_matrix_all, leaflet):
@@ -834,14 +858,13 @@ class PropertyCalculation(LeafletAnalysisBase):
         return result
 
     # ------------------------------ HIERARCHICAL CLUSTERING --------------------------------------------------------- #
-    def clustering(self):
+    def clustering_plot(self):
         """
         Runs hierarchical clustering and plots clustering results in different frames.
         """
 
         n_frames = self.n_frames
         # Plot %5, %50 and %95 points of frame list
-        # TODO n_frames are different when start is not equal to 0
         frame_list = [int(n_frames / 20), int(n_frames / 2), int(n_frames / 1.05)]
         fig, ax = plt.subplots(1, len(frame_list), figsize=(20, 5))
 
@@ -871,10 +894,10 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             # Choose color scheme for clustering coloring
             colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
-        
+
             #Goto correct frame of the trajectory
             self.universe.trajectory[self.start:self.stop:self.step][i]
-            
+
             #Prepare positions for cluster plotting
             leaflet_assignment_mask = self.leaflet_assignment[:, i ] == 0
 
@@ -904,9 +927,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         ax[1].set_title("b", fontsize=20, fontweight="bold", loc="left")
         ax[2].set_title("c", fontsize=20, fontweight="bold", loc="left")
 
-        ax[0].text(s=f"Frame {frame_list[0]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
-        ax[1].text(s=f"Frame {frame_list[1]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
-        ax[2].text(s=f"Frame {frame_list[2]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[0].text(s=f"Frame {self.start + frame_list[0]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[1].text(s=f"Frame {self.start + frame_list[1]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
+        ax[2].text(s=f"Frame {self.start + frame_list[2]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
 
         plt.show()
 
