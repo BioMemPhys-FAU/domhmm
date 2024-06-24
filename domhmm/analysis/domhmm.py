@@ -324,14 +324,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         self.prepare_train_data()
         # -------------------------------------------------------------
-        gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
-                      "max_iter": 10000, "n_init": 20,
-                      "warm_start": False, "covariance_type": "full"}
-        self.GMM(gmm_kwargs=gmm_kwargs)
-        hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 1000,
-                      "algorithm": "viterbi", "covariance_type": "full",
-                      "init_params": "st", "params": "stmc"}
-        self.HMM(hmm_kwargs=hmm_kwargs)
+        self.GMM(gmm_kwargs=self.gmm_kwargs)
+        self.HMM(hmm_kwargs=self.hmm_kwargs)
         self.getis_ord()
         self.clustering()
 
