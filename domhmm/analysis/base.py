@@ -6,16 +6,15 @@ This module contains the :class:`LeafletAnalysisBase` class.
 
 """
 
+# ----PYTHON---- #
+from typing import Union, Dict, Any
+
+import numpy as np
+from MDAnalysis.analysis import distances
 # ----MDANALYSIS---- #
 from MDAnalysis.analysis.base import AnalysisBase
-from MDAnalysis.analysis import distances
 from MDAnalysis.analysis.leaflet import LeafletFinder
-
-# ----PYTHON---- #
-from typing import Union, TYPE_CHECKING, Dict, Any
-import numpy as np
-
-#if TYPE_CHECKING:
+# if TYPE_CHECKING:
 from MDAnalysis.core.universe import Universe, AtomGroup
 
 
@@ -90,6 +89,7 @@ class LeafletAnalysisBase(AnalysisBase):
             sterol_frame_rate: int = 1,
             asymmetric_membrane: bool = False,
             verbose: bool = False,
+            result_plots: bool = False,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -113,6 +113,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.p_value = p_value
         self.asymmetric_membrane = asymmetric_membrane
         self.verbose = verbose
+        self.result_plots = result_plots
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
