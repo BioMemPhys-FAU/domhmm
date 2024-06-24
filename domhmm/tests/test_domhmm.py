@@ -42,7 +42,8 @@ class TestDomhmm:
                                           heads=heads,
                                           sterol_heads=sterol_heads,
                                           sterol_tails=sterol_tails,
-                                          tails=tails)
+                                          tails=tails,
+                                          result_plots=True)
 
     @pytest.fixture(scope="function")
     def analysis_asymmetric(self, universe):
@@ -52,7 +53,7 @@ class TestDomhmm:
         tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
                  "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
         sterol_heads = {"CHOL": "ROH"}
-        sterol_tails = {"CHOL": ["ROH","C1"]}
+        sterol_tails = {"CHOL": ["ROH", "C1"]}
 
         return domhmm.PropertyCalculation(universe_or_atomgroup=universe,
                                           leaflet_kwargs={"select": "name PO4", "pbc": True},
@@ -63,6 +64,7 @@ class TestDomhmm:
                                           sterol_tails=sterol_tails,
                                           tails=tails,
                                           verbose=True,
+                                          result_plots=True,
                                           asymmetric_membrane=True)
 
     @pytest.fixture(scope="class")
