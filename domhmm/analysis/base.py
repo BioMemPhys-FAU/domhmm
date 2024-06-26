@@ -33,10 +33,42 @@ class LeafletAnalysisBase(AnalysisBase):
         Universe or group of atoms to apply this analysis to.
         If a trajectory is associated with the atoms,
         then the computation iterates over the trajectory.
+    membrane_select: str
+        Membrane selection query for analysis of simulation trajectories.
+    gmm_kwargs: Optional[Dict]
+        Optional parameter for Gaussian mixture model function.
+    hmm_kwargs: Optional[Dict]
+        Optional parameter for Hidden Markov model function.
+    leaflet_kwargs: Optional[dict]
+        dictionary containing additional arguments for the MDAnalysis LeafletFinder
+    leaflet_select: Union["auto",List[AtomGroup], List[str]]
+        Leaflet selection options for lipids which can be automatic by finding Leafletfinder, atomgroup, string query or list
+    heads: Dict[str, Any]
+        dictionary containing residue name and atom selection for lipid head groups
+    tails: Dict[str, Any]
+        dictionary containing residue name and atom selection for lipid tail groups
+    sterol_heads: Dict[str, Any]
+        dictionary containing residue name and atom selection for sterol head groups
+    sterol_tails: Dict[str, Any]
+         dictionary containing residue name and atom selection for sterol tail groups (head as first, tail beginnig as second)
+    frac: float
+        fraction of box length in x and y outside the unit cell considered for Voronoi calculation
+    p_value: float
+        p_value for z_score calculation
+    leaflet_frame_rate: Union[None, int]
+        Frame rate for checking lipids leaflet assignments via LeafletFinder
+    sterol_frame_rate: int
+        Frame rate for checking sterols leaflet assignments via LeafletFinder
+    asymmetric_membrane: bool
+        Asymmetric membrane option to train models by separated data w.r.t. leaflets
+    verbose: bool
+        Debug option to print step progress, warnings and errors
+    result_plots: bool
+        Plotting intermediate result option
 
     Attributes
     ----------
-    universe: :class:`~MDAnalysis.core.universe.Universe`
+    universe_or_atomgroup: :class:`~MDAnalysis.core.universe.Universe`
         The universe to which this analysis is applied
     atomgroup: :class:`~MDAnalysis.core.groups.AtomGroup`
         The atoms to which this analysis is applied
@@ -57,19 +89,6 @@ class LeafletAnalysisBase(AnalysisBase):
     frames: numpy.ndarray
         array of Timestep frame indices. Only exists after calling
         :meth:`.run`
-    frac: float
-        fraction of box length in x and y outside the unit cell considered for Voronoi calculation
-    p_value: float
-        p_value for z_score calculation
-    verbose: bool
-        verbose option to print intermediate steps
-    leaflet_kwargs: Optional[dict]
-        dictionary containing additional arguments for the MDAnalysis LeafletFinder
-    heads: Optional[dict]
-        dictionary containing resname and atom selection for lipid head groups
-    tails: Optional[dict]
-        dictionary containing resname and atom selection for lipid tail groups
-
     """
 
     def __init__(
@@ -80,11 +99,10 @@ class LeafletAnalysisBase(AnalysisBase):
             hmm_kwargs: Union[None, dict] = None,
             leaflet_kwargs: Dict[str, Any] = {},
             leaflet_select: Union[None, "AtomGroup", str, list] = None,
-            tails: Dict[str, Any] = {},
             heads: Dict[str, Any] = {},
+            tails: Dict[str, Any] = {},
             sterol_heads: Dict[str, Any] = {},
             sterol_tails: Dict[str, Any] = {},
-            local: bool = False,
             frac: float = 0.5,
             p_value: float = 0.05,
             leaflet_frame_rate: Union[None, int] = None,
@@ -134,14 +152,6 @@ class LeafletAnalysisBase(AnalysisBase):
                       "init_params": "st", "params": "stmc"}
         else:
             self.hmm_kwargs = hmm_kwargs
-
-        # -----------------------------------------------------------Local membrane properties------------------------ #
-        # If local is True then properties are calculated if possible
-
-        if local:
-            self.refZ = False
-        else:
-            self.refZ = True
 
         # -----------------------------------------------------------------LEAFLETS----------------------------------- #
 

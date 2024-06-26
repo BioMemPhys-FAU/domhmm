@@ -16,15 +16,17 @@ DomHMM's main class is ``PropertyCalculation``. In a basic example it is initial
     model = domhmm.PropertyCalculation(universe_or_atomgroup=universe,
                                        leaflet_kwargs=leaflet_kwargs,
                                        membrane_select=membrane_select,
+                                       leaflet_select="auto",
                                        heads=heads,
-                                       sterols=sterols,
+                                       sterol_heads=sterol_heads,
+                                       sterol_tails=sterol_tails,
                                        tails=tails)
 
 Then it can be run as
 
 .. code-block::
 
-    model.run(start=start, end=end, step=step)
+    model.run(start=start_frame, end=end_frame, step=step)
 
 
 Main Parameters
@@ -54,11 +56,41 @@ Let's dive into each parameter's details.
     # An example where simulation contains DPPC and DIPC lipids, and CHOL sterol
     membrane_select = "resname DPPC DIPC CHOL"
 
+* ``leaflet_select`` argument is selection options for lipids which can be list of atom groups, list of string queries or automatically finding via LeafletFinder.
+
+.. code-block::
+    # List of atom groups
+    lower_leaflet = universe.select_atoms("lower leaflet lipids query")
+    upper_leaflet = universe.select_atoms("upper leaflet lipids query")
+    leaflet_select = [lower_leaflet, upper_leaflet]
+    # List of query strings
+    leaflet_select = ["lower leaflet lipids query", "upper leaflet lipids query"]
+    # Leave leaflet detection to DomHMM via LeafletFinder
+    leaflet_select = "auto"
+
 * ``heads`` parameter requires lipids head groups. For atomistic simulations, head molecules' center atom can be entered.
 
 .. code-block::
 
     heads = {"DPPC": "PO4", "DIPC": "PO4"}
+
+* ``sterol_heads`` parameter requires sterol head groups. For atomistic simulations, head molecules' center atom can be entered.
+
+.. code-block::
+
+    # Martini Cholestrol example
+    sterol_heads = {"CHOL": "ROH"}
+    # Atomistic Cholestrol example
+    sterol_heads = {"CHL1": "O3"}
+
+* ``sterol_tails`` parameter requires sterol tail groups. It should be considered that each tail should be entered in same order for each lipids.
+
+.. code-block::
+
+    # Martini Cholestrol example while ROH head as first element and C1 start of tail as second element
+    sterol_tails = {"CHOL": ["ROH", "C1"]}
+    # Atomistic Cholestrol example while O3 head as first element and C20 start of tail as second element
+    sterol_tails = {"CHL1": ["O3", "C20"]}
 
 * ``tails`` parameter requires lipids tail groups. It should be considered that each tail should be entered in same order for each lipids.
 
@@ -67,15 +99,6 @@ Let's dive into each parameter's details.
     # Example of tails in order of {"Lipid_1":[[Acyl_Chain_1],[Acyl_Chain_2]], "Lipid_2":[[Acyl_Chain_1],[Acyl_Chain_2]]}
     tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
                  "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
-
-* ``sterols`` parameter requires head and tail group of each sterol. It is important to put head as first element and tails' starting point as second element.
-
-.. code-block::
-
-    # Martini Cholestrol example while ROH as head group and C1 as start of tail
-    sterols = {"CHOL": ["ROH", "C1"]}
-    # Atomistic Cholestrol example while O3 as head group and C20 as start of tail
-    sterols = {"CHL1": ["O3", "C20"]}
 
 
 * For run option, you can have ``start``, ``stop`` and ``step`` options. This options arrange which frame to start, stop. You can also set model to be trained for each *X* frame by setting ``step=X``.
@@ -100,16 +123,13 @@ Fraction of box length in x and y outside the unit cell considered for area per 
 
 Probability value that is used for z-score calculation. It is a determination percentage for domain identification with getis-ord statistic. In default, it is set to 0.05 or %5.
 
+* ``result_plot``
+
+Plotting option for debugging. While enabled, DomHMM will print Hidden Markov model iterations result, prediction results, Getis-Ord statistic results and clustering result of three frame.
+
 * ``verbose``
 
 Verbose option for debugging. Although, DomHMM doesn't print middle values, it shows which steps are done and shows middle step plots which may give clues about succession of model.
-
-
-Future Optional Parameters
---------------------------
-
-.. note::
-    This parameters will be added to DomHMM in future before release
 
 
 * ``gmm_kwargs``
