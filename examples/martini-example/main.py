@@ -23,13 +23,18 @@ if __name__ == "__main__":
     # In Sterols, there is one dimension array which first element is represents head part and second element
     # presents beggining part of sterol's chain
     sterols = {"CHOL": ["ROH", "C1"]}
+    sterol_heads = {"CHOL": "ROH"}
+    sterol_tails = {"CHOL": ["ROH", "C1"]}
     # leaflet_kwargs should contain all head group molecules of lipids for LeafletFinder function
     model = domhmm.PropertyCalculation(universe_or_atomgroup=universe,
                                       leaflet_kwargs={"select": "name PO4", "pbc": True},
                                       membrane_select=membrane_select,
+                                      leaflet_select="auto",
                                       heads=heads,
-                                      sterols=sterols,
-                                      tails=tails)
+                                      sterol_heads=sterol_heads,
+                                      sterol_tails=sterol_tails,
+                                      tails=tails,
+                                      result_plots=True)
     # run option can be updated by parameters such as start=0, stop=100, step=5
     model.run(start=0, stop=100)
     # TODO Result part for post analysis

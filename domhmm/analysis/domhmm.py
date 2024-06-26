@@ -12,9 +12,12 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 from hmmlearn.hmm import GaussianHMM
-from scipy.spatial import Voronoi, ConvexHull
 from scipy.sparse import csr_array
+from scipy.spatial import Voronoi, ConvexHull
+from sklearn import mixture
 from tqdm import tqdm
+
+from .base import LeafletAnalysisBase
 
 
 class PropertyCalculation(LeafletAnalysisBase):

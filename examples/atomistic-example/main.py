@@ -22,15 +22,18 @@ if __name__ == "__main__":
                      ['C4S', 'C5S', 'C6S', 'C7S', 'C8S', 'C9S', 'C10S', 'C11S', 'C12S', 'C13S', 'C14S', 'C15S', 'C16S', 'C17S', 'C18S']]}
     # In Sterols, there is one dimension array which first element is represents head part and second element
     # presents beggining part of sterol's chain
-    sterols = {"CHL1": ["O3", "C20"]}
+    sterol_heads = {"CHL1": "O3"}
+    sterol_tails = {"CHL1": ["O3", "C20"]}
     # leaflet_kwargs should contain all head group atoms/molecules of lipids for LeafletFinder function
     model = domhmm.PropertyCalculation(universe_or_atomgroup=uni,
                                        leaflet_kwargs={"select": "name P*", "pbc": True},
                                        membrane_select=membrane_select,
+                                       leaflet_select="auto",
                                        heads=heads,
-                                       sterols=sterols,
+                                       sterol_heads=sterol_heads,
+                                       sterol_tails=sterol_tails,
                                        tails=tails,
-                                       verbose=True)
+                                       result_plots=True)
     # run option can be updated by parameters such as start=0, stop=100, step=5
     model.run()
     # TODO Result part for post analysis
