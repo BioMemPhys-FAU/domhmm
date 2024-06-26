@@ -76,6 +76,8 @@ class LeafletAnalysisBase(AnalysisBase):
             self,
             universe_or_atomgroup: Union["Universe", "AtomGroup"],
             membrane_select: str = "all",
+            gmm_kwargs: Union[None, dict] = None,
+            hmm_kwargs: Union[None, dict] = None,
             leaflet_kwargs: Dict[str, Any] = {},
             leaflet_select: Union[None, "AtomGroup", str, list] = None,
             tails: Dict[str, Any] = {},
@@ -118,6 +120,20 @@ class LeafletAnalysisBase(AnalysisBase):
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
         self.leaflet_kwargs = leaflet_kwargs
+
+        if gmm_kwargs is None:
+            self.gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
+                      "max_iter": 10000, "n_init": 20,
+                      "warm_start": False, "covariance_type": "full"}
+        else:
+            self.gmm_kwargs = gmm_kwargs
+
+        if hmm_kwargs is None:
+            self.hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 2000,
+                      "algorithm": "viterbi", "covariance_type": "full",
+                      "init_params": "st", "params": "stmc"}
+        else:
+            self.hmm_kwargs = hmm_kwargs
 
         # -----------------------------------------------------------Local membrane properties------------------------ #
         # If local is True then properties are calculated if possible

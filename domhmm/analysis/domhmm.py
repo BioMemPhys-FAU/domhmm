@@ -330,17 +330,14 @@ class PropertyCalculation(LeafletAnalysisBase):
         log.info("Conclusion step is starting.")
         self.prepare_train_data()
         # -------------------------------------------------------------
-        gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": False,
-                      "max_iter": 10000, "n_init": 20,
-                      "warm_start": False, "covariance_type": "full"}
         log.info("Gaussian Mixture Model training is starting.")
-        self.GMM(gmm_kwargs=gmm_kwargs)
-        hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 1000,
-                      "algorithm": "viterbi", "covariance_type": "full",
-                      "init_params": "st", "params": "stmc"}
+        self.GMM(gmm_kwargs=self.gmm_kwargs)
+        
         log.info("Hidden Markov Model training is starting.")
-        self.HMM(hmm_kwargs=hmm_kwargs)
+        self.HMM(hmm_kwargs=self.hmm_kwargs)
+        
         log.info("Getis-Ord Statistic calculation is starting.")
+
         self.getis_ord()
         log.info("Clustering is starting.")
         if self.result_plots:
