@@ -59,6 +59,7 @@ Let's dive into each parameter's details.
 * ``leaflet_select`` argument is selection options for lipids which can be list of atom groups, list of string queries or automatically finding via LeafletFinder.
 
 .. code-block::
+
     # List of atom groups
     lower_leaflet = universe.select_atoms("lower leaflet lipids query")
     upper_leaflet = universe.select_atoms("upper leaflet lipids query")
