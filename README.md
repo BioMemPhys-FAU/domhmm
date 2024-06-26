@@ -84,19 +84,22 @@ membrane_select = "resname DPPC DIPC CHOL"
 heads = {"DPPC": "PO4", "DIPC": "PO4"}
 tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
                  "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
-sterols = {"CHOL": ["ROH", "C1"]}
-
+sterol_heads = {"CHOL": "ROH"}
+sterol_tails = {"CHOL": ["ROH", "C1"]}
 model = domhmm.PropertyCalculation(universe_or_atomgroup=uni,
                                        leaflet_kwargs={"select": "name PO4", "pbc": True},
                                        membrane_select=membrane_select,
+                                       leaflet_select="auto",
                                        heads=heads,
-                                       sterols=sterols,
-                                       tails=tails)
+                                       sterol_heads=sterol_heads,
+                                       sterol_tails=sterol_tails,
+                                       tails=tails,
+                                       result_plots=True)
 model.run()
 ```
-- In this example, there are two lipids and one sterol
+- In this example, there are two lipids and one sterol with automatic leaflet detection option
 - Be aware the order of the tails should be same such as `{"Lipid_1":[[Acyl_Chain_1],[Acyl_Chain_2]], "Lipid_2":[[Acyl_Chain_1],[Acyl_Chain_2]]}`
-- Be aware that for sterol configuration first element of array represents head part and second element represents tail part
+- Be aware that for sterol tails configuration first element of array represents head part and second element represents tail part
 - You can change run configuration to decide start frame, end frame and step size such as `model.run(start=0, stop=100, step=5)`
 - `membrane_select` is used to select residues of membranes. There should be no other residues beside membrane ones
 
