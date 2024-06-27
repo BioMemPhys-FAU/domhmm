@@ -5,8 +5,19 @@ After running of DomHMM, results are achievable via assigned variable which in t
 
 Domain Cluster Results
 -----------------------
+``Clustering`` is a Python dictionary which contains each frames residue indexes that are assigned to Lo ordered domains.
 
-Development is in progress
+.. code-block::
+
+    clusters = model.results["Clustering"]
+    first_frame_clusters = clusters[0]
+    first_frame_number_of_clusters = len(clusters[0])
+    fırst_frame_first_cluster = first_frame_clusters[0]
+
+.. note::
+
+    Clustering result dictionary is in format such as ``{frame_number : [[Cluster 1 Residue Indexes], [Cluster 2 Residue Indexes]], frame_number_2: [[Cluster 1 Residue Indexes], [Cluster 2 Residue Indexes]], ...]}``
+
 
 Training Data (Area per lipid and order parameters)
 ---------------------------------------------------
@@ -44,7 +55,7 @@ Here is an example of it.
 
 Result Saving
 ---------------
-User should save model's it self or required datas via `pickle`_.
+User should save model's itself or required datas via `pickle`_.
 
 TODO Code example for pickle dump and load
 
