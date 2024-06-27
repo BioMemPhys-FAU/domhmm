@@ -340,6 +340,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         self.getis_ord()
         log.info("Clustering is starting.")
+        self.result_clustering()
         if self.result_plots:
             self.clustering_plot()
 
@@ -933,6 +934,25 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         plt.show()
 
+    def result_clustering(self):
+        """
+        Runs hierarchical clustering for each frame and saves result
+        """
+        self.results["Clustering"] = {}
+        for i in range(self.n_frames):
+            order_states_0 = self.get_leaflet_step_order(0, i)
+            core_lipids = self.assign_core_lipids(weight_matrix_f=self.results["upper_weight_all"][i],
+                                                  g_star_i_f=self.results['Getis_Ord'][0]['g_star_i_0'][i],
+                                                  order_states_f=order_states_0,
+                                                  w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
+                                                  z_score=self.results["z_score"][0])
+
+            clusters = self.hierarchical_clustering(weight_matrix_f=self.results["upper_weight_all"][i],
+                                                    w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
+                                                    core_lipids=core_lipids)
+            frame_number = self.start + i * self.step
+            self.results["Clustering"][frame_number] = list(clusters.values())
+
     def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f, z_score):
 
         """
@@ -1117,7 +1137,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         indexes   = {}
         positions = {}
 
-        #Goto correct frame of the trajectory
+        #Go to correct frame of the trajectory
         self.universe.trajectory[self.start:self.stop:self.step][step]
 
         for res in self.unique_resnames:
