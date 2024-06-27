@@ -55,9 +55,17 @@ Here is an example of it.
 
 Result Saving
 ---------------
-User should save model's itself or required datas via `pickle`_.
+User can save and reload model's itself or required data via `pickle`_.
 
-TODO Code example for pickle dump and load
+.. code-block::
+
+    # Model's itself or required result sections can be save via pickle
+    with open('DomHMM_model.pickle', 'wb') as file:
+        pickle.dump(model, file)
+
+    # Model can be reload again with pickle
+    with open('DomHMM_model.pickle', 'rb') as file:
+        loaded_module = pickle.load(file)
 
 
 
