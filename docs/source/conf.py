@@ -15,25 +15,25 @@
 # Incase the project was not installed
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+sys.path.insert(0, os.path.abspath('../../domhmm'))
 import domhmm  # noqa
 
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'domhmm'
+project = 'DomHMM'
 copyright = (
-    "2023, Marius FW Trollmann. "
+    "2023, Marius FW Trollmann, Yusuf Eren Tunc. "
     "Project structure based on the "
     "MDAnalysis Cookiecutter version 0.1"
 )
-author = 'Marius FW Trollmann'
+author = 'Marius FW Trollmann, Yusuf Eren Tunc'
 
 # The short X.Y version
-version = ''
+version = domhmm.__version__
 # The full version, including alpha/beta/rc tags
-release = ''
+release = domhmm.__version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -120,7 +120,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'domhmmdoc'
+htmlhelp_basename = 'DomHMMdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -147,8 +147,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'domhmm.tex', 'domhmm Documentation',
-     'domhmm', 'manual'),
+    (master_doc, 'DomHMM.tex', 'DomHMM Documentation',
+     'DomHMM', 'manual'),
 ]
 
 
@@ -157,7 +157,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'domhmm', 'domhmm Documentation',
+    (master_doc, 'DomHMM', 'DomHMM Documentation',
      [author], 1)
 ]
 
@@ -168,14 +168,14 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'domhmm', 'domhmm Documentation',
-     author, 'domhmm', 'HMM model to determine Lo or Ld domains from coarse grained or atomistic MD simulations.',
+    (master_doc, 'DomHMM', 'DomHMM Documentation',
+     author, 'DomHMM', 'HMM model to determine Lo or Ld domains from coarse grained or atomistic MD simulations.',
      'Miscellaneous'),
 ]
 
 
 # -- Extension configuration -------------------------------------------------
 intersphinx_mapping = {
-    'https://docs.python.org/3/': None,
-    'https://docs.mdanalysis.org/stable/': None,
+    'Python': ('https://docs.python.org/3/', None),
+    'MDAnalysis': ('https://docs.mdanalysis.org/stable/', None),
 }

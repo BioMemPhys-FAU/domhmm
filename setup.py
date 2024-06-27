@@ -4,6 +4,7 @@ HMM model to determine Lo or Ld domains from coarse grained or atomistic MD simu
 """
 import os
 import sys
+
 from setuptools import setup, find_packages
 
 sys.path.append(os.path.dirname(__file__))
@@ -25,7 +26,7 @@ except:
 
 setup(
     # Self-descriptive entries which should always be present
-    name='domhmm',
+    name='DomHMM',
     author='Marius FW Trollmann',
     author_email='marius.trollmann@fau.de',
     description=short_description,

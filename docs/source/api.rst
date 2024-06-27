@@ -1,8 +1,12 @@
 API Documentation
 =================
+.. autoclass:: domhmm.PropertyCalculation
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autosummary::
-   :toctree: autosummary
-   :recursive:
 
-   domhmm
+.. autoclass:: domhmm.analysis.base.LeafletAnalysisBase
+    :members:
+    :undoc-members:
+    :show-inheritance:

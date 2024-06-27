@@ -332,10 +332,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         # -------------------------------------------------------------
         log.info("Gaussian Mixture Model training is starting.")
         self.GMM(gmm_kwargs=self.gmm_kwargs)
-        
+
         log.info("Hidden Markov Model training is starting.")
         self.HMM(hmm_kwargs=self.hmm_kwargs)
-        
+
         log.info("Getis-Ord Statistic calculation is starting.")
 
         self.getis_ord()
