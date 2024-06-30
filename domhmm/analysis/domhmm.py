@@ -330,11 +330,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         log.info("Conclusion step is starting.")
         self.prepare_train_data()
         # -------------------------------------------------------------
-        log.info("Gaussian Mixture Model training is starting.")
-        self.GMM(gmm_kwargs=self.gmm_kwargs)
+        #For chemical composition analysis the training of GMM/GHMM is not required!
+        #log.info("Gaussian Mixture Model training is starting.")
+        #self.GMM(gmm_kwargs=self.gmm_kwargs)
 
-        log.info("Hidden Markov Model training is starting.")
-        self.HMM(hmm_kwargs=self.hmm_kwargs)
+        #log.info("Hidden Markov Model training is starting.")
+        #self.HMM(hmm_kwargs=self.hmm_kwargs)
 
         log.info("Getis-Ord Statistic calculation is starting.")
 
@@ -709,8 +710,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             # In case the code was already executed beforehand
             weight_matrix[range(n), range(n)] = 0.
 
-            # Get the order state of each lipid in the leaflet at the current time step
-            order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
+            # Get the type of each lipid in the leaflet at the current time step
+            order_states = self.get_leaflet_step_lipid_type(leaflet=leaflet, step=step)
 
             # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
             nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
@@ -815,7 +816,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 weight_matrix[range(n), range(n)] = 0.0
 
                 # Get the order state of each lipid in the leaflet at the current time step
-                order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
+                order_states = self.get_leaflet_step_lipid_type(leaflet=leaflet, step=step)
 
                 np.random.shuffle(order_states)
 
@@ -871,7 +872,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Iterate over three frames illustrate the clustering results
         for k, i in enumerate(frame_list):
-            order_states_0 = self.get_leaflet_step_order(0, i)
+            #order_states_0 = self.get_leaflet_step_order(0, i)
+            order_states_0 = self.get_leaflet_step_lipid_type(0, i)
 
             # Clustering
             # ----------------------------------------------------------------------------------------------------------------------
@@ -940,7 +942,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         self.results["Clustering"] = {}
         for i in range(self.n_frames):
-            order_states_0 = self.get_leaflet_step_order(0, i)
+            #order_states_0 = self.get_leaflet_step_order(0, i)
+            order_states_0 = self.get_leaflet_step_lipid_type(0, i)
             core_lipids = self.assign_core_lipids(weight_matrix_f=self.results["upper_weight_all"][i],
                                                   g_star_i_f=self.results['Getis_Ord'][0]['g_star_i_0'][i],
                                                   order_states_f=order_states_0,
@@ -1109,6 +1112,39 @@ class PropertyCalculation(LeafletAnalysisBase):
         temp = []
         for res, data in self.results.train_data_per_type.items():
             temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[data[0] - 1, step] == leaflet])
+        order_states = np.concatenate(temp)
+        return order_states
+
+    def get_leaflet_step_lipid_type(self, leaflet, step):
+        """
+        Receive residue's order state with respect to the leaflet
+
+        Parameters
+        ----------
+        leaflet : numpy.ndarray
+            leaflet index
+        step: numpy.ndarray
+            step index
+
+        Returns
+        -------
+        order_states : numpy.ndarray
+            Numpy array contains order state results of the leaflet at step in order of system's residues
+        """
+        temp = []
+        for res, data in self.results.train_data_per_type.items():
+
+            num_lipids = (self.leaflet_assignment[ data[0] - 1, step] == leaflet).sum()
+            
+            if res in self.cluster_group:
+
+                temp.append( np.ones( num_lipids ) )
+
+            else:
+                
+                temp.append( np.zeros( num_lipids ) )
+
+
         order_states = np.concatenate(temp)
         return order_states
 

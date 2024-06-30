@@ -103,6 +103,7 @@ class LeafletAnalysisBase(AnalysisBase):
             tails: Dict[str, Any] = {},
             sterol_heads: Dict[str, Any] = {},
             sterol_tails: Dict[str, Any] = {},
+            cluster_group: list = [],
             frac: float = 0.5,
             p_value: float = 0.05,
             leaflet_frame_rate: Union[None, int] = None,
@@ -127,6 +128,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.tails = tails
         self.sterol_heads = sterol_heads
         self.sterol_tails = sterol_tails
+        self.cluster_group = cluster_group #Cluster lipids according to their chemical composition
         self.leaflet_frame_rate = leaflet_frame_rate
         self.sterol_frame_rate = sterol_frame_rate
         self.frac = frac
@@ -266,6 +268,9 @@ class LeafletAnalysisBase(AnalysisBase):
             # Merge the atom selections for the phospholipids and cholesterol. "+" just adds the second selection on top of the former one.
             leaflet_selection['0'] = self.leaflet_selection_no_sterol['0'] + upper_sterol
             leaflet_selection['1'] = self.leaflet_selection_no_sterol['1'] + lower_sterol
+
+        #If no sterol compound is assigned
+        if not any(leaflet_selection): leaflet_selection = self.leaflet_selection_no_sterol
 
         return leaflet_selection
 
