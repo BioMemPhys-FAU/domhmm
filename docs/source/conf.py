@@ -15,10 +15,9 @@
 # Incase the project was not installed
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../domhmm'))
-import domhmm  # noqa
 
-
+sys.path.insert(0, os.path.abspath('../..'))
+import domhmm
 
 # -- Project information -----------------------------------------------------
 
@@ -34,7 +33,6 @@ author = 'Marius FW Trollmann, Yusuf Eren Tunc'
 version = domhmm.__version__
 # The full version, including alpha/beta/rc tags
 release = domhmm.__version__
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -87,7 +85,6 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'default'
 
-
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -122,7 +119,6 @@ html_static_path = ['_static']
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'DomHMMdoc'
 
-
 # -- Options for LaTeX output ------------------------------------------------
 
 latex_elements = {
@@ -151,7 +147,6 @@ latex_documents = [
      'DomHMM', 'manual'),
 ]
 
-
 # -- Options for manual page output ------------------------------------------
 
 # One entry per manual page. List of tuples
@@ -160,7 +155,6 @@ man_pages = [
     (master_doc, 'DomHMM', 'DomHMM Documentation',
      [author], 1)
 ]
-
 
 # -- Options for Texinfo output ----------------------------------------------
 
@@ -172,7 +166,6 @@ texinfo_documents = [
      author, 'DomHMM', 'HMM model to determine Lo or Ld domains from coarse grained or atomistic MD simulations.',
      'Miscellaneous'),
 ]
-
 
 # -- Extension configuration -------------------------------------------------
 intersphinx_mapping = {

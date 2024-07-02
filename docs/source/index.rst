@@ -8,4 +8,3 @@ Welcome to DomHMM's documentation!
    getting_started
    tips
    api
-   test

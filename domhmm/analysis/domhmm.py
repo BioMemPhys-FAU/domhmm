@@ -463,6 +463,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     def HMM(self, hmm_kwargs):
         """
         Create Gaussian based Hidden Markov Models for each residue type
+
         Parameters
         ----------
         hmm_kwargs : dict
@@ -560,6 +561,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         return best_ghmm
 
     def plot_hmm_result(self):
+        """
+        Plots Hidden Markov Models training history
+
+        """
         for resname, ghmm in self.results['HMM'].items():
             if self.asymmetric_membrane:
                 for leaflet in range(2):
@@ -581,6 +586,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.show()
 
     def predict_states(self):
+        """
+        Each residues prediction assignment to ordered or disordered domains.
+
+        """
         if self.asymmetric_membrane:
             # Since we select stable lipids for training, we need all training data of lipids to predict order of
             # frequently flip-flop doing ones
@@ -638,6 +647,23 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     @staticmethod
     def hmm_diff_checker(means, prediction_results):
+        """
+        Checks if prediction assignments correct with respect to means. Since HMM is unsupervised, model can assign 0 to
+         disordered domains and 1 to ordered domains. In this cases needs to be changed to vice versa.
+
+        Parameters
+        ----------
+        means : np.array
+            Table of model which contains means of area per lipid and order parameters
+        prediction_results: np.array
+            Initial prediction results which is 1s and 0s
+
+        Returns
+        -------
+        prediction_results : np.array
+            Same or flipped prediction results with respect to means table
+
+        """
         diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
         if diff_percents > 0.1:
             return np.abs(prediction_results - 1)
@@ -645,6 +671,9 @@ class PropertyCalculation(LeafletAnalysisBase):
             return prediction_results
 
     def predict_plot(self):
+        """
+        Plots convergence of HMM model training process
+        """
         t = np.linspace(8, 10, self.n_frames)
         for resname in self.unique_resnames:
             plt.plot(t, self.results['HMM_Pred'][resname].mean(0), label=resname)
@@ -659,6 +688,9 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
     def getis_ord(self):
+        """
+        Calculates Getis-Ord statistic for identification model
+        """
         self.getis_ord_stat(self.results["upper_weight_all"], 0)
         self.getis_ord_stat(self.results["lower_weight_all"], 1)
         log.info("Getis-Ord for leaflets are calculated.")
@@ -741,6 +773,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.results['Getis_Ord'][leaflet] = {f"g_star_i_{leaflet}": g_star_i, f"w_ii_{leaflet}": w_ii_all}
 
     def getis_ord_plot(self):
+        """
+        Plots average order state for each lipid type per frame
+        """
         resnum = len(self.unique_resnames)
         g_star_i_temp = [[] for _ in range(resnum)]
         for step in range(self.n_frames):
@@ -849,6 +884,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         return g_star_i
 
     def z_score_calc(self):
+        """
+        Z score calculation for Getis-Ord statistics
+        """
         result = {}
         for i in range(2):
             z_score = {}

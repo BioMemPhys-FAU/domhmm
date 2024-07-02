@@ -11,11 +11,6 @@ This page contains useful tips that will improve your experience of DomHMM
 .. tip::
     Sometimes Hidden Markov model training may stuck which is out of our control. If your program is taking long time with comparing to reference, you may consider restart it and enable `verbose` option.
 
-* Post Analysis
-
-.. tip::
-    TODO
-
 * Community Support
 
 .. tip::
