@@ -39,7 +39,7 @@ doc = [
 ]
 
 # [project.urls]
-# source = "https://github.com/m-a-r-i-u-s/domhmm"
+# source = "https://github.com/BioMemPhys-FAU/domhmm"
 # documentation = "https://domhmm.readthedocs.io"
 
 [tool.pytest.ini_options]

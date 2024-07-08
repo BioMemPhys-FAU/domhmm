@@ -12,7 +12,7 @@ Clone DomHMM's repository and change directory to project directory
 
 .. code-block::
 
-    git clone https://github.com/m-a-r-i-u-s/domhmm
+    git clone https://github.com/BioMemPhys-FAU/domhmm
     cd domhmm
 
 Environment Creation
