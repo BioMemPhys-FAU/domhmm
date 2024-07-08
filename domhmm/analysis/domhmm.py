@@ -439,9 +439,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                 temp_dict = {}
                 for leaflet in range(2):
                     gmm_data = data[1][leaflet]
-                    gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(
-                        gmm_data.reshape(-1, gmm_data.shape[2]))
-                    temp_dict[leaflet] = gmm
+                    if len(gmm_data) == 0:
+                        temp_dict[leaflet] = None
+                    else:
+                        gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(
+                            gmm_data.reshape(-1, gmm_data.shape[2]))
+                        temp_dict[leaflet] = gmm
                 self.results["GMM"][res] = temp_dict
                 log.info(f"Leaflet {leaflet}, {res} Gaussian Mixture Model is trained.")
             else:
@@ -452,8 +455,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Check for convergence
         for resname, each in self.results["GMM"].items():
             if self.asymmetric_membrane:
-                if not each[0].converged_ or not each[1].converged_:
-                    log.warning(f"{resname} Gaussian Mixture Model is not converged.")
+                if each[0] is not None and not each[0].converged_:
+                    log.warning(f"{resname} lower leaflet Gaussian Mixture Model is not converged.")
+                if each[1] is not None and not each[1].converged_:
+                    log.warning(f"{resname} upper leaflet Gaussian Mixture Model is not converged.")
             else:
                 if not each.converged_:
                     log.warning(f"{resname} Gaussian Mixture Model is not converged.")
@@ -474,10 +479,14 @@ class PropertyCalculation(LeafletAnalysisBase):
             if self.asymmetric_membrane:
                 temp_dict = {}
                 for leaflet in range(2):
-                    hmm_data = data[1][leaflet]
-                    hmm = self.fit_hmm(data=hmm_data, gmm=self.results["GMM"][resname][leaflet], hmm_kwargs=hmm_kwargs,
-                                       n_repeats=2)
-                    temp_dict[leaflet] = hmm
+                    gmm = self.results["GMM"][resname][leaflet]
+                    if gmm is not None:
+                        hmm_data = data[1][leaflet]
+                        hmm = self.fit_hmm(data=hmm_data, gmm=gmm, hmm_kwargs=hmm_kwargs,
+                                           n_repeats=2)
+                        temp_dict[leaflet] = hmm
+                    else:
+                        temp_dict[leaflet] = None
                 self.results["HMM"][resname] = temp_dict
                 log.info(f"Leaflet {leaflet}, {resname} Gaussian Hidden Markov Model is trained.")
             else:
@@ -600,12 +609,23 @@ class PropertyCalculation(LeafletAnalysisBase):
                     data = self.results.train[idx][:, :, 0:len(tails) + 1]
                     shape = data.shape
                     hmm = self.results['HMM'][resname][leaflet]
-                    lengths = np.repeat(shape[1], shape[0])
-                    prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
-                    prediction = self.hmm_diff_checker(hmm.means_, prediction)
-                    temp_array.append([idx, prediction])
-                idx = np.concatenate((temp_array[0][0], temp_array[1][0])).argsort()
-                result = np.concatenate((temp_array[0][1], temp_array[1][1]))
+                    if hmm is not None:
+                        lengths = np.repeat(shape[1], shape[0])
+                        prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+                        prediction = self.hmm_diff_checker(hmm.means_, prediction)
+                        temp_array.append([idx, prediction])
+                    else:
+                        temp_array.append([])
+
+                if len(temp_array[0]) == 0:
+                    idx = np.array(temp_array[1][0]).argsort()
+                    result = temp_array[1][1]
+                elif len(temp_array[1]) == 0:
+                    idx = np.array(temp_array[0][0]).argsort()
+                    result = temp_array[0][1]
+                else:
+                    idx = np.concatenate((temp_array[0][0], temp_array[1][0])).argsort()
+                    result = np.concatenate((temp_array[0][1], temp_array[1][1]))
                 result = result[idx]
                 self.results['HMM_Pred'][resname] = result
 
@@ -616,12 +636,23 @@ class PropertyCalculation(LeafletAnalysisBase):
                     data = self.results.train[idx][:, :, [0, 1 + self.max_tail_len + i]]
                     shape = data.shape
                     hmm = self.results['HMM'][resname][leaflet]
-                    lengths = np.repeat(shape[1], shape[0])
-                    prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
-                    prediction = self.hmm_diff_checker(hmm.means_, prediction)
-                    temp_array.append([idx, prediction])
-                idx = np.concatenate((temp_array[0][0], temp_array[1][0])).argsort()
-                result = np.concatenate((temp_array[0][1], temp_array[1][1]))
+                    if hmm is not None:
+                        lengths = np.repeat(shape[1], shape[0])
+                        prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+                        prediction = self.hmm_diff_checker(hmm.means_, prediction)
+                        temp_array.append([idx, prediction])
+                    else:
+                        temp_array.append(None)
+
+                if temp_array[0] is None:
+                    idx = np.array(temp_array[1][0]).argsort()
+                    result = temp_array[1][1]
+                elif temp_array[1] is None:
+                    idx = np.array(temp_array[0][0]).argsort()
+                    result = temp_array[0][1]
+                else:
+                    idx = np.concatenate((temp_array[0][0], temp_array[1][0])).argsort()
+                    result = np.concatenate((temp_array[0][1], temp_array[1][1]))
                 result = result[idx]
                 self.results['HMM_Pred'][resname] = result
         else:
@@ -640,10 +671,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         if not self.asymmetric_membrane:
             # Asymmetric membrane validation is done in prediction step due to nature of it
-            for resname, gmm in self.results["HMM"].items():
-                means = gmm.means_
-                prediction_results = self.results['HMM_Pred'][resname]
-                self.results['HMM_Pred'][resname] = self.hmm_diff_checker(means, prediction_results)
+            for resname, hmm in self.results["HMM"].items():
+                if hmm is not None:
+                    means = hmm.means_
+                    prediction_results = self.results['HMM_Pred'][resname]
+                    self.results['HMM_Pred'][resname] = self.hmm_diff_checker(means, prediction_results)
 
     @staticmethod
     def hmm_diff_checker(means, prediction_results):
