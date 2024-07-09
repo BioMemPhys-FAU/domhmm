@@ -374,10 +374,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                     else:
                         # If a residue is %80 of time belongs to a leaflet, accept it as residue of that leaflet
                         lower_leaflet_percentage = len(np.nonzero(leaflet_assign == i)[0]) / len(leaflet_assign)
-                        if lower_leaflet_percentage >= 0.8:
-                            leaflet_train_residx[resname][1].append(idx[i])
-                        elif lower_leaflet_percentage <= 0.2:
-                            leaflet_train_residx[resname][0].append(idx[i])
+                        #if lower_leaflet_percentage >= 0.8:
+                        #    leaflet_train_residx[resname][1].append(idx[i])
+                        #elif lower_leaflet_percentage <= 0.2:
+                        #    leaflet_train_residx[resname][0].append(idx[i])
+                        
+                        #The quick'n'dirty solution is right now to use a threshold of 50% to assign a flipping residue to one leaflet
                         if lower_leaflet_percentage > 0.5:
                             leaflet_residx[resname][1].append(idx[i])
                         else:
