@@ -1008,20 +1008,28 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         Runs hierarchical clustering for each frame and saves result
         """
-        self.results["Clustering"] = {}
-        for i in range(self.n_frames):
-            order_states_0 = self.get_leaflet_step_order(0, i)
-            core_lipids = self.assign_core_lipids(weight_matrix_f=self.results["upper_weight_all"][i],
-                                                  g_star_i_f=self.results['Getis_Ord'][0]['g_star_i_0'][i],
-                                                  order_states_f=order_states_0,
-                                                  w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
-                                                  z_score=self.results["z_score"][0])
+        self.results["Clustering"] = {'0':{}, '1': {}}
 
-            clusters = self.hierarchical_clustering(weight_matrix_f=self.results["upper_weight_all"][i],
-                                                    w_ii_f=self.results["Getis_Ord"][0]["w_ii_0"][i],
-                                                    core_lipids=core_lipids)
-            frame_number = self.start + i * self.step
-            self.results["Clustering"][frame_number] = list(clusters.values())
+        #Iterate over all frames
+        for i in range(self.n_frames):
+
+            #Iterate over both leaflets
+            for j, leaflet_ in enumerate(['upper', 'lower']):
+
+                #Get order states
+                order_states_leaf = self.get_leaflet_step_order(j, i)
+                
+                core_lipids = self.assign_core_lipids(weight_matrix_f=self.results[f"{leaflet_}_weight_all"][i],
+                                                      g_star_i_f=self.results['Getis_Ord'][j][f'g_star_i_{j}'][i],
+                                                      order_states_f=order_states_leaf,
+                                                      w_ii_f=self.results["Getis_Ord"][j][f"w_ii_{j}"][i],
+                                                      z_score=self.results["z_score"][j])
+
+                clusters = self.hierarchical_clustering(weight_matrix_f=self.results[f"{leaflet_}_weight_all"][i],
+                                                        w_ii_f=self.results["Getis_Ord"][j][f"w_ii_{j}"][i],
+                                                        core_lipids=core_lipids)
+                frame_number = self.start + i * self.step
+                self.results["Clustering"][str(j)][frame_number] = list(clusters.values())
 
     def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f, z_score):
 
