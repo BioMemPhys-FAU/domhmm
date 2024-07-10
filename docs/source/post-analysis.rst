@@ -7,16 +7,20 @@ Domain Cluster Results
 -----------------------
 ``Clustering`` is a Python dictionary which contains each frames residue indexes that are assigned to Lo ordered domains.
 
+``Clustering`` is a dictionary with two keys ``"0"`` as representing upper leaflet and ``"1"`` as representing lower leaflet.
+
 .. code-block::
 
     clusters = model.results["Clustering"]
-    first_frame_clusters = clusters[0]
-    first_frame_number_of_clusters = len(clusters[0])
-    fırst_frame_first_cluster = first_frame_clusters[0]
+    upper_leaflet_clusters = clusters["0"]
+    lower_leaflet_clusters = clusters["1"]
+    upper_first_frame_clusters = upper_leaflet_clusters[0]
+    upper_first_frame_number_of_clusters = len(upper_leaflet_clusters[0])
+    upper_first_frame_first_cluster = upper_first_frame_clusters[0]
 
 .. note::
 
-    Clustering result dictionary is in format such as ``{frame_number : [[Cluster 1 Residue Indexes], [Cluster 2 Residue Indexes]], frame_number_2: [[Cluster 1 Residue Indexes], [Cluster 2 Residue Indexes]], ...]}``
+    Clustering result dictionary is in format such as ``{"0": {frame_number : [[Cluster 1 Residue Indexes], [Cluster 2 Residue Indexes]], frame_number_2: [[Cluster 1 Residue Indexes], [Cluster 2 Residue Indexes]], ...]}, "1": ...}``
 
 
 Training Data (Area per lipid and order parameters)
