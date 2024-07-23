@@ -1011,7 +1011,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.results["Clustering"] = {'0':{}, '1': {}}
 
         #Iterate over all frames
-        for i in range(self.n_frames):
+        for i in tqdm(range(self.n_frames), total = self.n_frames):
 
             #Iterate over both leaflets
             for j, leaflet_ in enumerate(['upper', 'lower']):
