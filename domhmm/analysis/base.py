@@ -110,6 +110,7 @@ class LeafletAnalysisBase(AnalysisBase):
             asymmetric_membrane: bool = False,
             verbose: bool = False,
             result_plots: bool = False,
+            trained_hmms: Dict[str, Any] = {},
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -134,6 +135,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.asymmetric_membrane = asymmetric_membrane
         self.verbose = verbose
         self.result_plots = result_plots
+        self.trained_hmms = trained_hmms
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
@@ -200,6 +202,83 @@ class LeafletAnalysisBase(AnalysisBase):
             # An unknown argument is provided for leaflet_select
             raise ValueError("No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
 
+        #Check for user-specified trained HMM
+        if not any(self.trained_hmms):
+            #User-specified trained HMM provided, check for consistency with expected format
+
+            #Check for assymmetric membrane
+            if self.asymmetric_membrane == True:
+                #Asymmetric membrane functionality was triggered!
+                #Assuming same/different lipid types per leaflet
+                #Structure of the expected dictionary: {ResnameA: {0: HMM0A, 1: HMM1A}, ResnameB: {0: HMM0B, 1: HMM1B}, ResnameC: {0: None, 1: HMM1B}, ...}
+
+                #Iterate over each entry and check for validity of input
+                for lipid, hmms in zip(self.trained_hmms.keys(), self.trained_hmms.values()):
+
+                    #Expected format of object "hmms" right now: {0: HMM0X, 1: HMM1X}
+                    
+                    assert lipid in self.membrane.residues.resnames, f"{lipid} not found in membrane. Maybe a typo?"
+
+                    #Check if correct number of HMMs per lipid is given
+                    assert len(hmms.keys()) == 2, f'Too many/less HMMs provided for lipid type {lipid}.' + "\nPlease provide exactly two ({0:...,1:...}) or do not trigger 'asymmetric_membrane'!\nIf a lipid is not present in one leaflet, use 'None'."
+
+                    #Check for correct labelling of leaflets
+                    assert (0 in hmms.keys()) and (1 in hmms.keys()), "Provide suitable keys (i.e., 0, 1) for the leaflets!"
+
+                    #Iterate over leaflets
+                    for leaflet in range(2):
+
+                        #Expected format of object "hmms[leaflet]" right now: HMMYX
+
+                        #If a lipid is not present in one of the leaflets a None is expected instead of a trained HMM
+                        if hmms[leaflet] == None: 
+                            #If no HMM was provided then this lipid should be not part of this leaflet. Sterols are expected to flip, therefore always two HMM should be provided for sterol types...
+                            assert lipid not in self.leaflet_selection_no_sterol[str(leaflet)].residues.resnames or lipid not in self.sterol_heads.keys(), f"Found lipid {lipid} in leaflet {leaflet}, but no HMM was found!\nPlease provide a valid HMM for this lipid in this leaflet!\nNote, for sterols always two HMMs are expected!"
+
+                            #If everything is fine carry on with next leaflet/lipid
+                            continue
+
+                        #Check if lipid is in this leaflet or if lipid is a sterol
+                        assert lipid in self.leaflet_selection_no_sterol[str(leaflet)].residues.resnames or lipid in self.sterol_heads.keys(), f"Could not find lipid/sterol {lipid} in leaflet {leaflet}. Provide only HMMs for lipids that are present in this leaflet!"
+
+                        #If all checks passed, we can assume that "something" should be and is present. Now, check check the validity of the provided object
+                        try: 
+                            #Try to sample something from HMM to check if it is fitted
+                            hmms[leaflet].sample(n_samples=1)
+                        except Exception as hmmerror: 
+                            raise ValueError(f"HMM check failed with {hmmerror}! Could not sample a single point from the provided HMM for lipid {lipid} in leaflet {leaflet}. Check your model!")
+                        
+                #If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
+
+            elif self.asymmetric_membrane == False:
+                #Symmetric membrane is assumed!
+                #Assuming same lipid types per leaflet
+                #Structure of the expected dictionary: {ResnameA: HMMA, ResnameB: HMMB, ResnameC: HMMC, ...}
+
+                #Iterate over each entry and check for validity of input
+                for lipid, hmms in zip(self.trained_hmms.keys(), self.trained_hmms.values()):
+
+                    assert lipid in self.membrane.residues.resnames, f"{lipid} not found in membrane. Maybe a typo?"
+
+                    #If all checks passed, we can assume that "something" should be and is present. Now, check check the validity of the provided object
+                    try: 
+                        #Try to sample something from HMM to check if it is fitted
+                        hmms.sample(n_samples=1)
+                    except Exception as hmmerror: 
+                        raise ValueError(f"HMM check failed with {hmmerror}! Could not sample a single point from the provided HMM for lipid {lipid} in leaflet {leaflet}. Check your model!")
+                        
+                #If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
+
+            else:
+                #Something did not work as expected
+                raise ValueError(f"Argument 'asymmetric_membrane' must be boolean (True/False), not {self.asymmetric_membrane}.")
+            
+        
+        else:
+            #Carry on if there is no trained HMM provided -> Will train HMM(s) later on
+            pass
+
+        
         # Save unique residue names
         _, idx = np.unique(self.membrane.resnames, return_index=True)
         self.unique_resnames = self.membrane.resnames[np.sort(idx)]
