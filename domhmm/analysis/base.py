@@ -65,6 +65,8 @@ class LeafletAnalysisBase(AnalysisBase):
         Debug option to print step progress, warnings and errors
     result_plots: bool
         Plotting intermediate result option
+    trained_hmms: dict
+        User-specific HMM (e.g., pre-trained on another simulation)
 
     Attributes
     ----------
@@ -135,7 +137,6 @@ class LeafletAnalysisBase(AnalysisBase):
         self.asymmetric_membrane = asymmetric_membrane
         self.verbose = verbose
         self.result_plots = result_plots
-        self.trained_hmms = trained_hmms
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
@@ -203,7 +204,7 @@ class LeafletAnalysisBase(AnalysisBase):
             raise ValueError("No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
 
         #Check for user-specified trained HMM
-        if not any(self.trained_hmms):
+        if not any(trained_hmms):
             #User-specified trained HMM provided, check for consistency with expected format
 
             #Check for assymmetric membrane
@@ -249,6 +250,7 @@ class LeafletAnalysisBase(AnalysisBase):
                             raise ValueError(f"HMM check failed with {hmmerror}! Could not sample a single point from the provided HMM for lipid {lipid} in leaflet {leaflet}. Check your model!")
                         
                 #If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
+                self.trained_hmms = trained_hmms
 
             elif self.asymmetric_membrane == False:
                 #Symmetric membrane is assumed!
@@ -268,6 +270,7 @@ class LeafletAnalysisBase(AnalysisBase):
                         raise ValueError(f"HMM check failed with {hmmerror}! Could not sample a single point from the provided HMM for lipid {lipid} in leaflet {leaflet}. Check your model!")
                         
                 #If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
+                self.trained_hmms = trained_hmms
 
             else:
                 #Something did not work as expected
