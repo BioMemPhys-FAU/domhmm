@@ -204,8 +204,14 @@ class LeafletAnalysisBase(AnalysisBase):
             # An unknown argument is provided for leaflet_select
             raise ValueError("No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
 
+        # -----------------------------------------------------------------HMMs----------------------------------- #
+        
         #Check for user-specified trained HMM
         if not any(trained_hmms):
+            #Carry on if there is no trained HMM provided -> Will train HMM(s) later on
+            pass
+
+        else:
             #User-specified trained HMM provided, check for consistency with expected format
 
             #Check for assymmetric membrane
@@ -276,12 +282,8 @@ class LeafletAnalysisBase(AnalysisBase):
             else:
                 #Something did not work as expected
                 raise ValueError(f"Argument 'asymmetric_membrane' must be boolean (True/False), not {self.asymmetric_membrane}.")
-            
-        
-        else:
-            #Carry on if there is no trained HMM provided -> Will train HMM(s) later on
-            pass
 
+        #---------------------------------------HOUSE KEEPING---------------------------------------#
         
         # Save unique residue names
         _, idx = np.unique(self.membrane.resnames, return_index=True)
