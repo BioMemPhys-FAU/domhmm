@@ -333,18 +333,21 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         #Check for user-provided HMMs
         if not any(self.trained_hmms):
-            log.info("No Gaussian Mixture Model is trained.")
-            log.info("No Hidden Markov Model is trained. Instead use the user-provided HMMs.")
-
-            #Use the provided dictionary directly, the checks for validity were already done before
-            self.results['HMM'] = self.trained_hmms
-
-        else:
+            #No user-provided HMMs, perform usual workflow
             log.info("Gaussian Mixture Model training is starting.")
             self.GMM(gmm_kwargs=self.gmm_kwargs)
 
             log.info("Hidden Markov Model training is starting.")
             self.HMM(hmm_kwargs=self.hmm_kwargs)
+
+
+        else:
+            #User-provided HMMs found, use them!
+            log.info("No Gaussian Mixture Model is trained.")
+            log.info("No Hidden Markov Model is trained. Instead use the user-provided HMMs.")
+
+            #Use the provided dictionary directly, the checks for validity were already done before
+            self.results['HMM'] = self.trained_hmms
 
         log.info("Getis-Ord Statistic calculation is starting.")
 
