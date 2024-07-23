@@ -215,7 +215,7 @@ class LeafletAnalysisBase(AnalysisBase):
                 #Structure of the expected dictionary: {ResnameA: {0: HMM0A, 1: HMM1A}, ResnameB: {0: HMM0B, 1: HMM1B}, ResnameC: {0: None, 1: HMM1B}, ...}
 
                 #Iterate over each entry and check for validity of input
-                for lipid, hmms in zip(self.trained_hmms.keys(), self.trained_hmms.values()):
+                for lipid, hmms in zip(trained_hmms.keys(), trained_hmms.values()):
 
                     #Expected format of object "hmms" right now: {0: HMM0X, 1: HMM1X}
                     
@@ -259,7 +259,7 @@ class LeafletAnalysisBase(AnalysisBase):
                 #Structure of the expected dictionary: {ResnameA: HMMA, ResnameB: HMMB, ResnameC: HMMC, ...}
 
                 #Iterate over each entry and check for validity of input
-                for lipid, hmms in zip(self.trained_hmms.keys(), self.trained_hmms.values()):
+                for lipid, hmms in zip(trained_hmms.keys(), trained_hmms.values()):
 
                     assert lipid in self.membrane.residues.resnames, f"{lipid} not found in membrane. Maybe a typo?"
 
