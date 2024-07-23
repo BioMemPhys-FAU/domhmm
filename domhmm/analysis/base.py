@@ -10,6 +10,7 @@ This module contains the :class:`LeafletAnalysisBase` class.
 from typing import Union, Dict, Any
 
 import numpy as np
+import sklearn
 from MDAnalysis.analysis import distances
 # ----MDANALYSIS---- #
 from MDAnalysis.analysis.base import AnalysisBase
@@ -266,7 +267,7 @@ class LeafletAnalysisBase(AnalysisBase):
                     try: 
                         #Try to sample something from HMM to check if it is fitted
                         hmms.sample(n_samples=1)
-                    except Exception as hmmerror: 
+                    except sklearn.exceptions.NotFittedError as hmmerror: 
                         raise ValueError(f"HMM check failed with {hmmerror}! Could not sample a single point from the provided HMM for lipid {lipid} in leaflet {leaflet}. Check your model!")
                         
                 #If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
