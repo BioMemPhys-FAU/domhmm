@@ -209,6 +209,7 @@ class LeafletAnalysisBase(AnalysisBase):
         #Check for user-specified trained HMM
         if not any(trained_hmms):
             #Carry on if there is no trained HMM provided -> Will train HMM(s) later on
+            self.trained_hmms = trained_hmms
             pass
 
         else:
