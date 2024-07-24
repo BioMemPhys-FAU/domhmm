@@ -349,6 +349,20 @@ class PropertyCalculation(LeafletAnalysisBase):
             #Use the provided dictionary directly, the checks for validity were already done before
             self.results['HMM'] = self.trained_hmms
 
+            #Same workflow as in self.HMM()
+            if self.result_plots:
+                # Plot result of hmm
+                self.plot_hmm_result()
+            
+            # Make predictions based on HMM model
+            self.predict_states()
+            
+            # Validate states and result prediction
+            self.state_validate()
+            if self.result_plots:
+                # Plot prediction result
+                self.predict_plot()
+
         log.info("Getis-Ord Statistic calculation is starting.")
 
         self.getis_ord()
