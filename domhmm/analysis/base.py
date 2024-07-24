@@ -241,7 +241,7 @@ class LeafletAnalysisBase(AnalysisBase):
                         #If a lipid is not present in one of the leaflets a None is expected instead of a trained HMM
                         if hmms[leaflet] == None: 
                             #If no HMM was provided then this lipid should be not part of this leaflet. Sterols are expected to flip, therefore always two HMM should be provided for sterol types...
-                            assert lipid not in self.leaflet_selection_no_sterol[str(leaflet)].residues.resnames or lipid not in self.sterol_heads.keys(), f"Found lipid {lipid} in leaflet {leaflet}, but no HMM was found!\nPlease provide a valid HMM for this lipid in this leaflet!\nNote, for sterols always two HMMs are expected!"
+                            assert lipid not in self.leaflet_selection_no_sterol[str(leaflet)].residues.resnames and lipid not in self.sterol_heads.keys(), f"Found lipid {lipid} in leaflet {leaflet}, but no HMM was found!\nPlease provide a valid HMM for this lipid in this leaflet!\nNote, for sterols always two HMMs are expected!"
 
                             #If everything is fine carry on with next leaflet/lipid
                             continue
