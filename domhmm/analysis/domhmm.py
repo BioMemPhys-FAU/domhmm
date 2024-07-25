@@ -16,9 +16,14 @@ from scipy.sparse import csr_array
 from scipy.spatial import Voronoi, ConvexHull
 from sklearn import mixture
 from tqdm import tqdm
+from multiprocessing import Pool
+import multiprocessing as mp
+from functools import partial
+
 
 from .base import LeafletAnalysisBase
 
+from .cluster import clustering_step
 
 class PropertyCalculation(LeafletAnalysisBase):
     """
@@ -1037,27 +1042,74 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         self.results["Clustering"] = {'0':{}, '1': {}}
 
-        #Iterate over all frames
-        for i in tqdm(range(self.n_frames), total = self.n_frames):
+        nthreads = 10
+        
+        #Iterate FIRST over both leaflets
+        for j, leaflet_ in enumerate(['upper', 'lower']):
 
-            #Iterate over both leaflets
-            for j, leaflet_ in enumerate(['upper', 'lower']):
+            #Divide all frames into chunks, maybe an unequal division
+            chunks = np.array_split( np.arange(self.n_frames), nthreads )
 
-                #Get order states
-                order_states_leaf = self.get_leaflet_step_order(j, i)
+            with mp.Pool(processes=nthreads) as pool:
+
+                #R = pool.starmap(clustering_step, zip( np.repeat(self.get_leaflet_step_order, nthreads), np.repeat(self.assign_core_lipids, nthreads), np.repeat(self.hierarchical_clustering, nthreads), np.repeat(self.start, nthreads), np.repeat(self.stop, nthreads), np.repeat(self.results, nthreads), chunks, np.repeat(j, nthreads)))
                 
-                core_lipids = self.assign_core_lipids(weight_matrix_f=self.results[f"{leaflet_}_weight_all"][i],
-                                                      g_star_i_f=self.results['Getis_Ord'][j][f'g_star_i_{j}'][i],
-                                                      order_states_f=order_states_leaf,
-                                                      w_ii_f=self.results["Getis_Ord"][j][f"w_ii_{j}"][i],
-                                                      z_score=self.results["z_score"][j])
+                R = pool.map( partial( clustering_step, get_leaflet_step_order = np.copy(self.get_leaflet_step_order), assign_core_lipids = np.copy(self.assign_core_lipids), hierarchical_clustering = np.copy(self.hierarchical_clustering), start = np.copy(self.start), stop = np.copy(self.stop), results = np.copy(self.results), leaflet = j), chunks )
 
-                clusters = self.hierarchical_clustering(weight_matrix_f=self.results[f"{leaflet_}_weight_all"][i],
-                                                        w_ii_f=self.results["Getis_Ord"][j][f"w_ii_{j}"][i],
-                                                        core_lipids=core_lipids)
-                frame_number = self.start + i * self.step
-                self.results["Clustering"][str(j)][frame_number] = list(clusters.values())
+            for r in R:
 
+                for fi, ri in zip(r[0],r[1]):
+
+                    self.results["Clustering"][str(leaflet)][fi] = ri
+
+                #mp.set_start_method('spawn')
+                #process = ctx.Process(target = self.clustering_step, args = (chunks[thread], j,))
+                
+                #process.start()
+                #process.join()
+
+                
+            #Open multiprocessing
+            #with Pool(nthreads) as p:
+
+
+
+#    def clustering_step(self, get_leaflet_step_order, assign_core_lipids, hierarchical_clustering, start, stop, results, frames, leaflet):
+#
+#        """
+#        Runs full clustering step (core_lipids + hierarchical clustering) for ONE frame.
+#
+#        Parameters
+#        ----------
+#        leaflet : int
+#            leaflet number (0/1)
+#        frames : numpy.ndarray
+#            array of frames
+#        """
+#
+#        if leaflet == 0: leaflet_ = 'upper'
+#        if leaflet == 1: leaflet_ = 'lower'
+#
+#        #Iterate over frames
+#        for frame in frames:
+#
+#            #Get order states
+#            order_states_leaf = self.get_leaflet_step_order(leaflet, frame)
+#            
+#            core_lipids = self.assign_core_lipids(weight_matrix_f=self.results[f"{leaflet_}_weight_all"][frame],
+#                                                  g_star_i_f=self.results['Getis_Ord'][leaflet][f'g_star_i_{leaflet}'][frame],
+#                                                  order_states_f=order_states_leaf,
+#                                                  w_ii_f=self.results["Getis_Ord"][leaflet][f"w_ii_{leaflet}"][frame],
+#                                                  z_score=self.results["z_score"][leaflet])
+#
+#            clusters = self.hierarchical_clustering(weight_matrix_f=self.results[f"{leaflet_}_weight_all"][frame],
+#                                                    w_ii_f=self.results["Getis_Ord"][leaflet][f"w_ii_{leaflet}"][frame],
+#                                                    core_lipids=core_lipids)
+#            frame_number = self.start + frame * self.step
+#            self.results["Clustering"][str(leaflet)][frame_number] = list(clusters.values())
+#
+#        print(f'Finished clustering on frames {frames[0]}-{frames[-1]}')
+#
     def assign_core_lipids(self, weight_matrix_f, g_star_i_f, order_states_f, w_ii_f, z_score):
 
         """
