@@ -592,6 +592,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.tick_params(axis="both", labelsize=11)
         plt.text(s="Tolerance 1e-4", x=1, y=1E-4 + 0.00005, color="k", fontsize=15)
         plt.title("a", fontsize=20, fontweight="bold", loc="left")
+        plt.tight_layout()
         plt.show()
 
     def predict_states(self):
@@ -716,6 +717,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.ylim(0, 1)
         plt.xlim(8, 10)
         plt.title("b", fontsize=20, fontweight="bold", loc="left")
+        plt.tight_layout()
         plt.show()
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
@@ -837,7 +839,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.ylabel("$p(G^*_i)$", fontsize=18)
         plt.tick_params(labelsize=11)
 
-        plt.title("a", fontsize=20, fontweight="bold", loc="left")
+        plt.title("c", fontsize=20, fontweight="bold", loc="left")
+        plt.tight_layout()
         plt.show()
 
     def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
@@ -1001,7 +1004,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         ax[0].text(s=f"Frame {self.start + frame_list[0]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
         ax[1].text(s=f"Frame {self.start + frame_list[1]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
         ax[2].text(s=f"Frame {self.start + frame_list[2]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
-
+        plt.tight_layout()
         plt.show()
 
     def result_clustering(self):
