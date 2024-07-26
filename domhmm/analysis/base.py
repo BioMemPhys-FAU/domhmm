@@ -355,6 +355,9 @@ class LeafletAnalysisBase(AnalysisBase):
         #If not sterol compound was assigned the leaflet selection is the same as the leaflet selection without sterols
         if not any(leaflet_selection): leaflet_selection = self.leaflet_selection_no_sterol
 
+        leaflet_selection['0'] = leaflet_selection['0'][ np.argsort(leaflet_selection['0'].resids) ]
+        leaflet_selection['1'] = leaflet_selection['1'][ np.argsort(leaflet_selection['1'].resids) ]
+
         return leaflet_selection
 
     def get_resids(self):
