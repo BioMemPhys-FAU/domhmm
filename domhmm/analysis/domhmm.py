@@ -278,9 +278,17 @@ class PropertyCalculation(LeafletAnalysisBase):
             end_index = (assignment_index + 1) * self.leaflet_frame_rate
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
-
-            self.uidx = self.leaflet_selection["0"].resids - 1
-            self.lidx = self.leaflet_selection["1"].resids - 1
+            # TODO Throws error if resids are not in same order
+            #   Something like this is required
+            #   _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
+            # self.uidx = self.leaflet_selection["0"].resids - 1
+            _, self.uidx, _ = np.intersect1d(self.membrane_unique_resids,
+                                             np.unique(self.leaflet_selection["0"].resids),
+                                             return_indices=1)
+            # self.lidx = self.leaflet_selection["1"].resids - 1
+            _, self.lidx, _ = np.intersect1d(self.membrane_unique_resids,
+                                             np.unique(self.leaflet_selection["1"].resids),
+                                             return_indices=1)
             self.leaflet_assignment[self.uidx, start_index:end_index] = 0
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
 
@@ -296,8 +304,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
 
-            self.uidx = self.leaflet_selection["0"].resids - 1
-            self.lidx = self.leaflet_selection["1"].resids - 1
+            # self.uidx = self.leaflet_selection["0"].resids - 1
+            _, self.uidx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(self.leaflet_selection["0"].resids),
+                                     return_indices=1)
+            # self.lidx = self.leaflet_selection["1"].resids - 1
+            _, self.lidx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(self.leaflet_selection["1"].resids),
+                                             return_indices=1)
             self.leaflet_assignment[self.uidx, start_index:end_index] = 0
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
 
@@ -1216,7 +1228,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         temp = []
         for res, data in self.results.train_data_per_type.items():
-            temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[data[0] - 1, step] == leaflet])
+            _, idx, _ = np.intersect1d(self.membrane_unique_resids, data[0], return_indices=1)
+            temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[idx, step] == leaflet])
         order_states = np.concatenate(temp)
         return order_states
 
