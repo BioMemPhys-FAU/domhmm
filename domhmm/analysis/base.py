@@ -43,7 +43,8 @@ class LeafletAnalysisBase(AnalysisBase):
     leaflet_kwargs: Optional[dict]
         dictionary containing additional arguments for the MDAnalysis LeafletFinder
     leaflet_select: Union["auto",List[AtomGroup], List[str]]
-        Leaflet selection options for lipids which can be automatic by finding Leafletfinder, atomgroup, string query or list
+        Leaflet selection options for lipids which can be automatic by finding Leafletfinder, atomgroup, string query or
+         list
     heads: Dict[str, Any]
         dictionary containing residue name and atom selection for lipid head groups
     tails: Dict[str, Any]
@@ -51,7 +52,8 @@ class LeafletAnalysisBase(AnalysisBase):
     sterol_heads: Dict[str, Any]
         dictionary containing residue name and atom selection for sterol head groups
     sterol_tails: Dict[str, Any]
-         dictionary containing residue name and atom selection for sterol tail groups (head as first, tail beginnig as second)
+         dictionary containing residue name and atom selection for sterol tail groups
+         (head as first, tail beginning as second)
     frac: float
         fraction of box length in x and y outside the unit cell considered for Voronoi calculation
     p_value: float
@@ -120,7 +122,7 @@ class LeafletAnalysisBase(AnalysisBase):
         super().__init__(universe_or_atomgroup.trajectory, **kwargs)
         # after this you will be able to access `self.results`
         # `self.results` is a dictionary-like object
-        # that can should used to store and retrieve results
+        # that can be used to store and retrieve results
         # See more at the MDAnalysis documentation:
         # https://docs.mdanalysis.org/stable/documentation_pages/analysis/base.html?highlight=results#MDAnalysis.analysis.base.Results
         self.resid_tails_selection = {}
@@ -142,18 +144,19 @@ class LeafletAnalysisBase(AnalysisBase):
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
         self.leaflet_kwargs = leaflet_kwargs
+        self.n_leaflets = 0
 
         if gmm_kwargs is None:
             self.gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
-                      "max_iter": 10000, "n_init": 20,
-                      "warm_start": False, "covariance_type": "full"}
+                               "max_iter": 10000, "n_init": 20,
+                               "warm_start": False, "covariance_type": "full"}
         else:
             self.gmm_kwargs = gmm_kwargs
 
         if hmm_kwargs is None:
             self.hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 2000,
-                      "algorithm": "viterbi", "covariance_type": "full",
-                      "init_params": "st", "params": "stmc"}
+                               "algorithm": "viterbi", "covariance_type": "full",
+                               "init_params": "st", "params": "stmc"}
         else:
             self.hmm_kwargs = hmm_kwargs
 
@@ -161,14 +164,18 @@ class LeafletAnalysisBase(AnalysisBase):
 
         if leaflet_select is None:
             # No information about leaflet assignment is provided. Raise an error and exit.
-            raise ValueError("No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
+            raise ValueError(
+                "No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, "
+                "two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
 
         elif isinstance(leaflet_select, list):
-            # If the argument leaflet_select is a list, the user specified their own leaflet selection.
-            # The code checks if there are exactly two groups and raises an assertion if not.
-            # It then stores the provided AtomGroup in a dictionary, or creates the AtomGroup with a provided selection string and stores it in the dictionary.
+            # If the argument leaflet_select is a list, the user specified their own leaflet selection. The code
+            # checks if there are exactly two groups and raises an assertion if not. It then stores the provided
+            # AtomGroup in a dictionary, or creates the AtomGroup with a provided selection string and stores it in
+            # the dictionary.
 
-            assert len(leaflet_select) == 2, (f"A bilayer is required. {len(leaflet_select)} entries found in leaflet_select list.")
+            assert len(leaflet_select) == 2, (
+                f"A bilayer is required. {len(leaflet_select)} entries found in leaflet_select list.")
 
             # Initialize empty dictionary to store AtomGroups
             self.leaflet_selection_no_sterol = {}
@@ -186,105 +193,131 @@ class LeafletAnalysisBase(AnalysisBase):
                     except Exception as e:
                         raise ValueError("Please provide a valid MDAnalysis selection string!") from e
 
-                    #TODO: Check for atom number in upper and lower leaflet and raise a Warning
+                    # TODO: Check for atom number in upper and lower leaflet and raise a Warning
                 else:
                     raise ValueError("Please provide an MDAnalysis.AtomGroup or a valid MDAnalysis selection string!")
 
-                #Iterate over sterol compounds and check if it is part of the phospholipid leaflet assignment
+                # Iterate over sterol compounds and check if it is part of the phospholipid leaflet assignment
                 for rsn, atoms in self.sterol_heads.items():
                     if rsn in self.leaflet_selection_no_sterol[str(i)].residues.resnames:
-                        raise ValueError(f"Sterol {rsn} should not be part of the initial leaflet identification! Sterols will be assigned automatically.")
-                    else: pass
+                        raise ValueError(
+                            f"Sterol {rsn} should not be part of the initial leaflet identification! Sterols will be "
+                            f"assigned automatically.")
+                    else:
+                        pass
 
         elif leaflet_select.lower() == "auto":
-            # 'auto' should trigger an automated leaflet assignment pipeline (e.g., LeafletFinder provided by MDAnalysis)
+            # 'auto' should trigger an automated leaflet assignment pipeline
+            # (e.g., LeafletFinder provided by MDAnalysis)
             self.leaflet_selection_no_sterol = self.get_leaflets()
 
         else:
             # An unknown argument is provided for leaflet_select
-            raise ValueError("No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
+            raise ValueError(
+                "No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, "
+                "two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
 
         # -----------------------------------------------------------------HMMs----------------------------------- #
-        
-        #Check for user-specified trained HMM
+
+        # Check for user-specified trained HMM
         if not any(trained_hmms):
-            #Carry on if there is no trained HMM provided -> Will train HMM(s) later on
+            # Carry on if there is no trained HMM provided -> Will train HMM(s) later on
             self.trained_hmms = trained_hmms
 
         else:
-            #User-specified trained HMM provided, check for consistency with expected format
+            # User-specified trained HMM provided, check for consistency with expected format
 
-            #Check for assymmetric membrane
-            if self.asymmetric_membrane == True:
-                #Asymmetric membrane functionality was triggered!
-                #Assuming same/different lipid types per leaflet
-                #Structure of the expected dictionary: {ResnameA: {0: HMM0A, 1: HMM1A}, ResnameB: {0: HMM0B, 1: HMM1B}, ResnameC: {0: None, 1: HMM1B}, ...}
+            # Check for assymmetric membrane
+            if self.asymmetric_membrane:
+                # Asymmetric membrane functionality was triggered! Assuming same/different lipid types per leaflet
+                # Structure of the expected dictionary: {ResnameA: {0: HMM0A, 1: HMM1A}, ResnameB: {0: HMM0B,
+                # 1: HMM1B}, ResnameC: {0: None, 1: HMM1B}, ...}
 
-                #Iterate over each entry and check for validity of input
+                # Iterate over each entry and check for validity of input
                 for lipid, hmms in zip(trained_hmms.keys(), trained_hmms.values()):
 
-                    #Expected format of object "hmms" right now: {0: HMM0X, 1: HMM1X}
-                    
+                    # Expected format of object "hmms" right now: {0: HMM0X, 1: HMM1X}
+
                     assert lipid in self.membrane.residues.resnames, f"{lipid} not found in membrane. Maybe a typo?"
 
-                    #Check if correct number of HMMs per lipid is given
-                    assert len(hmms.keys()) == 2, f'Too many/less HMMs provided for lipid type {lipid}.' + "\nPlease provide exactly two ({0:...,1:...}) or do not trigger 'asymmetric_membrane'!\nIf a lipid is not present in one leaflet, use 'None'."
+                    # Check if correct number of HMMs per lipid is given
+                    assert len(
+                        hmms.keys()) == 2, (f'Too many/less HMMs provided for lipid type {lipid}.'
+                                            + "\nPlease provide exactly two ({0:...,1:...}) or do not trigger "
+                                              "'asymmetric_membrane'!\nIf a lipid is not present in one leaflet, "
+                                              "use 'None'.")
 
-                    #Check for correct labelling of leaflets
-                    assert (0 in hmms.keys()) and (1 in hmms.keys()), "Provide suitable keys (i.e., 0, 1) for the leaflets!"
+                    # Check for correct labelling of leaflets
+                    assert (0 in hmms.keys()) and (
+                            1 in hmms.keys()), "Provide suitable keys (i.e., 0, 1) for the leaflets!"
 
-                    #Iterate over leaflets
+                    # Iterate over leaflets
                     for leaflet in range(2):
 
-                        #Expected format of object "hmms[leaflet]" right now: HMMYX
+                        # Expected format of object "hmms[leaflet]" right now: HMMYX
 
-                        #If a lipid is not present in one of the leaflets a None is expected instead of a trained HMM
-                        if hmms[leaflet] == None: 
-                            #If no HMM was provided then this lipid should be not part of this leaflet. Sterols are expected to flip, therefore always two HMM should be provided for sterol types...
-                            assert lipid not in self.leaflet_selection_no_sterol[str(leaflet)].residues.resnames and lipid not in self.sterol_heads.keys(), f"Found lipid {lipid} in leaflet {leaflet}, but no HMM was found!\nPlease provide a valid HMM for this lipid in this leaflet!\nNote, for sterols always two HMMs are expected!"
+                        # If a lipid is not present in one of the leaflets a None is expected instead of a trained HMM
+                        if hmms[leaflet] is None:
+                            # If no HMM was provided then this lipid should be not part of this leaflet. Sterols are
+                            # expected to flip, therefore always two HMM should be provided for sterol types...
+                            assert (lipid not in self.leaflet_selection_no_sterol[
+                                str(leaflet)].residues.resnames and lipid not in self.sterol_heads.keys()), \
+                                (f"Found lipid {lipid} in leaflet {leaflet}, but no HMM was found!\nPlease provide a "
+                                 f"valid HMM for this lipid in this leaflet!\nNote, for sterols always two HMMs are "
+                                 f"expected!")
 
-                            #If everything is fine carry on with next leaflet/lipid
+                            # If everything is fine carry on with next leaflet/lipid
                             continue
 
-                        #Check if lipid is in this leaflet or if lipid is a sterol
-                        assert lipid in self.leaflet_selection_no_sterol[str(leaflet)].residues.resnames or lipid in self.sterol_heads.keys(), f"Could not find lipid/sterol {lipid} in leaflet {leaflet}. Provide only HMMs for lipids that are present in this leaflet!"
+                        # Check if lipid is in this leaflet or if lipid is a sterol
+                        assert lipid in self.leaflet_selection_no_sterol[
+                            str(leaflet)].residues.resnames or lipid in self.sterol_heads.keys(), \
+                            (f"Could not find lipid/sterol {lipid} in leaflet {leaflet}. Provide only HMMs for lipids "
+                             f"that are present in this leaflet!")
 
-                        #If all checks passed, we can assume that "something" should be and is present. Now, check check the validity of the provided object
-                        try: 
-                            #Try to sample something from HMM to check if it is fitted
+                        # If all checks passed, we can assume that "something" should be and is present. Now,
+                        # check the validity of the provided object
+                        try:
+                            # Try to sample something from HMM to check if it is fitted
                             hmms[leaflet].sample(n_samples=1)
-                        except Exception as hmmerror: 
-                            raise ValueError(f"HMM check failed with {hmmerror}! Could not sample a single point from the provided HMM for lipid {lipid} in leaflet {leaflet}. Check your model!")
-                        
-                #If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
+                        except Exception as hmmerror:
+                            raise ValueError(
+                                f"HMM check failed with {hmmerror}! Could not sample a single point from the provided "
+                                f"HMM for lipid {lipid} in leaflet {leaflet}. Check your model!")
+
+                # If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
                 self.trained_hmms = trained_hmms
 
-            elif self.asymmetric_membrane == False:
-                #Symmetric membrane is assumed!
-                #Assuming same lipid types per leaflet
-                #Structure of the expected dictionary: {ResnameA: HMMA, ResnameB: HMMB, ResnameC: HMMC, ...}
+            elif not self.asymmetric_membrane:
+                # Symmetric membrane is assumed!
+                # Assuming same lipid types per leaflet
+                # Structure of the expected dictionary: {ResnameA: HMMA, ResnameB: HMMB, ResnameC: HMMC, ...}
 
-                #Iterate over each entry and check for validity of input
+                # Iterate over each entry and check for validity of input
                 for lipid, hmms in zip(trained_hmms.keys(), trained_hmms.values()):
 
                     assert lipid in self.membrane.residues.resnames, f"{lipid} not found in membrane. Maybe a typo?"
 
-                    #If all checks passed, we can assume that "something" should be and is present. Now, check check the validity of the provided object
-                    try: 
-                        #Try to sample something from HMM to check if it is fitted
+                    # If all checks passed, we can assume that "something" should be and is present. Now, check
+                    # the validity of the provided object
+                    try:
+                        # Try to sample something from HMM to check if it is fitted
                         hmms.sample(n_samples=1)
-                    except sklearn.exceptions.NotFittedError as hmmerror: 
-                        raise ValueError(f"HMM check failed with {hmmerror}! Could not sample a single point from the provided HMM for lipid {lipid} in leaflet {leaflet}. Check your model!")
-                        
-                #If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
+                    except sklearn.exceptions.NotFittedError as hmmerror:
+                        raise ValueError(
+                            f"HMM check failed with {hmmerror}! Could not sample a single point from the provided HMM "
+                            f"for lipid {lipid} in leaflet {leaflet}. Check your model!")
+
+                # If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
                 self.trained_hmms = trained_hmms
 
             else:
-                #Something did not work as expected
-                raise ValueError(f"Argument 'asymmetric_membrane' must be boolean (True/False), not {self.asymmetric_membrane}.")
+                # Something did not work as expected
+                raise ValueError(
+                    f"Argument 'asymmetric_membrane' must be boolean (True/False), not {self.asymmetric_membrane}.")
 
-        #---------------------------------------HOUSE KEEPING---------------------------------------#
-        
+        # --------------------------------------HOUSE KEEPING-------------------------------------- #
+
         # Save unique residue names
         _, idx = np.unique(self.membrane.resnames, return_index=True)
         self.unique_resnames = self.membrane.resnames[np.sort(idx)]
@@ -302,7 +335,8 @@ class LeafletAnalysisBase(AnalysisBase):
     def get_leaflets(self):
 
         """
-        Automatically assign non-sterol compounds to the upper and lower leaflet of a bilayer using the MDAnalysis.LeafletFinder
+        Automatically assign non-sterol compounds to the upper and lower leaflet of a bilayer using the
+        MDAnalysis.LeafletFinder
         """
 
         # Call LeafletFinder to get upper and lower leaflets
@@ -312,7 +346,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.n_leaflets = len(leafletfinder.groups())
         assert self.n_leaflets == 2, f"Bilayer is required. {self.n_leaflets} are found."
 
-        # Init empty dict to store AtomGroups -> That would be not necessary but I want the same variables for the
+        # Init empty dict to store AtomGroups -> That would be not necessary, but I want the same variables for the
         # user specified case or the automatic case
         leaflet_selection = {}
 
@@ -325,19 +359,20 @@ class LeafletAnalysisBase(AnalysisBase):
     def get_leaflets_sterol(self):
 
         """
-        Assign sterol compounds to to the upper and lower leaflet of a bilayer using a distance cut-off.
+        Assign sterol compounds to the upper and lower leaflet of a bilayer using a distance cut-off.
         """
 
         # Copy dict for leaflet selection without sterols, only the AtomGroups in the copied dict should be updated
         leaflet_selection = {}
 
-        #Iterate over each type of sterol in the membrane
+        # Iterate over each type of sterol in the membrane
         for rsn, head in self.sterol_heads.items():
-            # TODO Find more user-friendly way for sterol atom selection
             sterol = self.universe.select_atoms(f"resname {rsn} and name {head}")
-            upper_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection_no_sterol['0'],
+            upper_sterol = distances.distance_array(reference=sterol,
+                                                    configuration=self.leaflet_selection_no_sterol['0'],
                                                     box=self.universe.trajectory.ts.dimensions)
-            lower_sterol = distances.distance_array(reference=sterol, configuration=self.leaflet_selection_no_sterol['1'],
+            lower_sterol = distances.distance_array(reference=sterol,
+                                                    configuration=self.leaflet_selection_no_sterol['1'],
                                                     box=self.universe.trajectory.ts.dimensions)
 
             # ...determining the minimum distance to each leaflet for each cholesterol,...
@@ -348,15 +383,17 @@ class LeafletAnalysisBase(AnalysisBase):
             upper_sterol = sterol[upper_sterol < lower_sterol]
             lower_sterol = sterol.difference(upper_sterol)
 
-            # Merge the atom selections for the phospholipids and cholesterol. "+" just adds the second selection on top of the former one.
+            # Merge the atom selections for the phospholipids and cholesterol. "+" just adds the second selection on
+            # top of the former one.
             leaflet_selection['0'] = self.leaflet_selection_no_sterol['0'] + upper_sterol
             leaflet_selection['1'] = self.leaflet_selection_no_sterol['1'] + lower_sterol
 
-        #If not sterol compound was assigned the leaflet selection is the same as the leaflet selection without sterols
-        if not any(leaflet_selection): leaflet_selection = self.leaflet_selection_no_sterol
+        # If not sterol compound was assigned the leaflet selection is the same as the leaflet selection without sterols
+        if not any(leaflet_selection):
+            leaflet_selection = self.leaflet_selection_no_sterol
 
-        leaflet_selection['0'] = leaflet_selection['0'][ np.argsort(leaflet_selection['0'].resids) ]
-        leaflet_selection['1'] = leaflet_selection['1'][ np.argsort(leaflet_selection['1'].resids) ]
+        leaflet_selection['0'] = leaflet_selection['0'][np.argsort(leaflet_selection['0'].resids)]
+        leaflet_selection['1'] = leaflet_selection['1'][np.argsort(leaflet_selection['1'].resids)]
 
         return leaflet_selection
 
@@ -364,7 +401,7 @@ class LeafletAnalysisBase(AnalysisBase):
         """
         Retrieve the residue indices for each residue and store it in a new dictionary.
 
-        Attributes
+        Returns
         ---------- 
         residue_ids: dict
             dictionary for each residue containing residue ids of it.
@@ -373,13 +410,11 @@ class LeafletAnalysisBase(AnalysisBase):
         # Init empty dict to store atom selection of resids
         residue_ids = {}
 
-
         # Iterate over found leaflets
         for resname, head in self.heads.items():
             query_str = f"name {head} and resname {resname}"
             residue_ids[resname] = self.universe.select_atoms(query_str).resids
         for resname, head in self.sterol_heads.items():
-            # TODO Find more user-friendly way for sterol atom selection
             query_str = f"name {head} and resname {resname}"
             residue_ids[resname] = self.universe.select_atoms(query_str).resids
         return residue_ids
@@ -388,7 +423,7 @@ class LeafletAnalysisBase(AnalysisBase):
         """
         Make an atomgroup containing all head groups (lipids + sterols).
 
-        Attributes
+        Returns
         ----------
         all_heads: MDAnalysis.AtomGroup
             AtomGroup containing headgroups of all lipids and sterols
@@ -402,7 +437,6 @@ class LeafletAnalysisBase(AnalysisBase):
             query_str = f"name {head} and resname {resname}"
             all_heads = all_heads | self.universe.select_atoms(query_str)
         for resname, head in self.sterol_heads.items():
-            # TODO Find more user-friendly way for sterol atom selection
             query_str = f"name {head} and resname {resname}"
             all_heads = all_heads | self.universe.select_atoms(query_str)
         return all_heads
@@ -449,8 +483,8 @@ class LeafletAnalysisBase(AnalysisBase):
             for i, tail in enumerate(self.tails[resname]):
                 # Prepare a MDAnalysis selection string (I.e. ['C22', 'H2R'] -> 'name C22 or name H2R')
                 tail_sele_str = 'name ' + ' or name '.join(tail)
-                # Select for correct lipid type (I.e. I.e. ['C22', 'H2R'] -> 'name C22 or name H2R' ->
-                # 'resname POPC and ('name C22 or name H2R')')
+                # Select for correct lipid type
+                # (I.e. I.e. ['C22', 'H2R'] -> 'name C22 or name H2R' -> 'resname POPC and ('name C22 or name H2R')')
                 tail_sele_str = f'(resname {resname} and ({tail_sele_str}))'
                 tail_select_list.setdefault(i, []).append(tail_sele_str)
         # Create tail selection dictionary for each chain
