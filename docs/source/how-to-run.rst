@@ -156,5 +156,19 @@ Parameter option for Gaussian-based Hidden Markov Model training. An example of 
                       "algorithm": "viterbi", "covariance_type": "full",
                       "init_params": "st", "params": "stmc"}
 
+* ``trained_hmms``
+
+Parameter option for reusing past DomHMM HMM models. If there are several analysis will be conducted with slightly difference membrane simulations or with different parameter options, first analysis HMM model can be reusable with this parameter.
+
+.. code-block::
+
+    model.run()
+    with open(f'hmm_model_dump.pickle', 'wb') as file:
+        pickle.dump(model.results["HMM"], file)
+    ...
+    with open(f'hmm_model_dump.pickle', 'rb') as file:
+        reuse_hmm_model = pickle.load(file)
+    model_2 = domhmm.PropertyCalculation( ... ,
+                                         trained_hmms=reuse_hmm_models)
 
 We encourage to check :doc:`tips` section that may contain useful information for your progress.
