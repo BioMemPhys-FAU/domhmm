@@ -110,6 +110,9 @@ Let's dive into each parameter's details.
     model.run(start=5, stop=1000, step=5)
 
 .. warning::
+    If detailed post analysis will be conducted on result such as usage of ``Getis_Ord`` results, input order of lipids and sterols should be in same order as in simulation. If simulation lipids are in order of ``DPPC, DIPC, CHOL`` with respect to residue ids, keys of ``heads``, ``tails``, ``sterol_heads``, and ``sterol_tails`` should be in same order just like in this example.
+
+.. note::
 
     Since DomHMM uses Gaussian Mixture Model and Gaussian-based Hidden Markov Model, it is suggested to not use too short or too long simulations. Short simulations may not create a sensible results and long one would be take too much time to train model. In our examples, we used simulations that contains around 2000 frames and model run is finished around 25-30 minutes.
 
