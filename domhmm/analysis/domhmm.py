@@ -109,11 +109,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         for chain, tail in self.resid_tails_selection.items():
             # SCC calculation
             s_cc = self.calc_order_parameter(tail)
-            _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
+            idx = self.get_residue_idx(self.resids_index_map, np.unique(tail.resids))
             self.results.train[idx, self.index, 1 + chain] = s_cc
         for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
             s_cc = self.calc_order_parameter(tail)
-            _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
+            idx = self.get_residue_idx(self.resids_index_map, np.unique(tail.resids))
             self.results.train[idx, self.index, 1 + self.max_tail_len + i] = s_cc
 
     def area_per_lipid_vor(self, leaflet, boxdim, frac):
@@ -278,17 +278,11 @@ class PropertyCalculation(LeafletAnalysisBase):
             end_index = (assignment_index + 1) * self.leaflet_frame_rate
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
-            # TODO Throws error if resids are not in same order
-            #   Something like this is required
-            #   _, idx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(tail.resids), return_indices=1)
-            # self.uidx = self.leaflet_selection["0"].resids - 1
-            _, self.uidx, _ = np.intersect1d(self.membrane_unique_resids,
-                                             np.unique(self.leaflet_selection["0"].resids),
-                                             return_indices=1)
-            # self.lidx = self.leaflet_selection["1"].resids - 1
-            _, self.lidx, _ = np.intersect1d(self.membrane_unique_resids,
-                                             np.unique(self.leaflet_selection["1"].resids),
-                                             return_indices=1)
+
+            self.uidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["0"].resids)
+            self.lidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["1"].resids)
+
+            self.leaflet_assignment[self.lidx, start_index:end_index] = 1
             self.leaflet_assignment[self.uidx, start_index:end_index] = 0
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
 
@@ -304,12 +298,9 @@ class PropertyCalculation(LeafletAnalysisBase):
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
 
-            # self.uidx = self.leaflet_selection["0"].resids - 1
-            _, self.uidx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(self.leaflet_selection["0"].resids),
-                                     return_indices=1)
-            # self.lidx = self.leaflet_selection["1"].resids - 1
-            _, self.lidx, _ = np.intersect1d(self.membrane_unique_resids, np.unique(self.leaflet_selection["1"].resids),
-                                             return_indices=1)
+            self.uidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["0"].resids)
+            self.lidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["1"].resids)
+
             self.leaflet_assignment[self.uidx, start_index:end_index] = 0
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
 
@@ -390,7 +381,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.results.train_data_per_type = {}
         resid_dict = {}
         for resname in self.unique_resnames:
-            _, idx, _ = np.intersect1d(self.membrane_unique_resids, self.residue_ids[resname], return_indices=1)
+            idx = self.get_residue_idx(self.resids_index_map, self.residue_ids[resname])
             resid_dict[resname] = idx
             self.results.train_data_per_type[f"{resname}"] = [[] for _ in range(3)]
         if self.asymmetric_membrane:
@@ -436,7 +427,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
                 rsn_ids = self.residue_ids[resname]
                 self.results.train_data_per_type[resname][0] = rsn_ids
-                _, idx, _ = np.intersect1d(self.membrane_unique_resids, rsn_ids, return_indices=1)
+                idx = self.get_residue_idx(self.resids_index_map, rsn_ids)
                 # Select columns of area per lipid and sterol's scc parameter
                 residx = leaflet_train_residx[resname]
                 upper_leaflet_data = self.results.train[residx[0]][:, :, [0, 1 + self.max_tail_len + i]]
@@ -741,6 +732,27 @@ class PropertyCalculation(LeafletAnalysisBase):
             return np.abs(prediction_results - 1)
         else:
             return prediction_results
+
+    @staticmethod
+    def get_residue_idx(resids_index_map, resids):
+        """
+        Checks resids index map (lookup table) to return corresponding indexes to use in DomHMM result section.
+
+        Parameters
+        ----------
+        resids_index_map: dict
+            Lookup table where each residue id's index in self.membrane_unique_resids is kepts
+        resids: numpy.ndarray
+            Residue id list for indexing
+
+        Returns
+        -------
+        idx: numpy.ndarray
+            Indexes in the same order with resids
+
+        """
+        idx = np.array([resids_index_map[resid] for resid in resids])
+        return idx
 
     def predict_plot(self):
         """
@@ -1228,7 +1240,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         temp = []
         for res, data in self.results.train_data_per_type.items():
-            _, idx, _ = np.intersect1d(self.membrane_unique_resids, data[0], return_indices=1)
+            idx = self.get_residue_idx(self.resids_index_map, data[0])
             temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[idx, step] == leaflet])
         order_states = np.concatenate(temp)
         return order_states
