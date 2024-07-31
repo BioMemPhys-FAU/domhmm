@@ -129,6 +129,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.universe = universe_or_atomgroup.universe
         self.membrane = universe_or_atomgroup.select_atoms(membrane_select)
         self.membrane_unique_resids = np.unique(self.membrane.resids)
+        self.resids_index_map = {resid: idx for idx, resid in enumerate(self.membrane_unique_resids)}
         self.heads = heads
         self.tails = tails
         self.sterol_heads = sterol_heads
