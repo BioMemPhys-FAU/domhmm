@@ -42,7 +42,7 @@ class LeafletAnalysisBase(AnalysisBase):
         Optional parameter for Hidden Markov model function.
     leaflet_kwargs: Optional[dict]
         dictionary containing additional arguments for the MDAnalysis LeafletFinder
-    leaflet_select: Union["auto",List[AtomGroup], List[str]]
+    leaflet_select: Union["auto", List[AtomGroup], List[str]]
         Leaflet selection options for lipids which can be automatic by finding Leafletfinder, atomgroup, string query or
          list
     heads: Dict[str, Any]
@@ -54,6 +54,8 @@ class LeafletAnalysisBase(AnalysisBase):
     sterol_tails: Dict[str, Any]
          dictionary containing residue name and atom selection for sterol tail groups
          (head as first, tail beginning as second)
+    tmd_protein_list: Union["auto", List[AtomGroup], List[str]]
+         Transmembrane domain protein list to include area per lipid calculation
     frac: float
         fraction of box length in x and y outside the unit cell considered for Voronoi calculation
     p_value: float
@@ -108,6 +110,7 @@ class LeafletAnalysisBase(AnalysisBase):
             tails: Dict[str, Any] = {},
             sterol_heads: Dict[str, Any] = {},
             sterol_tails: Dict[str, Any] = {},
+            tmd_protein_list: Union[None, "AtomGroup", str, list] = None,
             frac: float = 0.5,
             p_value: float = 0.05,
             leaflet_frame_rate: Union[None, int] = None,
@@ -141,6 +144,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.asymmetric_membrane = asymmetric_membrane
         self.verbose = verbose
         self.result_plots = result_plots
+        self.tmd_protein = None
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
@@ -218,7 +222,40 @@ class LeafletAnalysisBase(AnalysisBase):
                 "No leaflet assigned! Please provide a list containing either two MDAnalysis.AtomGroup objects, "
                 "two valid MDAnalysis selection strings, or 'auto' to trigger automatic leaflet assignment.")
 
-        # -----------------------------------------------------------------HMMs----------------------------------- #
+        # -----------------------------------------------------------------Transmembrane Domains --------------------- #
+        if isinstance(tmd_protein_list, list):
+            # Initialize empty dictionary to store AtomGroups
+            self.tmd_protein = {"0": [], "1": []}
+
+            for each in tmd_protein_list:
+                for leaflet, query in each.items():
+                    if leaflet not in ["0", "1"]:
+                        raise ValueError("TDM Protein list should contain dictionaries in format {'0': ..., '1': ...} "
+                                         "where 0 for lower leaflet and 1 for upper leaflet.")
+                    if isinstance(query, AtomGroup):
+                        # Take center of geometry of three positions
+                        cog = np.mean(query.positions, axis=0)
+                        self.tmd_protein[leaflet].append(cog)
+                    # Character string was provided as input, assume it contains a selection for an MDAnalysis.AtomGroup
+                    elif isinstance(leaflet_select[i], str):
+                        # Try to create a MDAnalysis.AtomGroup, raise a ValueError if not selection group could be
+                        # provided
+                        try:
+                            cog = np.mean(self.universe.select_atoms(query).positions, axis=0)
+                            self.tmd_protein[leaflet].append(cog)
+                        except Exception as e:
+                            raise ValueError("Please provide a valid MDAnalysis selection string!") from e
+                    else:
+                        raise ValueError("TDM Protein list should contain AtomGroup from MDAnalysis universe or a string "
+                                         "query for MDAnalysis selection.")
+                self.tmd_protein["0"] = np.array(self.tmd_protein["0"])
+                self.tmd_protein["1"] = np.array(self.tmd_protein["1"])
+        elif tmd_protein_list is not None:
+            # An unknown argument is provided for tdm_protein_list
+            raise ValueError(
+                "Please provide tdm_protein_list in list format such as [{'0': upper leaflet related 3 atom, "
+                "'1': lower leaflet related 3 atom }, {'0': ..., '1': ...}]")
+        # -----------------------------------------------------------------HMMs--------------------------------------- #
 
         # Check for user-specified trained HMM
         if not any(trained_hmms):
@@ -431,6 +468,8 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         # Init empty dict to store atom selection of resids
+        # TODO Cause => UserWarning: Empty string to select atoms, empty group returned.
+        #  warnings.warn("Empty string to select atoms, empty group returned.",
         all_heads = self.universe.select_atoms('')
 
         # Iterate over found leaflets
