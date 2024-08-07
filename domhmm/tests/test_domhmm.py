@@ -226,8 +226,12 @@ class TestDomhmm:
         boxdim = analysis.universe.trajectory.ts.dimensions[0:3]
         analysis.leaflet_selection_no_sterol = analysis.get_leaflets()
         analysis.leaflet_selection = analysis.get_leaflets_sterol()
-        upper_vor, upper_apl, upper_pbc_idx = analysis.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=analysis.frac)
-        lower_vor, lower_apl, lower_pbc_idx = analysis.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=analysis.frac)
+        upper_coor_xy = analysis.leaflet_selection[str(0)].positions
+        lower_coor_xy = analysis.leaflet_selection[str(1)].positions
+        upper_vor, upper_apl, upper_pbc_idx = analysis.area_per_lipid_vor(coor_xy=upper_coor_xy, boxdim=boxdim,
+                                                                          frac=analysis.frac)
+        lower_vor, lower_apl, lower_pbc_idx = analysis.area_per_lipid_vor(coor_xy=lower_coor_xy, boxdim=boxdim,
+                                                                          frac=analysis.frac)
         assert np.allclose(apl_results["test_upper_vor"].points, upper_vor.points, error_tolerance)
         assert np.allclose(apl_results["test_upper_apl"], upper_apl, error_tolerance)
         assert np.allclose(apl_results["test_upper_pbc_idx"], upper_pbc_idx, error_tolerance)
@@ -241,9 +245,11 @@ class TestDomhmm:
         """
         analysis.leaflet_selection_no_sterol = analysis.get_leaflets()
         analysis.leaflet_selection = analysis.get_leaflets_sterol()
+        upper_coor_xy = analysis.leaflet_selection[str(0)].positions
+        lower_coor_xy = analysis.leaflet_selection[str(1)].positions
         upper_weight = analysis.weight_matrix(apl_results["test_upper_vor"], pbc_idx=apl_results["test_upper_pbc_idx"],
-                                              leaflet=0)
+                                              coor_xy=upper_coor_xy)
         lower_weight = analysis.weight_matrix(apl_results["test_lower_vor"], pbc_idx=apl_results["test_lower_pbc_idx"],
-                                              leaflet=1)
+                                              coor_xy=lower_coor_xy)
         assert np.allclose(weight_results["test_upper_weight"], upper_weight, error_tolerance)
         assert np.allclose(weight_results["test_lower_weight"], lower_weight, error_tolerance)

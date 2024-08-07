@@ -118,7 +118,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             idx = self.get_residue_idx(self.resids_index_map, np.unique(tail.resids))
             self.results.train[idx, self.index, 1 + self.max_tail_len + i] = s_cc
 
-    def area_per_lipid_vor(self, leaflet, boxdim, frac):
+    @staticmethod
+    def area_per_lipid_vor(coor_xy, boxdim, frac):
 
         """
         Calculation of the area per lipid employing Voronoi tessellation on coordinates mapped to the xy plane.
@@ -126,8 +127,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Parameters
         ----------
-        leaflet : string
-            Index to decide upper/lower leaflet
+        coor_xy : numpy.ndarray
+            Coordinates of upper/lower leaflet
         boxdim : array
             Length of box vectors in all directions
         frac : float
@@ -144,7 +145,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Number of points in the plane
-        coor_xy = self.leaflet_selection[str(leaflet)].positions
         ncoor = coor_xy.shape[0]
         bx = boxdim[0]
         by = boxdim[1]
@@ -197,7 +197,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return vor, apl, pbc_idx
 
-    def weight_matrix(self, vor, pbc_idx, leaflet):
+    @staticmethod
+    def weight_matrix(vor, pbc_idx, coor_xy):
 
         """
         Calculate the weight factors between neighbored lipid pairs based on a Voronoi tessellation.
@@ -208,8 +209,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             Scipy's Voronoi Diagram object
         pbc_idx : Indices
             Unit cell indices of periodic image coordinates
-        leaflet : string
-            Index to decide upper/lower leaflet
+        coor_xy : numpy.ndarray
+            Coordinates of upper/lower leaflet
 
         Returns
         -------
@@ -219,7 +220,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Number of points in the plane
-        coor_xy = self.leaflet_selection[str(leaflet)].positions
         ncoor = coor_xy.shape[0]
 
         # Calculate the distance for all pairs of points between which a ridge exists
@@ -315,8 +315,26 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
-        upper_vor, upper_apl, upper_pbc_idx = self.area_per_lipid_vor(leaflet=0, boxdim=boxdim, frac=self.frac)
-        lower_vor, lower_apl, lower_pbc_idx = self.area_per_lipid_vor(leaflet=1, boxdim=boxdim, frac=self.frac)
+        upper_coor_xy = self.leaflet_selection[str(0)].positions
+        lower_coor_xy = self.leaflet_selection[str(1)].positions
+        # Check Transmembrane domain existance
+        if self.tmd_protein is not None:
+            tmd_upper_coor_xy = self.tmd_protein["0"]
+            # Check if dimension of coordinates is same in both array
+            if tmd_upper_coor_xy.shape[1] == upper_coor_xy.shape[1]:
+                upper_coor_xy = np.append(upper_coor_xy, tmd_upper_coor_xy, axis=0)
+            tmd_lower_coor_xy = self.tmd_protein["1"]
+            # Check if dimension of coordinates is same in both array
+            if tmd_lower_coor_xy.shape[1] == lower_coor_xy.shape[1]:
+                lower_coor_xy = np.append(lower_coor_xy, tmd_lower_coor_xy, axis=0)
+        upper_vor, upper_apl, upper_pbc_idx = self.area_per_lipid_vor(coor_xy=upper_coor_xy, boxdim=boxdim,
+                                                                      frac=self.frac)
+        lower_vor, lower_apl, lower_pbc_idx = self.area_per_lipid_vor(coor_xy=lower_coor_xy, boxdim=boxdim,
+                                                                      frac=self.frac)
+        if self.tmd_protein is not None:
+            # Remove TMD Protein numbers from training data
+            upper_apl = np.array(upper_apl[:-len(tmd_upper_coor_xy)])
+            lower_apl = np.array(lower_apl[:-len(tmd_lower_coor_xy)])
         self.results.train[self.uidx, self.index, 0] = upper_apl
         self.results.train[self.lidx, self.index, 0] = lower_apl
         # TODO Local normal calculation
@@ -324,8 +342,13 @@ class PropertyCalculation(LeafletAnalysisBase):
         # ------------------------------ Order parameter ------------------------------------------------------------- #
         self.order_parameter()
         # ------------------------------ Weight Matrix --------------------------------------------------------------- #
-        upper_weight_matrix = self.weight_matrix(upper_vor, pbc_idx=upper_pbc_idx, leaflet=0)
-        lower_weight_matrix = self.weight_matrix(lower_vor, pbc_idx=lower_pbc_idx, leaflet=1)
+        upper_weight_matrix = self.weight_matrix(upper_vor, pbc_idx=upper_pbc_idx, coor_xy=upper_coor_xy)
+        lower_weight_matrix = self.weight_matrix(lower_vor, pbc_idx=lower_pbc_idx, coor_xy=lower_coor_xy)
+        if self.tmd_protein is not None:
+            # Remove TMD Protein numbers from weight matrix
+            upper_weight_matrix = upper_weight_matrix[:-len(tmd_upper_coor_xy),:-len(tmd_upper_coor_xy)]
+            lower_weight_matrix = lower_weight_matrix[:-len(tmd_lower_coor_xy),:-len(tmd_lower_coor_xy)]
+
         # Keep weight matrices in scipy.sparse.csr_array format since both is sparse matrices
         self.results["upper_weight_all"].append(csr_array(upper_weight_matrix))
         self.results["lower_weight_all"].append(csr_array(lower_weight_matrix))
