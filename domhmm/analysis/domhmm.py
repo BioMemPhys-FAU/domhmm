@@ -541,14 +541,14 @@ class PropertyCalculation(LeafletAnalysisBase):
                     if gmm is not None:
                         hmm_data = data[1][leaflet]
                         hmm = self.fit_hmm(data=hmm_data, gmm=gmm, hmm_kwargs=hmm_kwargs,
-                                           n_repeats=2)
+                                           n_repeats=self.n_init_hmm)
                         temp_dict[leaflet] = hmm
                     else:
                         temp_dict[leaflet] = None
                     log.info(f"Leaflet {leaflet}, {resname} Gaussian Hidden Markov Model is trained.")
                 self.results["HMM"][resname] = temp_dict
             else:
-                hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
+                hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=self.n_init_hmm)
                 self.results["HMM"][resname] = hmm
                 log.info(f"{resname} Gaussian Hidden Markov Model is trained.")
         if self.result_plots:
