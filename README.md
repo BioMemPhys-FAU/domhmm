@@ -102,6 +102,8 @@ model.run()
 - Be aware that for sterol tails configuration first element of array represents head part and second element represents tail part
 - You can change run configuration to decide start frame, end frame and step size such as `model.run(start=0, stop=100, step=5)`
 - `membrane_select` is used to select residues of membranes. There should be no other residues beside membrane ones
+- Since `result_plots` option is set to enable, intermediate plots will be shown as in below image. 
+![Example Script Intermediate Plots](docs/images/Figure1_v1.png)
 
 ### Copyright
 

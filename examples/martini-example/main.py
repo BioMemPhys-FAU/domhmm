@@ -26,7 +26,7 @@ if __name__ == "__main__":
              "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
 
     # In Sterols, there is one dimension array which first element is represents head part and second element
-    # presents beggining part of sterol's chain
+    # presents beginning part of sterol's chain
     sterols = {"CHOL": ["ROH", "C1"]}
     sterol_heads = {"CHOL": "ROH"}
     sterol_tails = {"CHOL": ["ROH", "C1"]}
@@ -43,11 +43,7 @@ if __name__ == "__main__":
                                       result_plots=True)
 
     # run option can be updated by parameters such as start=0, stop=100, step=5
-    model.run(start=0, stop=100)
-
-    # Clustering result is in dictionary format such as
-    # {frame_number : [[Cluster 1 Residue Indexes], [Cluster 2 Residue Indexes], ...]}
-    clusters = model.results["Clustering"]
+    model.run()
 
     # For further work, user can use training data which contains area per lipid and Scc order parameters
     data = model.results["train_data_per_type"]

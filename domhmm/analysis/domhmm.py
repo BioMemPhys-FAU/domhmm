@@ -648,6 +648,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.text(s="Tolerance 1e-4", x=1, y=1E-4 + 0.00005, color="k", fontsize=15)
         plt.title("a", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
+        # TODO Add plot save option to here
+        # plt.savefig("a.pdf")
         plt.show()
 
     def predict_states(self):
@@ -796,6 +798,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.xlim(8, 10)
         plt.title("b", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
+        # TODO Add plot save option to here
+        # plt.savefig("b.pdf")
         plt.show()
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
@@ -917,6 +921,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         plt.title("c", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
+        # TODO Add plot save option to here
+        # plt.savefig("c.pdf")
         plt.show()
 
     def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
@@ -1015,7 +1021,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         n_frames = self.n_frames
         # Plot %5, %50 and %95 points of frame list
-        frame_list = [int(n_frames / 20), int(n_frames / 2), int(n_frames / 1.05)]
+        # frame_list = [int(n_frames / 20), int(n_frames / 2), int(n_frames / 1.05)]
+        frame_list = [100, 1000, 2000]
         fig, ax = plt.subplots(1, len(frame_list), figsize=(20, 5))
 
         # Iterate over three frames illustrate the clustering results
@@ -1074,14 +1081,16 @@ class PropertyCalculation(LeafletAnalysisBase):
             ax[k].set_aspect("equal")
 
         plt.subplots_adjust(wspace=-0.45)
-        ax[0].set_title("a", fontsize=20, fontweight="bold", loc="left")
-        ax[1].set_title("b", fontsize=20, fontweight="bold", loc="left")
-        ax[2].set_title("c", fontsize=20, fontweight="bold", loc="left")
+        ax[0].set_title("d", fontsize=20, fontweight="bold", loc="left")
+        # ax[1].set_title("b", fontsize=20, fontweight="bold", loc="left")
+        # ax[2].set_title("c", fontsize=20, fontweight="bold", loc="left")
 
         ax[0].text(s=f"Frame {self.start + frame_list[0]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
         ax[1].text(s=f"Frame {self.start + frame_list[1]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
         ax[2].text(s=f"Frame {self.start + frame_list[2]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
         plt.tight_layout()
+        # TODO Add plot save option to here
+        # plt.savefig("d.pdf")
         plt.show()
 
     def result_clustering(self):
