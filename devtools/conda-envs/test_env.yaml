@@ -4,7 +4,7 @@ channels:
   - defaults
 dependencies:
   # Base depends
-  - python=3.9
+  - python
   - pip
 
   # MDAnalysis
