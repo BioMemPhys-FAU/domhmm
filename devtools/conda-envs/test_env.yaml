@@ -4,7 +4,7 @@ channels:
   - defaults
 dependencies:
   # Base depends
-  - python
+  - python=3.9
   - pip
 
   # MDAnalysis
@@ -12,6 +12,7 @@ dependencies:
 
   # Functionality
   - hmmlearn
+  - networkx
 
   # Testing
   - pytest
