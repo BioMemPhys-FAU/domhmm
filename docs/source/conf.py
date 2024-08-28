@@ -23,11 +23,11 @@ import domhmm
 
 project = 'DomHMM'
 copyright = (
-    "2023, Marius FW Trollmann, Yusuf Eren Tunc. "
+    "2023, Marius FW Trollmann, Yusuf Eren Tunç. "
     "Project structure based on the "
     "MDAnalysis Cookiecutter version 0.1"
 )
-author = 'Marius FW Trollmann, Yusuf Eren Tunc'
+author = 'Marius FW Trollmann, Yusuf Eren Tunç'
 
 # The short X.Y version
 version = domhmm.__version__

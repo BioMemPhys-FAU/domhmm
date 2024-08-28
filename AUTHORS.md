@@ -1,6 +1,6 @@
 # Authors
 
-domhmm was created by Marius FW Trollmann in 2023.
+DomHMM was created by Marius FW Trollmann and Yusuf Eren Tunç in 2024.
 
 
 All contributing authors are listed in this file below.
@@ -18,6 +18,7 @@ The rules for this file:
   * Please start a new section for each new year
   * Don't ever delete anything
 -->
-
+**2024**
+- Yusuf Eren Tunç <@yusuferentunc>
 **2023**
 - Marius FW Trollmann <@m-a-r-i-u-s>

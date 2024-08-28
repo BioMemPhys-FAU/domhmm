@@ -27,8 +27,8 @@ except:
 setup(
     # Self-descriptive entries which should always be present
     name='DomHMM',
-    author='Marius FW Trollmann',
-    author_email='marius.trollmann@fau.de',
+    author='Marius FW Trollmann, Yusuf Eren Tunç',
+    author_email='marius.trollmann@fau.de, eren.tunc@fau.de',
     description=short_description,
     long_description=long_description,
     long_description_content_type="text/markdown",
