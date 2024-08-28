@@ -119,6 +119,7 @@ class LeafletAnalysisBase(AnalysisBase):
             verbose: bool = False,
             result_plots: bool = False,
             trained_hmms: Dict[str, Any] = {},
+            n_init_hmm: int = 2,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -145,6 +146,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.verbose = verbose
         self.result_plots = result_plots
         self.tmd_protein = None
+        self.n_init_hmm = n_init_hmm
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
