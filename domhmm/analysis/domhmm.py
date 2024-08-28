@@ -541,14 +541,14 @@ class PropertyCalculation(LeafletAnalysisBase):
                     if gmm is not None:
                         hmm_data = data[1][leaflet]
                         hmm = self.fit_hmm(data=hmm_data, gmm=gmm, hmm_kwargs=hmm_kwargs,
-                                           n_repeats=2)
+                                           n_repeats=self.n_init_hmm)
                         temp_dict[leaflet] = hmm
                     else:
                         temp_dict[leaflet] = None
                     log.info(f"Leaflet {leaflet}, {resname} Gaussian Hidden Markov Model is trained.")
                 self.results["HMM"][resname] = temp_dict
             else:
-                hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=2)
+                hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs, n_repeats=self.n_init_hmm)
                 self.results["HMM"][resname] = hmm
                 log.info(f"{resname} Gaussian Hidden Markov Model is trained.")
         if self.result_plots:
@@ -886,21 +886,28 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         Plots average order state for each lipid type per frame
         """
+
+        #Get number of lipid residues
         resnum = len(self.unique_resnames)
+
+        #For each residue type there is an empty list initialized
         g_star_i_temp = [[] for _ in range(resnum)]
+
+        #Iterate over all frames
         for step in range(self.n_frames):
+
+            #Get the indices of the lipids in leaflet 0 and 1 and their corresponding positions
             index_dict_0, pos_dict_0 = self.get_leaflet_step_order_index(leaflet=0, step=step)
             index_dict_1, pos_dict_1 = self.get_leaflet_step_order_index(leaflet=1, step=step)
-            temp_index_list_0 = [0]
-            temp_index_list_1 = [0]
-            for resname in self.unique_resnames:
-                temp_index_list_0.append(temp_index_list_0[-1] + len(index_dict_0[resname]) - 1)
-                temp_index_list_1.append(temp_index_list_1[-1] + len(index_dict_1[resname]) - 1)
-            for i in range(resnum):
+
+            #Iterate over the lipid types
+            for i,rsn in enumerate(self.unique_resnames):
+
+                #Merge Getis-Ord values for the upper and the lower leaflet to display them as a histogram
                 g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step]
-                                                   [temp_index_list_0[i]:temp_index_list_0[i + 1]],
+                                                   [ index_dict_0[rsn] ], #The G* values should be sorted according to the indices of the resids
                                                    self.results['Getis_Ord'][1]['g_star_i_1'][step]
-                                                   [temp_index_list_1[i]:temp_index_list_1[i + 1]]))
+                                                   [ index_dict_1[rsn] ])) #The G* values should be sorted according to the indices of the resids
 
         for i in range(resnum):
             plt.hist(g_star_i_temp[i], bins=np.linspace(-3, 3, 201), density=True, histtype="step", lw=2,
@@ -1268,12 +1275,34 @@ class PropertyCalculation(LeafletAnalysisBase):
         order_states : numpy.ndarray
             Numpy array contains order state results of the leaflet at step in order of system's residues
         """
-        temp = []
+
+        #Init two empty lists for ...
+        temp = [] #... order states prediction
+        idxs = [] #... indices of lipids
+        
+        #Iterate over lipids
         for res, data in self.results.train_data_per_type.items():
+
+            #Get indices from resids (e.g. resid 1, is index 0)
             idx = self.get_residue_idx(self.resids_index_map, data[0])
+
+            #Store the indices of the residues in the current leaflet at the current step
+            idxs.append(idx[self.leaflet_assignment[idx, step] == leaflet])
+
+            #Get the predicted HMM order states for the residues in the current leaflet at the current step
             temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[idx, step] == leaflet])
-        order_states = np.concatenate(temp)
+
+        #Sort the obtained indices
+        sorted_idxs = np.argsort( np.concatenate(idxs) )
+
+        #It is not always the case that the lipid order is equal (e.g., depending on resids of cholesterol for example). Here the order states are sorted
+        #so that they correspond to the resids in the leaflet selection -> With that they should fit to the order of the lipids in the weight matrix
+        order_states = np.concatenate(temp)[sorted_idxs]
+
         return order_states
+
+
+    
 
     def get_leaflet_step_order_index(self, leaflet, step):
         """
