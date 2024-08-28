@@ -1021,8 +1021,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         n_frames = self.n_frames
         # Plot %5, %50 and %95 points of frame list
-        # frame_list = [int(n_frames / 20), int(n_frames / 2), int(n_frames / 1.05)]
-        frame_list = [100, 1000, 2000]
+        frame_list = [int(n_frames / 20), int(n_frames / 2), int(n_frames / 1.05)]
         fig, ax = plt.subplots(1, len(frame_list), figsize=(20, 5))
 
         # Iterate over three frames illustrate the clustering results
