@@ -119,6 +119,10 @@ Let's dive into each parameter's details.
 Optional Parameters
 -------------------
 
+* ``asymmetric_membrane``
+
+It needs to be enabled if leaflets are not symmetric. With this option, models are fitted by separated data for each leaflets.
+
 * ``frac``
 
 Fraction of box length in x and y outside the unit cell considered for area per lipid calculation by Voronoi. It is an optimization process parameter which is set to 0.5 as default.
@@ -170,5 +174,18 @@ Parameter option for reusing past DomHMM HMM models. If there are several analys
         reuse_hmm_model = pickle.load(file)
     model_2 = domhmm.PropertyCalculation( ... ,
                                          trained_hmms=reuse_hmm_models)
+
+* ``tmd_protein_list``
+
+Transmembrane domain (tmd) protein list to include area per lipid calculation. Since tmd proteins are take up space in upper, lower or both leaflets, three backbone atoms of protein for each leaflet should be included as in this parameter to increase success of identification.
+
+.. code-block::
+
+    # Selecting three backbone atoms that is touching to upper leaflet
+    upBB = uni.select_atoms('name BB')[0:3]
+    # Selecting three backbone atoms that is touching to lower leaflet
+    loBB = uni.select_atoms('name BB')[-3:]
+    # List can be expended with multiple dictionary objects as in more than one tmd protein scenarios.
+    tmd_protein_list = [{"0": upBB, "1": loBB}]
 
 We encourage to check :doc:`tips` section that may contain useful information for your progress.
