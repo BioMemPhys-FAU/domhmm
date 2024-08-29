@@ -12,6 +12,7 @@ dependencies:
 
   # Functionality
   - hmmlearn
+  - networkx
 
   # Testing
   - pytest

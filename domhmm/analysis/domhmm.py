@@ -269,7 +269,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Get number of frame from trajectory
         self.frame = self.universe.trajectory.ts.frame
         # Calculate correct index if skipping step not equals 1 or start point not equals 0
-        self.index = self.frame // self.step - self.start
+        self.index = ( self.frame - self.start ) // self.step
 
         # Update leaflet assignment (if leaflet_frame_rate is None, leaflets will never get updated during analysis)
         if self.leaflet_frame_rate is not None and not self.index % self.leaflet_frame_rate:
@@ -757,7 +757,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         """
         diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
-        if diff_percents > 0.1:
+        if diff_percents > 0.0:
             return np.abs(prediction_results - 1)
         else:
             return prediction_results

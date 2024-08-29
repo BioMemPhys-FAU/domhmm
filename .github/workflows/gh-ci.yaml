@@ -40,7 +40,7 @@ jobs:
     if: "github.repository == 'BioMemPhys-FAU/domhmm'"
     needs: environment-config
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
         fail-fast: false
         matrix:
