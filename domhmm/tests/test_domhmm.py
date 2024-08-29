@@ -187,9 +187,8 @@ class TestDomhmm:
         """
         Demo run with standard options
         """
-        pass
-        # analysis.run(start=0, stop=100)
-        # self.result_parameter_check(analysis, "analysis")
+        analysis.run(start=0, stop=100)
+        self.result_parameter_check(analysis, "analysis")
 
     def test_run_reuse_hmm_model(self, analysis_reuse_hmm_model):
         """
