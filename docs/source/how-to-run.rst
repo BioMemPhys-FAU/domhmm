@@ -171,4 +171,17 @@ Parameter option for reusing past DomHMM HMM models. If there are several analys
     model_2 = domhmm.PropertyCalculation( ... ,
                                          trained_hmms=reuse_hmm_models)
 
+* ``tmd_protein_list``
+
+Transmembrane domain (tmd) protein list to include area per lipid calculation. Since tmd proteins are take up space in upper, lower or both leaflets, three backbone atoms of protein for each leaflet should be included as in this parameter to increase success of identification.
+
+.. code-block::
+
+    # Selecting three backbone atoms that is touching to upper leaflet
+    upBB = uni.select_atoms('name BB')[0:3]
+    # Selecting three backbone atoms that is touching to lower leaflet
+    loBB = uni.select_atoms('name BB')[-3:]
+    # List can be expended with multiple dictionary objects as in more than one tmd protein scenarios.
+    tmd_protein_list = [{"0": upBB, "1": loBB}]
+
 We encourage to check :doc:`tips` section that may contain useful information for your progress.
