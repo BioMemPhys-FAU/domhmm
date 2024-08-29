@@ -40,7 +40,7 @@ jobs:
     if: "github.repository == 'BioMemPhys-FAU/domhmm'"
     needs: environment-config
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 20
     strategy:
         fail-fast: false
         matrix:
@@ -85,10 +85,10 @@ jobs:
         installer:  mamba
         shell: bash  -l {0}
 
-    - name: Install package
-      run: |
-        python --version
-        python -m pip install .  --no-deps 
+#    - name: Install package
+#      run: |
+#        python --version
+#        python -m pip install .  --no-deps
 
     - name: Python information
       run: |
