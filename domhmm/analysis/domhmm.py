@@ -757,7 +757,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         """
         diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
-        if diff_percents > 0.1:
+        if diff_percents > 0.0:
             return np.abs(prediction_results - 1)
         else:
             return prediction_results
