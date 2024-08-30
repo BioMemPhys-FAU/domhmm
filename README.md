@@ -25,6 +25,16 @@ If possible, we strongly recommend that you use
 Below we provide instructions both for `conda` and
 for `pip`.
 
+#### Installing directly from the repository without cloning
+
+If you want to install the latest version of DomHMM directly from the repository (either from the main branch or any other branch), you can use the following command:
+
+```
+python3 -m pip install git+https://github.com/BioMemPhys-FAU/domhmm@main
+```
+
+#### Installing directly from the repository without cloneing
+
 First clone repository:
 ```
 git clone https://github.com/BioMemPhys-FAU/domhmm
