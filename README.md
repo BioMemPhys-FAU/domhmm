@@ -102,6 +102,29 @@ the dependencies required for tests and docs with:
 pip install -e ".[test,doc]"
 ```
 
+Our test suite requires the installation of `pytest`. To install this package via `conda` or `mamba` run:
+
+```
+conda install pytest
+```
+
+Or,
+```
+mamba install pytest
+```
+
+To run the test, first clone the repository
+```
+git clone https://github.com/BioMemPhys-FAU/domhmm
+```
+
+Change into the directory and run `pytest`,
+
+```
+cd domhmm
+pytest --pyargs domhmm
+```
+
 Usage
 --------------
 
