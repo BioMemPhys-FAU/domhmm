@@ -16,34 +16,28 @@ However, the identification of Lo or Ld domains from coarse grained or atomistic
 
 DomHMM is bound by a [Code of Conduct](https://github.com/BioMemPhys-FAU/domhmm/blob/main/CODE_OF_CONDUCT.md).
 
-### Installation
+Features
+--------------
+
+With DomHMM you can:
+
+- Calculate the area per lipid for each lipid in every leaflet.
+- Compute the average S<sub>CC</sub> parameter for each acyl chain of every lipid.
+- Easily identify lateral nano- and microdomains in your membrane simulations.
+
+Installation
+--------------
 
 To build DomHMM from source,
 we highly recommend using virtual environments.
 If possible, we strongly recommend that you use
 [Anaconda](https://docs.conda.io/en/latest/) as your package manager.
-Below we provide instructions both for `conda` and
+Below we provide instructions both for `conda`/`mamba` and
 for `pip`.
 
-#### Installing directly from the repository without cloning
+#### Virtual environment
 
-If you want to install the latest version of DomHMM directly from the repository (either from the main branch or any other branch), you can use the following command:
-
-```
-python3 -m pip install git+https://github.com/BioMemPhys-FAU/domhmm@main
-```
-
-#### Installing directly from the repository without cloneing
-
-First clone repository:
-```
-git clone https://github.com/BioMemPhys-FAU/domhmm
-cd domhmm
-```
-
-#### With conda
-
-Ensure that you have [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) installed.
+Ensure that you have [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) or [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) installed.
 
 Create a virtual environment and activate it:
 
@@ -52,7 +46,29 @@ conda create --name domhmm
 conda activate domhmm
 ```
 
-Install the development and documentation dependencies:
+Or,
+```
+mamba create --name domhmm
+mamba activate domhmm
+```
+
+#### Installing directly from the repository without cloning
+
+If you want to install the latest version of DomHMM directly from the repository (either from the `main` branch or any other branch), you can use the following command:
+
+```
+python3 -m pip install git+https://github.com/BioMemPhys-FAU/domhmm@main
+```
+
+#### Installing directly from the repository with cloning
+
+First clone repository:
+```
+git clone https://github.com/BioMemPhys-FAU/domhmm
+cd domhmm
+```
+
+Install the development and documentation dependencies (with conda or with mamba):
 
 ```
 conda env update --name domhmm --file devtools/conda-envs/test_env.yaml
@@ -85,6 +101,9 @@ the dependencies required for tests and docs with:
 ```
 pip install -e ".[test,doc]"
 ```
+
+Usage
+--------------
 
 ### Example Script
 You can use DomHMM library like in this example script
