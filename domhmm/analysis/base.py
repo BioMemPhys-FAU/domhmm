@@ -232,14 +232,14 @@ class LeafletAnalysisBase(AnalysisBase):
             for each in tmd_protein_list:
                 for leaflet, query in each.items():
                     if leaflet not in ["0", "1"]:
-                        raise ValueError("TDM Protein list should contain dictionaries in format {'0': ..., '1': ...} "
+                        raise ValueError("Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
                                          "where 0 for lower leaflet and 1 for upper leaflet.")
                     if isinstance(query, AtomGroup):
                         # Take center of geometry of three positions
                         cog = np.mean(query.positions, axis=0)
                         self.tmd_protein[leaflet].append(cog)
                     # Character string was provided as input, assume it contains a selection for an MDAnalysis.AtomGroup
-                    elif isinstance(leaflet_select[i], str):
+                    elif isinstance(leaflet_select[int(leaflet)], str):
                         # Try to create a MDAnalysis.AtomGroup, raise a ValueError if not selection group could be
                         # provided
                         try:
@@ -256,7 +256,7 @@ class LeafletAnalysisBase(AnalysisBase):
             # An unknown argument is provided for tdm_protein_list
             raise ValueError(
                 "Please provide tdm_protein_list in list format such as [{'0': upper leaflet related 3 atom, "
-                "'1': lower leaflet related 3 atom }, {'0': ..., '1': ...}]")
+                "'1': lower leaflet related 3 atom }, {'0': ..., '1': ...}]. Every dictionary stands for an individual transmembrane protein.")
         # -----------------------------------------------------------------HMMs--------------------------------------- #
 
         # Check for user-specified trained HMM
