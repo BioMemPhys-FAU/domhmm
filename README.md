@@ -25,6 +25,11 @@ With DomHMM you can:
 - Compute the average S<sub>CC</sub> parameter for each acyl chain of every lipid.
 - Easily identify lateral nano- and microdomains in your membrane simulations.
 
+Documenation
+--------------
+
+The documentation of DomHMM can found [here](https://domhmm.readthedocs.io/en/latest/?badge=latest).
+
 Installation
 --------------
 
