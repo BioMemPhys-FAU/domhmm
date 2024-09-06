@@ -9,7 +9,7 @@ domhmm
 
 The study of lateral nano- and microdomains in biological lipid membranes is an important area in membrane biophysics.
 Molecular Dynamics (MD) simulations are used to investigate these lateral heterogeneities in lipid bilayers, offering complementary insights to experimental studies by shedding light on the underlying dynamics.
-However, the identification of Lo or Ld domains from coarse grained or atomistic MD simulations still poses a huge effort on researchers during the analysis.
+However, the identification of Lo or Ld domains from coarse-grained or atomistic MD simulations still poses a huge effort for researchers during the analysis.
 **DomHMM** addresses this challenge by providing a reliable and straightforward workflow (see Trollmann & Böckmann, 2024 [1]) for domain identification in membrane simulations at different levels of resolution. This open-source package is built using the cookiecutter template for [MDAKits](https://www.mdanalysis.org/2022/08/24/mdakits-intro/).
 
 [1] M. F. W. Trollmann, R. A. Böckmann, Characterization of domain formation in complex membranes. Methods Enzymol. 701, 1–46 (2024).
@@ -25,10 +25,10 @@ With DomHMM you can:
 - Compute the average S<sub>CC</sub> parameter for each acyl chain of every lipid.
 - Easily identify lateral nano- and microdomains in your membrane simulations.
 
-Documenation
+Documentation
 --------------
 
-The documentation of DomHMM can found [here](https://domhmm.readthedocs.io/en/latest/?badge=latest).
+The documentation of DomHMM can be found [here](https://domhmm.readthedocs.io/en/latest/?badge=latest).
 
 Installation
 --------------
@@ -80,13 +80,13 @@ conda env update --name domhmm --file devtools/conda-envs/test_env.yaml
 conda env update --name domhmm --file docs/requirements.yaml
 ```
 
-Build this package from source:
+Build this package from the source:
 
 ```
 pip install -e .
 ```
 
-And when you are finished, you can exit the virtual environment with:
+When you are finished, you can exit the virtual environment with the following:
 
 ```
 conda deactivate
@@ -94,7 +94,7 @@ conda deactivate
 
 #### With pip
 
-To build the package from source, run:
+To build the package from the source, run the following:
 
 ```
 pip install -e .
@@ -134,7 +134,7 @@ Usage
 --------------
 
 ### Example Script
-You can use DomHMM library like in this example script
+You can use the DomHMM library like in this example script
 ```
 import MDAnalysis as mda
 import domhmm
@@ -160,11 +160,11 @@ model = domhmm.PropertyCalculation(universe_or_atomgroup=uni,
 model.run()
 ```
 - In this example, there are two lipids and one sterol with automatic leaflet detection option
-- Be aware the order of the tails should be same such as `{"Lipid_1":[[Acyl_Chain_1],[Acyl_Chain_2]], "Lipid_2":[[Acyl_Chain_1],[Acyl_Chain_2]]}`
-- Be aware that for sterol tails configuration first element of array represents head part and second element represents tail part
-- You can change run configuration to decide start frame, end frame and step size such as `model.run(start=0, stop=100, step=5)`
-- `membrane_select` is used to select residues of membranes. There should be no other residues beside membrane ones
-- Since `result_plots` option is set to enable, intermediate plots will be shown as in below image. 
+- Be aware the order of the tails should be the same such as `{"Lipid_1":[[Acyl_Chain_1],[Acyl_Chain_2]], "Lipid_2":[[Acyl_Chain_1],[Acyl_Chain_2]]}`
+- Be aware that for sterol tails configuration first element of the array represents the head part and the second element represents the tail part
+- You can change the run configuration to decide start frame, end frame, and step size such as `model.run(start=0, stop=100, step=5)`
+- `membrane_select` is used to select residues of membranes. There should be no other residues besides membrane ones
+- Since `result_plots` option is set to enable, intermediate plots will be shown as in the below image. 
 ![Example Script Intermediate Plots](docs/images/Figure1_v1.png)
 
 ### Copyright
@@ -179,4 +179,4 @@ Copyright (c) 2023, Marius FW Trollmann
  
 Project based on the 
 [MDAnalysis Cookiecutter](https://github.com/MDAnalysis/cookiecutter-mda) version 0.1.
-Please cite [MDAnalysis](https://github.com/MDAnalysis/mdanalysis#citation) when using domhmm in published work.
+Please cite [MDAnalysis](https://github.com/MDAnalysis/mdanalysis#citation) when using DomHMM in published work.
