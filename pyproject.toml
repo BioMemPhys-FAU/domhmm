@@ -24,6 +24,8 @@ dependencies = [
     "hmmlearn",
     "networkx",
     "numpy",
+    "scikit-learn == 1.4.2",
+    "scipy == 1.13.0"
 
 ]
 keywords = [
