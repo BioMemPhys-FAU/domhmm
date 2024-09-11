@@ -21,11 +21,11 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "MDAnalysis>=2.0.0",
-    "hmmlearn == 0.3.2",
-    "networkx == 3.2.1",
-    "numpy == 1.26.4",
-    "scikit-learn == 1.4.2",
-    "scipy == 1.13.0"
+    "hmmlearn",
+    "networkx",
+    "numpy",
+    "scikit-learn",
+    "scipy"
 
 ]
 keywords = [
