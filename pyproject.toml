@@ -23,6 +23,8 @@ dependencies = [
     "MDAnalysis>=2.0.0",
     "hmmlearn",
     "networkx",
+    "numpy",
+
 ]
 keywords = [
     "molecular simulations",
