@@ -1138,7 +1138,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                     order_states_leaf = self.get_leaflet_step_order(leaflet=j, step=i)
                 else:
                     # Use the lipid type for the chemical clustering
-                    order_states_leaft = self.get_leaflet_step_lipid_type(leaflet=j, step=i)
+                    order_states_leaf = self.get_leaflet_step_lipid_type(leaflet=j, step=i)
 
                 core_lipids = self.assign_core_lipids(weight_matrix_f=self.results[f"{leaflet_}_weight_all"][i],
                                                       g_star_i_f=self.results['Getis_Ord'][j][f'g_star_i_{j}'][i],
