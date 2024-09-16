@@ -56,6 +56,8 @@ class LeafletAnalysisBase(AnalysisBase):
          (head as first, tail beginning as second)
     tmd_protein_list: Union["auto", List[AtomGroup], List[str]]
          Transmembrane domain protein list to include area per lipid calculation
+    cluster_group: list
+         List of lipid residue types that are selected to find clusters based on chemical composition rather than lipid structure
     frac: float
         fraction of box length in x and y outside the unit cell considered for Voronoi calculation
     p_value: float
@@ -269,7 +271,7 @@ class LeafletAnalysisBase(AnalysisBase):
         else:
             # User-specified trained HMM provided, check for consistency with expected format
 
-            assert not any(self.cluster_groups), "Chemical clustering is required, but pre-trained HMMs were provided. Chemical clustering does not require HMMs. Will terminate!"
+            assert not any(self.cluster_group), "Chemical clustering is required, but pre-trained HMMs were provided. Chemical clustering does not require HMMs. Will terminate!"
 
             # Check for assymmetric membrane
             if self.asymmetric_membrane:
