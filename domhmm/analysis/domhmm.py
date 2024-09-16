@@ -863,7 +863,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             # In case the code was already executed beforehand
             weight_matrix[range(n), range(n)] = 0.
 
-            if not any(cluster_group):
+            if not any(self.cluster_group):
                 # Get the order state of each lipid in the leaflet at the current time step
                 order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
             else:
