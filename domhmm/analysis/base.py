@@ -111,6 +111,7 @@ class LeafletAnalysisBase(AnalysisBase):
             sterol_heads: Dict[str, Any] = {},
             sterol_tails: Dict[str, Any] = {},
             tmd_protein_list: Union[None, "AtomGroup", str, list] = None,
+            cluster_group: list = [],
             frac: float = 0.5,
             p_value: float = 0.05,
             leaflet_frame_rate: Union[None, int] = None,
@@ -146,6 +147,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.verbose = verbose
         self.result_plots = result_plots
         self.tmd_protein = None
+        self.cluster_group = cluster_group
         self.n_init_hmm = n_init_hmm
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
