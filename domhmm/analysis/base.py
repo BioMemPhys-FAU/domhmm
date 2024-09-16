@@ -269,6 +269,8 @@ class LeafletAnalysisBase(AnalysisBase):
         else:
             # User-specified trained HMM provided, check for consistency with expected format
 
+            assert not any(self.cluster_groups), "Chemical clustering is required, but pre-trained HMMs were provided. Chemical clustering does not require HMMs. Will terminate!"
+
             # Check for assymmetric membrane
             if self.asymmetric_membrane:
                 # Asymmetric membrane functionality was triggered! Assuming same/different lipid types per leaflet
