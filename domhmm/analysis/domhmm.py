@@ -364,14 +364,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # -------------------------------------------------------------
 
         # Check for user-provided HMMs
-        if not any(self.trained_hmms):
-            # No user-provided HMMs, perform usual workflow
-            log.info("Gaussian Mixture Model training is starting.")
-            self.GMM(gmm_kwargs=self.gmm_kwargs)
-
-            log.info("Hidden Markov Model training is starting.")
-            self.HMM(hmm_kwargs=self.hmm_kwargs)
-        else:
+        if any(self.trained_hmms):
             # User-provided HMMs found, use them!
             log.info("No Gaussian Mixture Model is trained.")
             log.info("No Hidden Markov Model is trained. Instead use the user-provided HMMs.")
@@ -392,6 +385,21 @@ class PropertyCalculation(LeafletAnalysisBase):
             if self.result_plots:
                 # Plot prediction result
                 self.predict_plot()
+        
+        #Check for chemical clustering
+        elif any(self.cluster_group):
+            #List for chemical clustering is not empty. For chemical clustering no GMM and no HMM is required.
+            log.info("Chemical clustering required. No Gaussian Mixture Model is trained.")
+            log.info("Chemical clustering required. No Hidden Markov Model is trained.")
+            
+        else:
+            # No user-provided HMMs or no chemical clustering, perform usual workflow
+            log.info("Gaussian Mixture Model training is starting.")
+            self.GMM(gmm_kwargs=self.gmm_kwargs)
+
+            log.info("Hidden Markov Model training is starting.")
+            self.HMM(hmm_kwargs=self.hmm_kwargs)
+
 
         log.info("Getis-Ord Statistic calculation is starting.")
 
@@ -855,8 +863,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             # In case the code was already executed beforehand
             weight_matrix[range(n), range(n)] = 0.
 
-            # Get the order state of each lipid in the leaflet at the current time step
-            order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
+            if self.cluster_group == []:
+                # Get the order state of each lipid in the leaflet at the current time step
+                order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
+            else:
+                # Use the lipid type for the chemical clustering
+                order_states = self.get_leaflet_step_lipid_type(leaflet=leaflet, step=step)
 
             # Number of neighbors per lipid -> The number is 0 (or close to 0) for not neighboured lipids
             nneighbor = np.sum(weight_matrix > 1E-5, axis=1)
@@ -973,8 +985,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                 # In case the code was already executed beforehand
                 weight_matrix[range(n), range(n)] = 0.0
 
-                # Get the order state of each lipid in the leaflet at the current time step
-                order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
+                if not any(self.cluster_group):
+                    # Get the order state of each lipid in the leaflet at the current time step
+                    order_states = self.get_leaflet_step_order(leaflet=leaflet, step=step)
+                else:
+                    # Use the lipid type for the chemical clustering
+                    order_states = self.get_leaflet_step_lipid_type(leaflet=leaflet, step=step)
 
                 np.random.shuffle(order_states)
 
@@ -1033,7 +1049,13 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Iterate over three frames illustrate the clustering results
         for k, i in enumerate(frame_list):
-            order_states_0 = self.get_leaflet_step_order(0, i)
+            
+            if not any(self.cluster_group):
+                # Get the order state of each lipid in the leaflet at the current time step
+                order_states_0 = self.get_leaflet_step_order(leaflet=0, step=i)
+            else:
+                # Use the lipid type for the chemical clustering
+                order_states_0 = self.get_leaflet_step_lipid_type(leaflet=0, step=i)
 
             # Clustering
             # ----------------------------------------------------------------------------------------------------------------------
@@ -1110,8 +1132,13 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             # Iterate over both leaflets
             for j, leaflet_ in enumerate(['upper', 'lower']):
-                # Get order states
-                order_states_leaf = self.get_leaflet_step_order(j, i)
+
+                if not any(self.cluster_group):
+                    # Get the order state of each lipid in the leaflet at the current time step
+                    order_states = self.get_leaflet_step_order(leaflet=j, step=i)
+                else:
+                    # Use the lipid type for the chemical clustering
+                    order_states = self.get_leaflet_step_lipid_type(leaflet=j, step=i)
 
                 core_lipids = self.assign_core_lipids(weight_matrix_f=self.results[f"{leaflet_}_weight_all"][i],
                                                       g_star_i_f=self.results['Getis_Ord'][j][f'g_star_i_{j}'][i],
@@ -1300,6 +1327,61 @@ class PropertyCalculation(LeafletAnalysisBase):
             #Get the predicted HMM order states for the residues in the current leaflet at the current step
             temp.append(self.results["HMM_Pred"][res][:, step][self.leaflet_assignment[idx, step] == leaflet])
 
+        #Sort the obtained indices
+        sorted_idxs = np.argsort( np.concatenate(idxs) )
+
+        #It is not always the case that the lipid order is equal (e.g., depending on resids of cholesterol for example). Here the order states are sorted
+        #so that they correspond to the resids in the leaflet selection -> With that they should fit to the order of the lipids in the weight matrix
+        order_states = np.concatenate(temp)[sorted_idxs]
+
+        return order_states
+
+    def get_leaflet_step_lipid_type(self, leaflet, step):
+        """
+        Receive residue's lipid type with respect to the leaflet, and check if it was selected for chemical clustering
+
+        Parameters
+        ----------
+        leaflet : numpy.ndarray
+            leaflet index
+        step: numpy.ndarray
+            step index
+
+        Returns
+        -------
+        order_states : numpy.ndarray
+            Numpy array contains order state results of the leaflet at step in order of system's residues
+        """
+
+        #Init two empty lists for ...
+        temp = [] #... order states prediction
+        idxs = [] #... indices of lipids
+        
+        #Iterate over lipids
+        for res, data in self.results.train_data_per_type.items():
+
+            #Get indices from resids (e.g. resid 1, is index 0)
+            idx = self.get_residue_idx(self.resids_index_map, data[0])
+
+            #Store the indices of the residues in the current leaflet at the current step
+            idxs.append(idx[self.leaflet_assignment[idx, step] == leaflet])
+
+            #Obtain the number of lipids in the current leaflet with the respective residue type
+            #If this would be a non-flippable lipid, the number equals the total number of lipids in the current leaflet
+            num_lipids = np.sum(self.leaflet_assignment[idx, step] == leaflet)
+            
+            #Check if the residue type was selected for the chemical clustering
+            if res in self.cluster_group:
+
+                #Lipids selected for chemical clustering are getting a "1"
+                temp.append( np.ones( num_lipids ) )
+
+            else:
+
+                #Lipids not selected for chemical clustering are getting a "0"
+                temp.append( np.zeros( num_lipids ) )
+
+                
         #Sort the obtained indices
         sorted_idxs = np.argsort( np.concatenate(idxs) )
 
