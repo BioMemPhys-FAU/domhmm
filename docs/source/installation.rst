@@ -2,18 +2,6 @@ Installation
 =============
 Installation can be done in two different ways
 
-.. note::
-    DomHMM is planning to be published also in PyPI. Which means in future, it can be directly install via pip and can be usable without any further actions
-
-GitHub Repository
-------------------
-
-Clone DomHMM's repository and change directory to project directory
-
-.. code-block::
-
-    git clone https://github.com/BioMemPhys-FAU/domhmm
-    cd domhmm
 
 Environment Creation
 ---------------------
@@ -28,16 +16,30 @@ If you don't have any Python environment, you can create a conda environment by
 
     ``conda create`` command creates a conda environment named *domhmm* and ``conda activate`` command starts environment in your terminal. Whenever you close your terminal, you need to use activate command again to restart environment.
 
-After conda environment creation, you can install dependencies via
+
+Installation with PyPI
+-----------------------
+
+For installation, you can directly use pip in project directory.
 
 .. code-block:: console
 
-    pip install -e .
+   pip install domhmm
 
-Installation via pip
----------------------
 
-For direct installation, you can directly use pip in project directory.
+Installation for Development
+------------------------------
+
+This type of installation can be use when pip is not usable, change in source code or contributing DomHMM.
+
+Clone DomHMM's repository and change directory to project directory
+
+.. code-block::
+
+    git clone https://github.com/BioMemPhys-FAU/domhmm
+    cd domhmm
+
+Install dependencies and DomHMM's current version via pip command
 
 .. code-block:: console
 
