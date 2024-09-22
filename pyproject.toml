@@ -18,7 +18,7 @@ maintainers = [
     {name = "Yusuf Eren Tunç", email = "eren.tunc@fau.de"},
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "MDAnalysis>=2.0.0",
     "hmmlearn == 0.3.2",
