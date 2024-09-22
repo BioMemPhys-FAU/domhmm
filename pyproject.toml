@@ -18,14 +18,14 @@ maintainers = [
     {name = "Yusuf Eren Tunç", email = "eren.tunc@fau.de"},
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "MDAnalysis>=2.0.0",
     "hmmlearn == 0.3.2",
-    "networkx == 3.2.1",
-    "numpy == 1.26.4",
-    "scikit-learn == 1.4.2",
-    "scipy == 1.13.0"
+    "networkx >= 3.0.0",
+    "numpy >= 1.26.0, <2.0.0",
+    "scikit-learn >= 1.4.0",
+    "scipy >= 1.13.0"
 
 ]
 keywords = [
