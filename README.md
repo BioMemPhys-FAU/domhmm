@@ -57,6 +57,14 @@ mamba create --name domhmm
 mamba activate domhmm
 ```
 
+#### Installing with PyPI
+
+DomHMM can be installed directly with pip
+
+```
+pip install domhmm
+```
+
 #### Installing directly from the repository without cloning
 
 If you want to install the latest version of DomHMM directly from the repository (either from the `main` branch or any other branch), you can use the following command:
