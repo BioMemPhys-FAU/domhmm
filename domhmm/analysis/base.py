@@ -70,6 +70,8 @@ class LeafletAnalysisBase(AnalysisBase):
         Debug option to print step progress, warnings and errors
     result_plots: bool
         Plotting intermediate result option
+    save_plots : bool
+        Option for saving intermediate plots in pdf format
     trained_hmms: dict
         User-specific HMM (e.g., pre-trained on another simulation)
 
@@ -120,6 +122,7 @@ class LeafletAnalysisBase(AnalysisBase):
             result_plots: bool = False,
             trained_hmms: Dict[str, Any] = {},
             n_init_hmm: int = 2,
+            save_plots: bool = False,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -147,6 +150,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.result_plots = result_plots
         self.tmd_protein = None
         self.n_init_hmm = n_init_hmm
+        self.save_plots = save_plots
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 

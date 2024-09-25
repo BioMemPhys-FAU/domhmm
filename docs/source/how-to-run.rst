@@ -135,6 +135,10 @@ Probability value that is used for z-score calculation. It is a determination pe
 
 Plotting option for debugging. While enabled, DomHMM will print Hidden Markov model iterations result, prediction results, Getis-Ord statistic results and clustering result of three frame.
 
+* ``save_plots``
+
+Option for saving result plots in pdf format.
+
 * ``verbose``
 
 Verbose option for debugging. Although, DomHMM doesn't print middle values, it shows which steps are done and shows middle step plots which may give clues about succession of model.
