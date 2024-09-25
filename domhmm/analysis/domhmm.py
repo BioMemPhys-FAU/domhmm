@@ -648,8 +648,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.text(s="Tolerance 1e-4", x=1, y=1E-4 + 0.00005, color="k", fontsize=15)
         plt.title("a", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
-        # TODO Add plot save option to here
-        # plt.savefig("a.pdf")
+        if self.save_plots:
+            plt.savefig("a.pdf")
         plt.show()
 
     def predict_states(self):
@@ -798,8 +798,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.xlim(8, 10)
         plt.title("b", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
-        # TODO Add plot save option to here
-        # plt.savefig("b.pdf")
+        if self.save_plots:
+            plt.savefig("b.pdf")
         plt.show()
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
@@ -928,8 +928,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         plt.title("c", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
-        # TODO Add plot save option to here
-        # plt.savefig("c.pdf")
+        if self.save_plots:
+            plt.savefig("c.pdf")
         plt.show()
 
     def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
@@ -1095,8 +1095,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         ax[1].text(s=f"Frame {self.start + frame_list[1]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
         ax[2].text(s=f"Frame {self.start + frame_list[2]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
         plt.tight_layout()
-        # TODO Add plot save option to here
-        # plt.savefig("d.pdf")
+        if self.save_plots:
+            plt.savefig("d.pdf")
         plt.show()
 
     def result_clustering(self):
