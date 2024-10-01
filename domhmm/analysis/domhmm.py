@@ -629,18 +629,22 @@ class PropertyCalculation(LeafletAnalysisBase):
         Plots Hidden Markov Models training history
 
         """
+        x_len = 0
         for resname, ghmm in self.results['HMM'].items():
             if self.asymmetric_membrane:
                 for leaflet in range(2):
+                    x_len = max(x_len,len(ghmm[leaflet].monitor_.history) - 1)
                     plt.semilogy(np.arange(len(ghmm[leaflet].monitor_.history) - 1),
                                  np.diff(np.array(ghmm[leaflet].monitor_.history)),
                                  ls="-", label=f"{resname}_{leaflet}", lw=2)
             else:
+                x_len = max(x_len, len(ghmm.monitor_.history) - 1)
                 plt.semilogy(np.arange(len(ghmm.monitor_.history) - 1), np.diff(np.array(ghmm.monitor_.history)),
                              ls="-", label=resname, lw=2)
+        x_len = (x_len // 100 + 1) * 100
         plt.legend(fontsize=15)
-        plt.semilogy(np.arange(100), np.repeat(1E-4, 100), color="k", ls="--", lw=2)
-        plt.xlim(0, 100)
+        plt.semilogy(np.arange(x_len), np.repeat(1E-4, x_len), color="k", ls="--", lw=2)
+        plt.xlim(0, x_len)
         plt.ylim(1E-5, 15E5)
         plt.ylabel(r"$\Delta(log(\hat{L}))$", fontsize=18)
         plt.xlabel("Iterations", fontsize=18)
