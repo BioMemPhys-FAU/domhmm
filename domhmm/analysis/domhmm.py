@@ -816,11 +816,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         log.info("Getis-Ord for leaflets are calculated.")
         if self.result_plots:
             self.getis_ord_plot()
-        log.info("Permutations of Getis-Ord are calculated.")
         self.results["Getis_Ord"]["Permut_0"] = self.permut_getis_ord_stat(self.results["upper_weight_all"], 0)
         self.results["Getis_Ord"]["Permut_1"] = self.permut_getis_ord_stat(self.results["lower_weight_all"], 1)
-        log.info("Z score is calculated.")
+        log.info("Permutations of Getis-Ord are calculated.")
         self.results["z_score"] = self.z_score_calc()
+        log.info("Z score is calculated.")
 
     def getis_ord_stat(self, weight_matrix_all, leaflet):
         """
