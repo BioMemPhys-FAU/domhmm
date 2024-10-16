@@ -68,6 +68,7 @@ jobs:
         architecture: x64
 
         miniforge-variant: Miniforge
+        installer-url: https://github.com/conda-forge/miniforge/releases/download/24.7.1-2/Miniforge3-Linux-x86_64.sh
         use-mamba: false
         channels: conda-forge, defaults
 
@@ -75,7 +76,6 @@ jobs:
         auto-update-conda: true
         auto-activate-base: false
         show-channel-urls: true
-
 
     - name: Install MDAnalysis version
       uses: MDAnalysis/install-mdanalysis@main
