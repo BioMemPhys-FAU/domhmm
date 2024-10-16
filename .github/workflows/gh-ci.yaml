@@ -67,8 +67,8 @@ jobs:
         add-pip-as-python-dependency: true
         architecture: x64
 
-        miniforge-variant: Mambaforge
-        use-mamba: true
+        miniforge-variant: Miniforge
+        use-mamba: false
         channels: conda-forge, defaults
 
         activate-environment: domhmm-test
@@ -82,7 +82,7 @@ jobs:
       with:
         version: ${{ matrix.mdanalysis-version }}
         install-tests: false
-        installer:  mamba
+        installer:  conda
         shell: bash  -l {0}
 
     - name: Install package
