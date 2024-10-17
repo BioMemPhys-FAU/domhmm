@@ -1085,20 +1085,17 @@ class PropertyCalculation(LeafletAnalysisBase):
                 label_length += len(self.tmd_protein["0"])
                 for protein in self.tmd_protein["0"]:
                     ax[k].scatter(protein[0], protein[1], s=100, marker="^", color="black", label="TMD Protein")
-
             ax[k].set_xticks([])
             ax[k].set_yticks([])
-
-            ax[1].legend(ncol=label_length, loc="lower center", bbox_to_anchor=(0.5, -0.15), fontsize=15, frameon=False)
             ax[k].set_aspect("equal")
 
-        plt.subplots_adjust(wspace=-0.45)
+        handles, labels = ax[0].get_legend_handles_labels()
+        plt.figlegend(handles=handles, labels=labels, ncol=label_length, loc='lower center', fontsize=15, frameon=False)
         ax[0].set_title("d", fontsize=20, fontweight="bold", loc="left")
 
         ax[0].set_title(label=f"Frame {frame_list[0]}", fontsize=18)
         ax[1].set_title(label=f"Frame {frame_list[1]}", fontsize=18)
         ax[2].set_title(label=f"Frame {frame_list[2]}", fontsize=18)
-        plt.tight_layout()
         if self.save_plots:
             plt.savefig("d.pdf")
         plt.show()
