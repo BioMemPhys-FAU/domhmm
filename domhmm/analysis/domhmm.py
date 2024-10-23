@@ -640,15 +640,15 @@ class PropertyCalculation(LeafletAnalysisBase):
                 #-------------------------------------------------------HMM-------------------------------------------------------
 
                 #Area per Lipid (0) - Scc Chain A (1)
-                rv0 = stats.multivariate_normal(hmm_model.means_[i][0:2], hmm_model.covariances_[i][:2,:2])
+                rv0 = stats.multivariate_normal(hmm_model.means_[i][0:2], hmm_model.covars_[i][:2,:2])
                 z0 = rv0.pdf(xy01)
 
                 #Area per Lipid (0) - Scc Chain B (2)
-                rv1 = stats.multivariate_normal(hmm_model.means_[i][::2], hmm_model.covariances_[i][::2, ::2])
+                rv1 = stats.multivariate_normal(hmm_model.means_[i][::2], hmm_model.covars_[i][::2, ::2])
                 z1 = rv1.pdf(xy01)
 
                 #Scc Chain A (1) - Scc Chain B (2)
-                rv2 = stats.multivariate_normal(hmm_model.means_[i][1:], hmm_model.covariances_[i][1:, 1:])
+                rv2 = stats.multivariate_normal(hmm_model.means_[i][1:], hmm_model.covars_[i][1:, 1:])
                 z2 = rv2.pdf(xy2)
 
                 #Plot contours -> Be aware that the first two plots share the same ranges
@@ -729,7 +729,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 #-------------------------------------------------------HMM-------------------------------------------------------
 
                 #Area per Lipid (0) - Scc Chain C (1)
-                rv0 = stats.multivariate_normal(hmm_model.means_[i], hmm_model.covariances_[i])
+                rv0 = stats.multivariate_normal(hmm_model.means_[i], hmm_model.covars_[i])
                 z0 = rv0.pdf(xy01)
 
                 #Plot contours
@@ -809,9 +809,9 @@ class PropertyCalculation(LeafletAnalysisBase):
                 
                 if self.asymmetric_membrane:
                     
-                    if gmm_trained[0] is not None and hmm_trained[0] is not None and gmm_trained[0].converged_ and hmm_trained[0].monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained, hmm_model = hmm_trained, leaflet = 0)
+                    if gmm_trained[0] is not None and hmm_trained[0] is not None and gmm_trained[0].converged_ and hmm_trained[0].monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained[0], hmm_model = hmm_trained[0], leaflet = 0)
                     
-                    if gmm_trained[1] is not None and hmm_trained[1] is not None and gmm_trained[1].converged_ and hmm_trained[1].monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained, hmm_model = hmm_trained, leaflet = 1)
+                    if gmm_trained[1] is not None and hmm_trained[1] is not None and gmm_trained[1].converged_ and hmm_trained[1].monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained[1], hmm_model = hmm_trained[1], leaflet = 1)
                    
                 else:
                     if gmm_trained.converged_ and hmm_trained.monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained, hmm_model = hmm_trained)
