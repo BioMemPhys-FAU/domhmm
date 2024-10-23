@@ -14,6 +14,7 @@ import numpy as np
 from hmmlearn.hmm import GaussianHMM
 from scipy.sparse import csr_array
 from scipy.spatial import Voronoi, ConvexHull
+from scipy import stats
 from sklearn import mixture
 from tqdm import tqdm
 
@@ -534,16 +535,16 @@ class PropertyCalculation(LeafletAnalysisBase):
             for resname, each in self.results["GMM"].items():
                 
                 if self.asymmetric_membrane:
-                    if each[0] is not None and each[0].converged_: self.mixture_plot(resname, each[0])
+                    if each[0] is not None and each[0].converged_: self.mixture_plot(resname, each[0], leaflet = 0)
                     
-                    if each[1] is not None and each[1].converged_: self.mixture_plot(resname, each[1])
+                    if each[1] is not None and each[1].converged_: self.mixture_plot(resname, each[1], leaflet = 1)
                    
                 else:
                     if each.converged_: self.mixture_plot(resname, each)
                     
             
 
-    def mixture_plot(self, resname, gmm_model):
+    def mixture_plot(self, resname, gmm_model, leaflet = None):
 
         """
         Plot results of the Gaussian Mixture Model for each residue type.
@@ -559,6 +560,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             Resname of the actual residue type
         gmm_model : GaussianMixture Model
             Scikit-learn object
+        leaflet : int or None
+            If membrane is asymmetric ensure that plots are made for upper and lower leaflet
         """
         
         #Define parameters that define a grid for the calculations of the fitted distributions
@@ -575,6 +578,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         #Define colors for the markers that mark the fitted means of the Gaussians
         cx = ["crimson","cyan"]
 
+        
+        #Get trainings data for this type lipid and check if its asymmetric
+        train_data_per_type = self.results["train_data_per_type"][resname][1]
+        if leaflet != None: train_data_per_type = train_data_per_type[ leaflet ]
+
         #Joint distributions for current lipid type
 
         cm =1/2.54
@@ -586,20 +594,20 @@ class PropertyCalculation(LeafletAnalysisBase):
             fig, ax = plt.subplots(1, 3, figsize = (35*cm, 10*cm))
 
             #Area per Lipid - Scc Chain A
-            ax[0].hist2d(x = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 0],
-                         y = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 1],
+            ax[0].hist2d(x = train_data_per_type.reshape(-1, 3)[:, 0],
+                         y = train_data_per_type.reshape(-1, 3)[:, 1],
                          bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
                          density = True, cmap="viridis")
 
             #Area per Lipid - Scc Chain B
-            ax[1].hist2d(x = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 0],
-                         y = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 2],
+            ax[1].hist2d(x = train_data_per_type.reshape(-1, 3)[:, 0],
+                         y = train_data_per_type.reshape(-1, 3)[:, 2],
                          bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
                          density = True, cmap="viridis")
 
             #Scc Chain A - Scc Chain B
-            ax[2].hist2d(x = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 1],
-                         y = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 2],
+            ax[2].hist2d(x = train_data_per_type.reshape(-1, 3)[:, 1],
+                         y = train_data_per_type.reshape(-1, 3)[:, 2],
                          bins = [np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 ))), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
                          density = True, cmap="viridis")
         
@@ -662,8 +670,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             fig, ax = plt.subplots(1, 1, figsize = (10*cm, 10*cm))
 
             #Area per Lipid - Scc Chain A
-            ax.hist2d(x = self.results["train_data_per_type"][resname][1].reshape(-1, 2)[:, 0],
-                      y = self.results["train_data_per_type"][resname][1].reshape(-1, 2)[:, 1],
+            ax.hist2d(x = train_data_per_type.reshape(-1, 2)[:, 0],
+                      y = train_data_per_type.reshape(-1, 2)[:, 1],
                       bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
                       density = True, cmap="viridis")
 
@@ -695,7 +703,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             ax.grid(False)
             ax.tick_params(axis="both", labelsize=11)
 
-        plt.savefig(f"GMM_{resname}.pdf", dpi = 300, transparent=True)
+        if leaflet != None: plt.savefig(f"GMM_{resname}_{leaflet}.pdf", dpi = 300, transparent=True)
+        else: plt.savefig(f"GMM_{resname}.pdf", dpi = 300, transparent=True)
         plt.close()
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
