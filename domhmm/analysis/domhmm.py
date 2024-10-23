@@ -679,8 +679,8 @@ class PropertyCalculation(LeafletAnalysisBase):
                 #Plot contours
                 ax.contour(x01, y01, z0, cmap = "coolwarm", alpha = 0.5)
 
-               #Mark with a cross the means of the fitted Gaussians
-               ax.scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
+                #Mark with a cross the means of the fitted Gaussians
+                ax.scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
 
             #Set ticks on the x and y axis
             ax.set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
