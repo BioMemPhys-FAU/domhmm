@@ -629,18 +629,23 @@ class PropertyCalculation(LeafletAnalysisBase):
         Plots Hidden Markov Models training history
 
         """
+        x_len = 0
         for resname, ghmm in self.results['HMM'].items():
             if self.asymmetric_membrane:
                 for leaflet in range(2):
-                    plt.semilogy(np.arange(len(ghmm[leaflet].monitor_.history) - 1),
-                                 np.diff(np.array(ghmm[leaflet].monitor_.history)),
-                                 ls="-", label=f"{resname}_{leaflet}", lw=2)
+                    if ghmm[leaflet] is not None:
+                        x_len = max(x_len, len(ghmm[leaflet].monitor_.history) - 1)
+                        plt.semilogy(np.arange(len(ghmm[leaflet].monitor_.history) - 1),
+                                     np.diff(np.array(ghmm[leaflet].monitor_.history)),
+                                     ls="-", label=f"{resname}_{leaflet}", lw=2)
             else:
+                x_len = max(x_len, len(ghmm.monitor_.history) - 1)
                 plt.semilogy(np.arange(len(ghmm.monitor_.history) - 1), np.diff(np.array(ghmm.monitor_.history)),
                              ls="-", label=resname, lw=2)
+        x_len = (x_len // 100 + 1) * 100
         plt.legend(fontsize=15)
-        plt.semilogy(np.arange(100), np.repeat(1E-4, 100), color="k", ls="--", lw=2)
-        plt.xlim(0, 100)
+        plt.semilogy(np.arange(x_len), np.repeat(1E-4, x_len), color="k", ls="--", lw=2)
+        plt.xlim(0, x_len)
         plt.ylim(1E-5, 15E5)
         plt.ylabel(r"$\Delta(log(\hat{L}))$", fontsize=18)
         plt.xlabel("Iterations", fontsize=18)
@@ -812,11 +817,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         log.info("Getis-Ord for leaflets are calculated.")
         if self.result_plots:
             self.getis_ord_plot()
-        log.info("Permutations of Getis-Ord are calculated.")
         self.results["Getis_Ord"]["Permut_0"] = self.permut_getis_ord_stat(self.results["upper_weight_all"], 0)
         self.results["Getis_Ord"]["Permut_1"] = self.permut_getis_ord_stat(self.results["lower_weight_all"], 1)
-        log.info("Z score is calculated.")
+        log.info("Permutations of Getis-Ord are calculated.")
         self.results["z_score"] = self.z_score_calc()
+        log.info("Z score is calculated.")
 
     def getis_ord_stat(self, weight_matrix_all, leaflet):
         """
@@ -891,27 +896,27 @@ class PropertyCalculation(LeafletAnalysisBase):
         Plots average order state for each lipid type per frame
         """
 
-        #Get number of lipid residues
+        # Get number of lipid residues
         resnum = len(self.unique_resnames)
 
-        #For each residue type there is an empty list initialized
+        # For each residue type there is an empty list initialized
         g_star_i_temp = [[] for _ in range(resnum)]
 
-        #Iterate over all frames
+        # Iterate over all frames
         for step in range(self.n_frames):
 
-            #Get the indices of the lipids in leaflet 0 and 1 and their corresponding positions
+            # Get the indices of the lipids in leaflet 0 and 1 and their corresponding positions
             index_dict_0, pos_dict_0 = self.get_leaflet_step_order_index(leaflet=0, step=step)
             index_dict_1, pos_dict_1 = self.get_leaflet_step_order_index(leaflet=1, step=step)
 
-            #Iterate over the lipid types
-            for i,rsn in enumerate(self.unique_resnames):
-
-                #Merge Getis-Ord values for the upper and the lower leaflet to display them as a histogram
-                g_star_i_temp[i] += list(np.append(self.results['Getis_Ord'][0]['g_star_i_0'][step]
-                                                   [ index_dict_0[rsn] ], #The G* values should be sorted according to the indices of the resids
-                                                   self.results['Getis_Ord'][1]['g_star_i_1'][step]
-                                                   [ index_dict_1[rsn] ])) #The G* values should be sorted according to the indices of the resids
+            # Iterate over the lipid types
+            for i, rsn in enumerate(self.unique_resnames):
+                # Merge Getis-Ord values for the upper and the lower leaflet to display them as a histogram
+                # The G* values should be sorted according to the indices of the resids
+                g_start_sorted_0 = self.results['Getis_Ord'][0]['g_star_i_0'][step][index_dict_0[rsn]]
+                # The G* values should be sorted according to the indices of the resids
+                g_start_sorted_1 = self.results['Getis_Ord'][1]['g_star_i_1'][step][index_dict_1[rsn]]
+                g_star_i_temp[i] += list(np.append(g_start_sorted_0, g_start_sorted_1))
 
         for i in range(resnum):
             plt.hist(g_star_i_temp[i], bins=np.linspace(-3, 3, 201), density=True, histtype="step", lw=2,
@@ -1067,6 +1072,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
             positions = (self.membrane.residues[leaflet_assignment_mask].atoms & self.all_heads).positions
 
+            label_length = len(residue_indexes)
+
             # Iterate over clusters and plot the residues
             print(f"Number of clusters in frame {i}: {len(clusters.values())}")
             for j, val in enumerate(clusters.values()):
@@ -1074,27 +1081,21 @@ class PropertyCalculation(LeafletAnalysisBase):
                 ax[k].scatter(positions[idx, 0],
                               positions[idx, 1],
                               s=100, marker="o", color=colors[j], zorder=-10)
-
-            # Plot cosmetics
-            ax[k].set_ylim(-5, 138)
-            ax[k].set_xlim(-5, 138)
-
+            if self.tmd_protein is not None:
+                label_length += len(self.tmd_protein["0"])
+                for protein in self.tmd_protein["0"]:
+                    ax[k].scatter(protein[0], protein[1], s=100, marker="^", color="black", label="TMD Protein")
             ax[k].set_xticks([])
             ax[k].set_yticks([])
-
-            ax[1].legend(ncol=3, loc="lower center", bbox_to_anchor=(0.5, -0.15), fontsize=15, frameon=False)
-
             ax[k].set_aspect("equal")
 
-        plt.subplots_adjust(wspace=-0.45)
+        handles, labels = ax[0].get_legend_handles_labels()
+        plt.figlegend(handles=handles, labels=labels, ncol=label_length, loc='lower center', fontsize=15, frameon=False)
         ax[0].set_title("d", fontsize=20, fontweight="bold", loc="left")
-        # ax[1].set_title("b", fontsize=20, fontweight="bold", loc="left")
-        # ax[2].set_title("c", fontsize=20, fontweight="bold", loc="left")
 
-        ax[0].text(s=f"Frame {self.start + frame_list[0]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
-        ax[1].text(s=f"Frame {self.start + frame_list[1]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
-        ax[2].text(s=f"Frame {self.start + frame_list[2]}", x=71.5, y=144, fontsize=18, ha="center", va="center")
-        plt.tight_layout()
+        ax[0].set_title(label=f"Frame {frame_list[0]}", fontsize=18)
+        ax[1].set_title(label=f"Frame {frame_list[1]}", fontsize=18)
+        ax[2].set_title(label=f"Frame {frame_list[2]}", fontsize=18)
         if self.save_plots:
             plt.savefig("d.pdf")
         plt.show()

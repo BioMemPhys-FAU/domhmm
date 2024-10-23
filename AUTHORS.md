@@ -20,5 +20,6 @@ The rules for this file:
 -->
 **2024**
 - Yusuf Eren Tunç <@yusuferentunc>
+
 **2023**
 - Marius FW Trollmann <@m-a-r-i-u-s>
