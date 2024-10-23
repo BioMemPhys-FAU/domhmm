@@ -605,6 +605,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                                  covars_prior=gmm.covariances_,
                                  **hmm_kwargs)
 
+            #Check whether an optimization of the mean vectors and the covariance matrices is requested
+            #Optimization of means is not required  -> Take it from the Gaussian Mixture Model
+            if "m" not in hmm_kwargs['params']: ghmm_i.means_ = gmm.means_
+            #Optimization of covariances is not required -> Take it from the Gaussian Mixture Model
+            if "c" not in hmm_kwargs['params']: ghmm_i.covars_ = gmm.covariances_
+
             # Train the HMM based on the data for every lipid and frame
             ghmm_i.fit(data.reshape(-1, dim),
                        lengths=lengths)
