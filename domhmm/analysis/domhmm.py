@@ -527,24 +527,10 @@ class PropertyCalculation(LeafletAnalysisBase):
                     log.warning(f"{resname} upper leaflet Gaussian Mixture Model is not converged.")
             else:
                 if not each.converged_:
-                    log.warning(f"{resname} Gaussian Mixture Model is not converged.")
-
-        if self.result_plots:
-
-            #Iterate over fitted Gaussian Mixture Models
-            for resname, each in self.results["GMM"].items():
-                
-                if self.asymmetric_membrane:
-                    if each[0] is not None and each[0].converged_: self.mixture_plot(resname, each[0], leaflet = 0)
-                    
-                    if each[1] is not None and each[1].converged_: self.mixture_plot(resname, each[1], leaflet = 1)
-                   
-                else:
-                    if each.converged_: self.mixture_plot(resname, each)
-                    
+                    log.warning(f"{resname} Gaussian Mixture Model is not converged.")               
             
 
-    def mixture_plot(self, resname, gmm_model, leaflet = None):
+    def mixture_plot(self, resname, gmm_model, hmm_model, leaflet = None):
 
         """
         Plot results of the Gaussian Mixture Model for each residue type.
@@ -560,6 +546,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             Resname of the actual residue type
         gmm_model : GaussianMixture Model
             Scikit-learn object
+        hmm_model : Hidden Markow Model
+            hmmlearn object
         leaflet : int or None
             If membrane is asymmetric ensure that plots are made for upper and lower leaflet
         """
@@ -577,11 +565,13 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         #Define colors for the markers that mark the fitted means of the Gaussians
         cx = ["crimson","cyan"]
+        cx_hmm = ["orange", "lime"]
 
-        
         #Get trainings data for this type lipid and check if its asymmetric
         train_data_per_type = self.results["train_data_per_type"][resname][1]
+        
         if leaflet != None: train_data_per_type = train_data_per_type[ leaflet ]
+        else: pass
 
         #Joint distributions for current lipid type
 
@@ -615,6 +605,8 @@ class PropertyCalculation(LeafletAnalysisBase):
             #Iterate over both Gaussian distributions
             for i in range(2):
 
+                #-------------------------------------------------------GMM-------------------------------------------------------
+
                 #Area per Lipid (0) - Scc Chain A (1)
                 rv0 = stats.multivariate_normal(gmm_model.means_[i][0:2], gmm_model.covariances_[i][:2,:2])
                 z0 = rv0.pdf(xy01)
@@ -628,14 +620,53 @@ class PropertyCalculation(LeafletAnalysisBase):
                 z2 = rv2.pdf(xy2)
 
                 #Plot contours -> Be aware that the first two plots share the same ranges
-                ax[0].contour(x01, y01, z0, cmap = "coolwarm", alpha = 0.5)
-                ax[1].contour(x01, y01, z1, cmap = "coolwarm", alpha = 0.5)
-                ax[2].contour(x2, y2, z2, cmap = "coolwarm", alpha = 0.5)
+                ax[0].contour(x01, y01, z0, colors = [cx[i]], alpha = 0.2)
+                ax[1].contour(x01, y01, z1, colors = [cx[i]], alpha = 0.2)
+                ax[2].contour(x2, y2, z2, colors = [cx[i]], alpha = 0.2)
+
+                del rv0
+                del rv1
+                del rv2
+                del z0
+                del z1
+                del z2
 
                 #Mark with a cross the means of the fitted Gaussians
                 ax[0].scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
                 ax[1].scatter( gmm_model.means_[i][0], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i])
                 ax[2].scatter( gmm_model.means_[i][1], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i])
+
+
+                #-------------------------------------------------------HMM-------------------------------------------------------
+
+                #Area per Lipid (0) - Scc Chain A (1)
+                rv0 = stats.multivariate_normal(hmm_model.means_[i][0:2], hmm_model.covariances_[i][:2,:2])
+                z0 = rv0.pdf(xy01)
+
+                #Area per Lipid (0) - Scc Chain B (2)
+                rv1 = stats.multivariate_normal(hmm_model.means_[i][::2], hmm_model.covariances_[i][::2, ::2])
+                z1 = rv1.pdf(xy01)
+
+                #Scc Chain A (1) - Scc Chain B (2)
+                rv2 = stats.multivariate_normal(hmm_model.means_[i][1:], hmm_model.covariances_[i][1:, 1:])
+                z2 = rv2.pdf(xy2)
+
+                #Plot contours -> Be aware that the first two plots share the same ranges
+                ax[0].contour(x01, y01, z0, colors = [cx_hmm[i]], alpha = 0.2)
+                ax[1].contour(x01, y01, z1, colors = [cx_hmm[i]], alpha = 0.2)
+                ax[2].contour(x2, y2, z2, colors = [cx_hmm[i]], alpha = 0.2)
+
+                del rv0
+                del rv1
+                del rv2
+                del z0
+                del z1
+                del z2
+
+                #Mark with a circle the means of the fitted Gaussians from the HMM
+                ax[0].scatter( hmm_model.means_[i][0], hmm_model.means_[i][1], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
+                ax[1].scatter( hmm_model.means_[i][0], hmm_model.means_[i][2], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
+                ax[2].scatter( hmm_model.means_[i][1], hmm_model.means_[i][2], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
 
             #Set ticks on the y axis
             for i in range(3): ax[i].set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
@@ -680,15 +711,35 @@ class PropertyCalculation(LeafletAnalysisBase):
             #Iterate over both Gaussian distributions
             for i in range(2):
 
+                #-------------------------------------------------------GMM-------------------------------------------------------
+                
                 #Area per Lipid (0) - Scc Chain C (1)
                 rv0 = stats.multivariate_normal(gmm_model.means_[i], gmm_model.covariances_[i])
                 z0 = rv0.pdf(xy01)
 
                 #Plot contours
-                ax.contour(x01, y01, z0, cmap = "coolwarm", alpha = 0.5)
+                ax.contour(x01, y01, z0, colors = [cx[i]], alpha = 0.2)
+                
+                del rv0
+                del z0
 
                 #Mark with a cross the means of the fitted Gaussians
                 ax.scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
+
+                #-------------------------------------------------------HMM-------------------------------------------------------
+
+                #Area per Lipid (0) - Scc Chain C (1)
+                rv0 = stats.multivariate_normal(hmm_model.means_[i], hmm_model.covariances_[i])
+                z0 = rv0.pdf(xy01)
+
+                #Plot contours
+                ax.contour(x01, y01, z0, colors = [cx_hmm[i]], alpha = 0.2)
+
+                del rv0
+                del z0
+
+                #Mark with a circle the means of the fitted Gaussians from the HMM
+                ax.scatter( hmm_model.means_[i][0], hmm_model.means_[i][1], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
 
             #Set ticks on the x and y axis
             ax.set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
@@ -748,6 +799,25 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Plot prediction result
             self.predict_plot()
 
+            #Plot results of GMM and HMM
+
+            #Iterate over fitted Gaussian Mixture Models
+            for resname in self.results["GMM"].keys():
+
+                gmm_trained = self.results["GMM"][resname]
+                hmm_trained = self.results["HMM"][resname]
+                
+                if self.asymmetric_membrane:
+                    
+                    if gmm_trained[0] is not None and hmm_trained[0] is not None and gmm_trained[0].converged_ and hmm_trained[0].monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained, hmm_model = hmm_trained, leaflet = 0)
+                    
+                    if gmm_trained[1] is not None and hmm_trained[1] is not None and gmm_trained[1].converged_ and hmm_trained[1].monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained, hmm_model = hmm_trained, leaflet = 1)
+                   
+                else:
+                    if gmm_trained.converged_ and hmm_trained.monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained, hmm_model = hmm_trained)
+
+
+
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10):
 
         """
@@ -790,6 +860,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                                  means_prior=gmm.means_,
                                  covars_prior=gmm.covariances_,
                                  **hmm_kwargs)
+
+            #Check whether an optimization of the mean vectors and the covariance matrices is requested
+            #Optimization of means is not required  -> Take it from the Gaussian Mixture Model
+            if "m" not in hmm_kwargs['params']: ghmm_i.means_ = gmm.means_
+            #Optimization of covariances is not required -> Take it from the Gaussian Mixture Model
+            if "c" not in hmm_kwargs['params']: ghmm_i.covars_ = gmm.covariances_
 
             # Train the HMM based on the data for every lipid and frame
             ghmm_i.fit(data.reshape(-1, dim),
