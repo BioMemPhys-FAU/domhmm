@@ -396,10 +396,17 @@ class PropertyCalculation(LeafletAnalysisBase):
         log.info("Getis-Ord Statistic calculation is starting.")
 
         self.getis_ord()
-        log.info("Clustering is starting.")
-        self.result_clustering()
-        if self.result_plots:
-            self.clustering_plot()
+
+        #The user argument do_clustering decides if the hierarchical clustering is (not) performed
+        if self.do_clustering == False: pass
+        else:
+            log.info("Clustering is starting.")
+            self.result_clustering()
+            
+            if self.result_plots:
+                self.clustering_plot()
+
+        print("It's done! DomHMM finished successfully. Have a nice day and enjoy your data! :-)")
 
     def prepare_train_data(self):
         """
@@ -520,6 +527,176 @@ class PropertyCalculation(LeafletAnalysisBase):
             else:
                 if not each.converged_:
                     log.warning(f"{resname} Gaussian Mixture Model is not converged.")
+
+        if self.result_plots:
+
+            #Iterate over fitted Gaussian Mixture Models
+            for resname, each in self.results["GMM"].items():
+                
+                if self.asymmetric_membrane:
+                    if each[0] is not None and each[0].converged_: self.mixture_plot(resname, each[0])
+                    
+                    if each[1] is not None and each[1].converged_: self.mixture_plot(resname, each[1])
+                   
+                else:
+                    if each.converged_: self.mixture_plot(resname, each)
+                    
+            
+
+    def mixture_plot(self, resname, gmm_model):
+
+        """
+        Plot results of the Gaussian Mixture Model for each residue type.
+        The function should help to spot flaws in the results of the Gaussian Mixture Model.
+
+        The Gaussian Mixture Model in DomHMM is trained on a three-dimensional space (1 APL + 2 Acyl chains), hence also
+        its ouput (mean vectors and covariance matrices) are three0-dimensional. However, plots in 3 dimensions are rather hard 
+        to understand, therefore we plot here the projections of the raw/fitted probability densities on the xz, yz, and xy plane.
+
+        Parameters
+        ----------
+        resname : str
+            Resname of the actual residue type
+        gmm_model : GaussianMixture Model
+            Scikit-learn object
+        """
+        
+        #Define parameters that define a grid for the calculations of the fitted distributions
+        #The chosen values should cover a wide range of different use cases as long as enough sample data is provided!
+        MIN_APL, MAX_APL, STEP_APL = 0, 200, .5
+        MIN_SCC, MAX_SCC, STEP_SCC = -.55, 1.05, .05
+        
+        x01, y01 = np.mgrid[MIN_APL:MAX_APL:STEP_APL, MIN_SCC:MAX_SCC:STEP_SCC]
+        x2, y2 = np.mgrid[MIN_SCC:MAX_SCC:STEP_SCC, MIN_SCC:MAX_SCC:STEP_SCC]
+
+        xy01 = np.dstack((x01, y01))
+        xy2 = np.dstack((x2, y2))
+
+        #Define colors for the markers that mark the fitted means of the Gaussians
+        cx = ["crimson","cyan"]
+
+        #Joint distributions for current lipid type
+
+        cm =1/2.54
+
+        #Do the plot for non-sterolic lipid types
+        if resname not in self.sterol_heads.keys():
+            
+            #Init suplots
+            fig, ax = plt.subplots(1, 3, figsize = (35*cm, 10*cm))
+
+            #Area per Lipid - Scc Chain A
+            ax[0].hist2d(x = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 0],
+                         y = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 1],
+                         bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
+                         density = True, cmap="viridis")
+
+            #Area per Lipid - Scc Chain B
+            ax[1].hist2d(x = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 0],
+                         y = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 2],
+                         bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
+                         density = True, cmap="viridis")
+
+            #Scc Chain A - Scc Chain B
+            ax[2].hist2d(x = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 1],
+                         y = self.results["train_data_per_type"][resname][1].reshape(-1, 3)[:, 2],
+                         bins = [np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 ))), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
+                         density = True, cmap="viridis")
+        
+            #Calculate and display fitted distributions
+            #Iterate over both Gaussian distributions
+            for i in range(2):
+
+                #Area per Lipid (0) - Scc Chain A (1)
+                rv0 = stats.multivariate_normal(gmm_model.means_[i][0:2], gmm_model.covariances_[i][:2,:2])
+                z0 = rv0.pdf(xy01)
+
+                #Area per Lipid (0) - Scc Chain B (2)
+                rv1 = stats.multivariate_normal(gmm_model.means_[i][::2], gmm_model.covariances_[i][::2, ::2])
+                z1 = rv1.pdf(xy01)
+
+                #Scc Chain A (1) - Scc Chain B (2)
+                rv2 = stats.multivariate_normal(gmm_model.means_[i][1:], gmm_model.covariances_[i][1:, 1:])
+                z2 = rv2.pdf(xy2)
+
+                #Plot contours -> Be aware that the first two plots share the same ranges
+                ax[0].contour(x01, y01, z0, cmap = "coolwarm", alpha = 0.5)
+                ax[1].contour(x01, y01, z1, cmap = "coolwarm", alpha = 0.5)
+                ax[2].contour(x2, y2, z2, cmap = "coolwarm", alpha = 0.5)
+
+                #Mark with a cross the means of the fitted Gaussians
+                ax[0].scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
+                ax[1].scatter( gmm_model.means_[i][0], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i])
+                ax[2].scatter( gmm_model.means_[i][1], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i])
+
+            #Set ticks on the y axis
+            for i in range(3): ax[i].set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
+
+            #Set ticks on the x axis
+            ax[0].set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 10 + 1 ) ) ) )
+            ax[1].set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 10 + 1 ) ) ) ) 
+            ax[2].set_xticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
+
+            #Label y axis
+            ax[0].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-2}})$", labelpad=-7,fontsize=18)
+            ax[1].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-1}})$", labelpad=-7,fontsize=18)
+            ax[2].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-1}})$", labelpad=-7,fontsize=18)
+
+            #Label x axis
+            ax[0].set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+            ax[1].set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+            ax[2].set_xlabel(r"$p(\bar{S}_{CC}^{\text{sn-2}})$", labelpad=0,fontsize=18)
+
+            #Make plot more readable
+            for i in range(3):
+                ax[i].tick_params(rotation=45)
+                ax[i].grid(False)
+                ax[i].tick_params(axis="both", labelsize=11)
+
+            plt.subplots_adjust(hspace=0.1, wspace = 0.25)
+
+        #Do the plot for sterolic lipid types
+        else:
+
+            #Init only one subplot
+            fig, ax = plt.subplots(1, 1, figsize = (10*cm, 10*cm))
+
+            #Area per Lipid - Scc Chain A
+            ax.hist2d(x = self.results["train_data_per_type"][resname][1].reshape(-1, 2)[:, 0],
+                      y = self.results["train_data_per_type"][resname][1].reshape(-1, 2)[:, 1],
+                      bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
+                      density = True, cmap="viridis")
+
+
+            #Calculate and display fitted distributions
+            #Iterate over both Gaussian distributions
+            for i in range(2):
+
+                #Area per Lipid (0) - Scc Chain C (1)
+                rv0 = stats.multivariate_normal(gmm_model.means_[i], gmm_model.covariances_[i])
+                z0 = rv0.pdf(xy01)
+
+                #Plot contours
+                ax.contour(x01, y01, z0, cmap = "coolwarm", alpha = 0.5)
+
+               #Mark with a cross the means of the fitted Gaussians
+               ax.scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
+
+            #Set ticks on the x and y axis
+            ax.set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
+            ax.set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 10 + 1 ) ) ) )
+
+            #Label the x and y axis
+            ax.set_ylabel(r"$p(P_2)$", labelpad=-7,fontsize=18)
+            ax.set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+
+            # Make plot more readable
+            ax.tick_params(rotation=45)
+            ax.grid(False)
+            ax.tick_params(axis="both", labelsize=11)
+
+        plt.savefig(f"GMM_{resname}.pdf", dpi = 300, transparent=True)
+        plt.close()
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
