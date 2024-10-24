@@ -74,6 +74,8 @@ class LeafletAnalysisBase(AnalysisBase):
         Option for saving intermediate plots in pdf format
     trained_hmms: dict
         User-specific HMM (e.g., pre-trained on another simulation)
+    do_clustering: bool
+        Perform the hierarchical clustering for each frame
 
     Attributes
     ----------
@@ -123,6 +125,7 @@ class LeafletAnalysisBase(AnalysisBase):
             trained_hmms: Dict[str, Any] = {},
             n_init_hmm: int = 2,
             save_plots: bool = False,
+            do_clustering = True,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -151,6 +154,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.tmd_protein = None
         self.n_init_hmm = n_init_hmm
         self.save_plots = save_plots
+        self.do_clustering = do_clustering
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 

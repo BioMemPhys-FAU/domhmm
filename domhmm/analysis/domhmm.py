@@ -14,6 +14,7 @@ import numpy as np
 from hmmlearn.hmm import GaussianHMM
 from scipy.sparse import csr_array
 from scipy.spatial import Voronoi, ConvexHull
+from scipy import stats
 from sklearn import mixture
 from tqdm import tqdm
 
@@ -396,10 +397,17 @@ class PropertyCalculation(LeafletAnalysisBase):
         log.info("Getis-Ord Statistic calculation is starting.")
 
         self.getis_ord()
-        log.info("Clustering is starting.")
-        self.result_clustering()
-        if self.result_plots:
-            self.clustering_plot()
+
+        #The user argument do_clustering decides if the hierarchical clustering is (not) performed
+        if self.do_clustering == False: pass
+        else:
+            log.info("Clustering is starting.")
+            self.result_clustering()
+            
+            if self.result_plots:
+                self.clustering_plot()
+
+        print("It's done! DomHMM finished successfully. Have a nice day and enjoy your data! :-)")
 
     def prepare_train_data(self):
         """
@@ -519,7 +527,244 @@ class PropertyCalculation(LeafletAnalysisBase):
                     log.warning(f"{resname} upper leaflet Gaussian Mixture Model is not converged.")
             else:
                 if not each.converged_:
-                    log.warning(f"{resname} Gaussian Mixture Model is not converged.")
+                    log.warning(f"{resname} Gaussian Mixture Model is not converged.")               
+            
+
+    def mixture_plot(self, resname, gmm_model, hmm_model, leaflet = None):
+
+        """
+        Plot results of the Gaussian Mixture Model for each residue type.
+        The function should help to spot flaws in the results of the Gaussian Mixture Model.
+
+        The Gaussian Mixture Model in DomHMM is trained on a three-dimensional space (1 APL + 2 Acyl chains), hence also
+        its ouput (mean vectors and covariance matrices) are three0-dimensional. However, plots in 3 dimensions are rather hard 
+        to understand, therefore we plot here the projections of the raw/fitted probability densities on the xz, yz, and xy plane.
+
+        Parameters
+        ----------
+        resname : str
+            Resname of the actual residue type
+        gmm_model : GaussianMixture Model
+            Scikit-learn object
+        hmm_model : Hidden Markow Model
+            hmmlearn object
+        leaflet : int or None
+            If membrane is asymmetric ensure that plots are made for upper and lower leaflet
+        """
+        
+        #Define parameters that define a grid for the calculations of the fitted distributions
+        #The chosen values should cover a wide range of different use cases as long as enough sample data is provided!
+        MIN_APL, MAX_APL, STEP_APL = 0, 200, .5
+        MIN_SCC, MAX_SCC, STEP_SCC = -.55, 1.05, .05
+        
+        x01, y01 = np.mgrid[MIN_APL:MAX_APL:STEP_APL, MIN_SCC:MAX_SCC:STEP_SCC]
+        x2, y2 = np.mgrid[MIN_SCC:MAX_SCC:STEP_SCC, MIN_SCC:MAX_SCC:STEP_SCC]
+
+        xy01 = np.dstack((x01, y01))
+        xy2 = np.dstack((x2, y2))
+
+        #Define colors for the markers that mark the fitted means of the Gaussians
+        cx = ["crimson","cyan"]
+        cx_hmm = ["orange", "hotpink"]
+
+        #Get trainings data for this type lipid and check if its asymmetric
+        train_data_per_type = self.results["train_data_per_type"][resname][1]
+        
+        if leaflet != None: train_data_per_type = train_data_per_type[ leaflet ]
+        else: pass
+
+        #Joint distributions for current lipid type
+
+        cm =1/2.54
+
+        #Do the plot for non-sterolic lipid types
+        if resname not in self.sterol_heads.keys():
+            
+            #Init suplots
+            fig, ax = plt.subplots(1, 3, figsize = (35*cm, 10*cm))
+
+            #Area per Lipid - Scc Chain A
+            ax[0].hist2d(x = train_data_per_type.reshape(-1, 3)[:, 0],
+                         y = train_data_per_type.reshape(-1, 3)[:, 1],
+                         bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
+                         density = True, cmap="viridis")
+
+            #Area per Lipid - Scc Chain B
+            ax[1].hist2d(x = train_data_per_type.reshape(-1, 3)[:, 0],
+                         y = train_data_per_type.reshape(-1, 3)[:, 2],
+                         bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
+                         density = True, cmap="viridis")
+
+            #Scc Chain A - Scc Chain B
+            ax[2].hist2d(x = train_data_per_type.reshape(-1, 3)[:, 1],
+                         y = train_data_per_type.reshape(-1, 3)[:, 2],
+                         bins = [np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 ))), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
+                         density = True, cmap="viridis")
+        
+            #Calculate and display fitted distributions
+            #Iterate over both Gaussian distributions
+            for i in range(2):
+
+                #-------------------------------------------------------GMM-------------------------------------------------------
+
+                #Area per Lipid (0) - Scc Chain A (1)
+                rv0 = stats.multivariate_normal(gmm_model.means_[i][0:2], gmm_model.covariances_[i][:2,:2])
+                z0 = rv0.pdf(xy01)
+
+                #Area per Lipid (0) - Scc Chain B (2)
+                rv1 = stats.multivariate_normal(gmm_model.means_[i][::2], gmm_model.covariances_[i][::2, ::2])
+                z1 = rv1.pdf(xy01)
+
+                #Scc Chain A (1) - Scc Chain B (2)
+                rv2 = stats.multivariate_normal(gmm_model.means_[i][1:], gmm_model.covariances_[i][1:, 1:])
+                z2 = rv2.pdf(xy2)
+
+                #Plot contours -> Be aware that the first two plots share the same ranges
+                ax[0].contour(x01, y01, z0, colors = [cx[i]], alpha = 0.2, linewidths = 2.25, zorder = 25)
+                ax[1].contour(x01, y01, z1, colors = [cx[i]], alpha = 0.2, linewidths = 2.25, zorder = 25)
+                ax[2].contour(x2, y2, z2, colors = [cx[i]], alpha = 0.2, linewidths = 2.25, zorder = 25)
+
+                del rv0
+                del rv1
+                del rv2
+                del z0
+                del z1
+                del z2
+
+                #Mark with a cross the means of the fitted Gaussians
+                ax[0].scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
+                ax[1].scatter( gmm_model.means_[i][0], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i], label = f"GMM Mean {i}")
+                ax[2].scatter( gmm_model.means_[i][1], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i])
+
+
+                #-------------------------------------------------------HMM-------------------------------------------------------
+
+                #Area per Lipid (0) - Scc Chain A (1)
+                rv0 = stats.multivariate_normal(hmm_model.means_[i][0:2], hmm_model.covars_[i][:2,:2])
+                z0 = rv0.pdf(xy01)
+
+                #Area per Lipid (0) - Scc Chain B (2)
+                rv1 = stats.multivariate_normal(hmm_model.means_[i][::2], hmm_model.covars_[i][::2, ::2])
+                z1 = rv1.pdf(xy01)
+
+                #Scc Chain A (1) - Scc Chain B (2)
+                rv2 = stats.multivariate_normal(hmm_model.means_[i][1:], hmm_model.covars_[i][1:, 1:])
+                z2 = rv2.pdf(xy2)
+
+                #Plot contours -> Be aware that the first two plots share the same ranges
+                ax[0].contour(x01, y01, z0, colors = [cx_hmm[i]], alpha = 0.2, zorder = 50, linewidths = 1.25)
+                ax[1].contour(x01, y01, z1, colors = [cx_hmm[i]], alpha = 0.2, zorder = 50, linewidths = 1.25)
+                ax[2].contour(x2, y2, z2, colors = [cx_hmm[i]], alpha = 0.2, zorder = 50, linewidths = 1.25)
+
+                del rv0
+                del rv1
+                del rv2
+                del z0
+                del z1
+                del z2
+
+                #Mark with a circle the means of the fitted Gaussians from the HMM
+                ax[0].scatter( hmm_model.means_[i][0], hmm_model.means_[i][1], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
+                ax[1].scatter( hmm_model.means_[i][0], hmm_model.means_[i][2], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i], label = f"HMM Mean {i}")
+                ax[2].scatter( hmm_model.means_[i][1], hmm_model.means_[i][2], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
+
+            #Set ticks on the y axis
+            for i in range(3): ax[i].set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
+
+            #Set ticks on the x axis
+            ax[0].set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 25 + 1 ) ) ) )
+            ax[1].set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 25 + 1 ) ) ) ) 
+            ax[2].set_xticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
+
+            #Label y axis
+            yl0 = ax[0].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-2}})$", labelpad=-7,fontsize=18)
+            yl1 = ax[1].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-1}})$", labelpad=-7,fontsize=18)
+            yl2 = ax[2].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-1}})$", labelpad=-7,fontsize=18)
+
+            #Label x axis
+            xl0 = ax[0].set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+            xl1 = ax[1].set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+            xl2 = ax[2].set_xlabel(r"$p(\bar{S}_{CC}^{\text{sn-2}})$", labelpad=0,fontsize=18)
+
+            #Make plot more readable
+            for i in range(3):
+                ax[i].tick_params(rotation=45)
+                ax[i].grid(False)
+                ax[i].tick_params(axis="both", labelsize=11)
+
+            plt.subplots_adjust(hspace=0.1, wspace = 0.25)
+            
+            lg = ax[1].legend(loc = "upper center", bbox_to_anchor = ( 0.5, -0.25), fancybox = False, framealpha = 0.5, facecolor = "grey", ncols = 4)
+
+            if leaflet != None: plt.savefig(f"GMM_{resname}_{leaflet}.pdf", dpi = 300, transparent=True, bbox_extra_artists = (xl0, xl1, xl2, yl0, yl1, yl2, lg), bbox_inches = "tight")
+            else: plt.savefig(f"GMM_{resname}.pdf", dpi = 300, transparent=True, bbox_extra_artists = (xl0, xl1, xl2, yl0, yl1, yl2, lg), bbox_inches = "tight")
+
+        #Do the plot for sterolic lipid types
+        else:
+
+            #Init only one subplot
+            fig, ax = plt.subplots(1, 1, figsize = (15*cm, 15*cm))
+
+            #Area per Lipid - Scc Chain A
+            ax.hist2d(x = train_data_per_type.reshape(-1, 2)[:, 0],
+                      y = train_data_per_type.reshape(-1, 2)[:, 1],
+                      bins = [np.linspace(MIN_APL, MAX_APL, int(np.round( (MAX_APL - MIN_APL) / 1 + 1 )) ), np.linspace(MIN_SCC, MAX_SCC, int(np.round( (MAX_SCC - MIN_SCC) / 0.025 + 1 )))],
+                      density = True, cmap="viridis")
+
+
+            #Calculate and display fitted distributions
+            #Iterate over both Gaussian distributions
+            for i in range(2):
+
+                #-------------------------------------------------------GMM-------------------------------------------------------
+                
+                #Area per Lipid (0) - Scc Chain C (1)
+                rv0 = stats.multivariate_normal(gmm_model.means_[i], gmm_model.covariances_[i])
+                z0 = rv0.pdf(xy01)
+
+                #Plot contours
+                ax.contour(x01, y01, z0, colors = [cx[i]], alpha = 0.2, linewidths = 2.25, zorder = 25)
+                
+                del rv0
+                del z0
+
+                #Mark with a cross the means of the fitted Gaussians
+                ax.scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i], label = f"GMM Mean {i}")
+
+                #-------------------------------------------------------HMM-------------------------------------------------------
+
+                #Area per Lipid (0) - Scc Chain C (1)
+                rv0 = stats.multivariate_normal(hmm_model.means_[i], hmm_model.covars_[i])
+                z0 = rv0.pdf(xy01)
+
+                #Plot contours
+                ax.contour(x01, y01, z0, colors = [cx_hmm[i]], alpha = 0.2, zorder = 50, linewidths = 1.25)
+
+                del rv0
+                del z0
+
+                #Mark with a circle the means of the fitted Gaussians from the HMM
+                ax.scatter( hmm_model.means_[i][0], hmm_model.means_[i][1], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i], label = f"HMM Mean {i}")
+
+            #Set ticks on the x and y axis
+            ax.set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
+            ax.set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 25 + 1 ) ) ) )
+
+            #Label the x and y axis
+            yl = ax.set_ylabel(r"$p(P_2)$", labelpad=-7,fontsize=18)
+            xl = ax.set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+
+            # Make plot more readable
+            ax.tick_params(rotation=45)
+            ax.grid(False)
+            ax.tick_params(axis="both", labelsize=11)
+
+            lg = ax.legend(loc = "upper center", bbox_to_anchor = ( 0.5, -0.25), fancybox = False, framealpha = 0.5, facecolor = "grey", ncols = 4)
+
+            if leaflet != None: plt.savefig(f"GMM_{resname}_{leaflet}.pdf", dpi = 300, transparent=True, bbox_extra_artists = (xl, yl, lg), bbox_inches = "tight")
+            else: plt.savefig(f"GMM_{resname}.pdf", dpi = 300, transparent=True, bbox_extra_artists = (xl, yl, lg), bbox_inches = "tight")
+
+        plt.close()
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
@@ -561,6 +806,25 @@ class PropertyCalculation(LeafletAnalysisBase):
         if self.result_plots:
             # Plot prediction result
             self.predict_plot()
+
+            #Plot results of GMM and HMM
+
+            #Iterate over fitted Gaussian Mixture Models
+            for resname in self.results["GMM"].keys():
+
+                gmm_trained = self.results["GMM"][resname]
+                hmm_trained = self.results["HMM"][resname]
+                
+                if self.asymmetric_membrane:
+                    
+                    if gmm_trained[0] is not None and hmm_trained[0] is not None and gmm_trained[0].converged_ and hmm_trained[0].monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained[0], hmm_model = hmm_trained[0], leaflet = 0)
+                    
+                    if gmm_trained[1] is not None and hmm_trained[1] is not None and gmm_trained[1].converged_ and hmm_trained[1].monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained[1], hmm_model = hmm_trained[1], leaflet = 1)
+                   
+                else:
+                    if gmm_trained.converged_ and hmm_trained.monitor_.converged: self.mixture_plot(resname = resname, gmm_model = gmm_trained, hmm_model = hmm_trained)
+
+
 
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10):
 
@@ -604,6 +868,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                                  means_prior=gmm.means_,
                                  covars_prior=gmm.covariances_,
                                  **hmm_kwargs)
+
+            #Check whether an optimization of the mean vectors and the covariance matrices is requested
+            #Optimization of means is not required  -> Take it from the Gaussian Mixture Model
+            if "m" not in hmm_kwargs['params']: ghmm_i.means_ = gmm.means_
+            #Optimization of covariances is not required -> Take it from the Gaussian Mixture Model
+            if "c" not in hmm_kwargs['params']: ghmm_i.covars_ = gmm.covariances_
 
             # Train the HMM based on the data for every lipid and frame
             ghmm_i.fit(data.reshape(-1, dim),
