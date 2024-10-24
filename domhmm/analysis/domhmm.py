@@ -565,7 +565,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         #Define colors for the markers that mark the fitted means of the Gaussians
         cx = ["crimson","cyan"]
-        cx_hmm = ["orange", "lime"]
+        cx_hmm = ["orange", "hotpink"]
 
         #Get trainings data for this type lipid and check if its asymmetric
         train_data_per_type = self.results["train_data_per_type"][resname][1]
@@ -620,9 +620,9 @@ class PropertyCalculation(LeafletAnalysisBase):
                 z2 = rv2.pdf(xy2)
 
                 #Plot contours -> Be aware that the first two plots share the same ranges
-                ax[0].contour(x01, y01, z0, colors = [cx[i]], alpha = 0.2)
-                ax[1].contour(x01, y01, z1, colors = [cx[i]], alpha = 0.2)
-                ax[2].contour(x2, y2, z2, colors = [cx[i]], alpha = 0.2)
+                ax[0].contour(x01, y01, z0, colors = [cx[i]], alpha = 0.2, linewidths = 2.25, zorder = 25)
+                ax[1].contour(x01, y01, z1, colors = [cx[i]], alpha = 0.2, linewidths = 2.25, zorder = 25)
+                ax[2].contour(x2, y2, z2, colors = [cx[i]], alpha = 0.2, linewidths = 2.25, zorder = 25)
 
                 del rv0
                 del rv1
@@ -633,7 +633,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
                 #Mark with a cross the means of the fitted Gaussians
                 ax[0].scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
-                ax[1].scatter( gmm_model.means_[i][0], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i])
+                ax[1].scatter( gmm_model.means_[i][0], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i], label = f"GMM Mean {i}")
                 ax[2].scatter( gmm_model.means_[i][1], gmm_model.means_[i][2], marker = "x", s = 100, zorder = 100, color=cx[i])
 
 
@@ -652,9 +652,9 @@ class PropertyCalculation(LeafletAnalysisBase):
                 z2 = rv2.pdf(xy2)
 
                 #Plot contours -> Be aware that the first two plots share the same ranges
-                ax[0].contour(x01, y01, z0, colors = [cx_hmm[i]], alpha = 0.2)
-                ax[1].contour(x01, y01, z1, colors = [cx_hmm[i]], alpha = 0.2)
-                ax[2].contour(x2, y2, z2, colors = [cx_hmm[i]], alpha = 0.2)
+                ax[0].contour(x01, y01, z0, colors = [cx_hmm[i]], alpha = 0.2, zorder = 50, linewidths = 1.25)
+                ax[1].contour(x01, y01, z1, colors = [cx_hmm[i]], alpha = 0.2, zorder = 50, linewidths = 1.25)
+                ax[2].contour(x2, y2, z2, colors = [cx_hmm[i]], alpha = 0.2, zorder = 50, linewidths = 1.25)
 
                 del rv0
                 del rv1
@@ -665,26 +665,26 @@ class PropertyCalculation(LeafletAnalysisBase):
 
                 #Mark with a circle the means of the fitted Gaussians from the HMM
                 ax[0].scatter( hmm_model.means_[i][0], hmm_model.means_[i][1], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
-                ax[1].scatter( hmm_model.means_[i][0], hmm_model.means_[i][2], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
+                ax[1].scatter( hmm_model.means_[i][0], hmm_model.means_[i][2], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i], label = f"HMM Mean {i}")
                 ax[2].scatter( hmm_model.means_[i][1], hmm_model.means_[i][2], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
 
             #Set ticks on the y axis
             for i in range(3): ax[i].set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
 
             #Set ticks on the x axis
-            ax[0].set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 10 + 1 ) ) ) )
-            ax[1].set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 10 + 1 ) ) ) ) 
+            ax[0].set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 25 + 1 ) ) ) )
+            ax[1].set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 25 + 1 ) ) ) ) 
             ax[2].set_xticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
 
             #Label y axis
-            ax[0].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-2}})$", labelpad=-7,fontsize=18)
-            ax[1].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-1}})$", labelpad=-7,fontsize=18)
-            ax[2].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-1}})$", labelpad=-7,fontsize=18)
+            yl0 = ax[0].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-2}})$", labelpad=-7,fontsize=18)
+            yl1 = ax[1].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-1}})$", labelpad=-7,fontsize=18)
+            yl2 = ax[2].set_ylabel(r"$p(\bar{S}_{CC}^{\text{sn-1}})$", labelpad=-7,fontsize=18)
 
             #Label x axis
-            ax[0].set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
-            ax[1].set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
-            ax[2].set_xlabel(r"$p(\bar{S}_{CC}^{\text{sn-2}})$", labelpad=0,fontsize=18)
+            xl0 = ax[0].set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+            xl1 = ax[1].set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+            xl2 = ax[2].set_xlabel(r"$p(\bar{S}_{CC}^{\text{sn-2}})$", labelpad=0,fontsize=18)
 
             #Make plot more readable
             for i in range(3):
@@ -693,12 +693,17 @@ class PropertyCalculation(LeafletAnalysisBase):
                 ax[i].tick_params(axis="both", labelsize=11)
 
             plt.subplots_adjust(hspace=0.1, wspace = 0.25)
+            
+            lg = ax[1].legend(loc = "upper center", bbox_to_anchor = ( 0.5, -0.25), fancybox = False, framealpha = 0.5, facecolor = "grey", ncols = 4)
+
+            if leaflet != None: plt.savefig(f"GMM_{resname}_{leaflet}.pdf", dpi = 300, transparent=True, bbox_extra_artists = (xl0, xl1, xl2, yl0, yl1, yl2, lg), bbox_inches = "tight")
+            else: plt.savefig(f"GMM_{resname}.pdf", dpi = 300, transparent=True, bbox_extra_artists = (xl0, xl1, xl2, yl0, yl1, yl2, lg), bbox_inches = "tight")
 
         #Do the plot for sterolic lipid types
         else:
 
             #Init only one subplot
-            fig, ax = plt.subplots(1, 1, figsize = (10*cm, 10*cm))
+            fig, ax = plt.subplots(1, 1, figsize = (15*cm, 15*cm))
 
             #Area per Lipid - Scc Chain A
             ax.hist2d(x = train_data_per_type.reshape(-1, 2)[:, 0],
@@ -718,13 +723,13 @@ class PropertyCalculation(LeafletAnalysisBase):
                 z0 = rv0.pdf(xy01)
 
                 #Plot contours
-                ax.contour(x01, y01, z0, colors = [cx[i]], alpha = 0.2)
+                ax.contour(x01, y01, z0, colors = [cx[i]], alpha = 0.2, linewidths = 2.25, zorder = 25)
                 
                 del rv0
                 del z0
 
                 #Mark with a cross the means of the fitted Gaussians
-                ax.scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i])
+                ax.scatter( gmm_model.means_[i][0], gmm_model.means_[i][1], marker = "x", s = 100, zorder = 100, color=cx[i], label = f"GMM Mean {i}")
 
                 #-------------------------------------------------------HMM-------------------------------------------------------
 
@@ -733,29 +738,32 @@ class PropertyCalculation(LeafletAnalysisBase):
                 z0 = rv0.pdf(xy01)
 
                 #Plot contours
-                ax.contour(x01, y01, z0, colors = [cx_hmm[i]], alpha = 0.2)
+                ax.contour(x01, y01, z0, colors = [cx_hmm[i]], alpha = 0.2, zorder = 50, linewidths = 1.25)
 
                 del rv0
                 del z0
 
                 #Mark with a circle the means of the fitted Gaussians from the HMM
-                ax.scatter( hmm_model.means_[i][0], hmm_model.means_[i][1], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i])
+                ax.scatter( hmm_model.means_[i][0], hmm_model.means_[i][1], marker = "o", facecolor = "none", s = 100, zorder = 100, edgecolor=cx_hmm[i], label = f"HMM Mean {i}")
 
             #Set ticks on the x and y axis
             ax.set_yticks([-0.5, 0, 0.5, 1], [r"$-0.5$", r"$0$", r"$0.5$", r"$1$"])
-            ax.set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 10 + 1 ) ) ) )
+            ax.set_xticks( np.linspace(MIN_APL, MAX_APL, int( np.round( (MAX_APL - MIN_APL) / 25 + 1 ) ) ) )
 
             #Label the x and y axis
-            ax.set_ylabel(r"$p(P_2)$", labelpad=-7,fontsize=18)
-            ax.set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
+            yl = ax.set_ylabel(r"$p(P_2)$", labelpad=-7,fontsize=18)
+            xl = ax.set_xlabel(r"$p(a)$", labelpad=0,fontsize=18)
 
             # Make plot more readable
             ax.tick_params(rotation=45)
             ax.grid(False)
             ax.tick_params(axis="both", labelsize=11)
 
-        if leaflet != None: plt.savefig(f"GMM_{resname}_{leaflet}.pdf", dpi = 300, transparent=True)
-        else: plt.savefig(f"GMM_{resname}.pdf", dpi = 300, transparent=True)
+            lg = ax.legend(loc = "upper center", bbox_to_anchor = ( 0.5, -0.25), fancybox = False, framealpha = 0.5, facecolor = "grey", ncols = 4)
+
+            if leaflet != None: plt.savefig(f"GMM_{resname}_{leaflet}.pdf", dpi = 300, transparent=True, bbox_extra_artists = (xl, yl, lg), bbox_inches = "tight")
+            else: plt.savefig(f"GMM_{resname}.pdf", dpi = 300, transparent=True, bbox_extra_artists = (xl, yl, lg), bbox_inches = "tight")
+
         plt.close()
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
