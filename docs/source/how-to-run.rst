@@ -119,6 +119,10 @@ Let's dive into each parameter's details.
 Optional Parameters
 -------------------
 
+* ``do_clustering``
+
+Whether to perform the hierarchical clustering or not (Default is True).
+
 * ``asymmetric_membrane``
 
 It needs to be enabled if leaflets are not symmetric. With this option, models are fitted by separated data for each leaflets.
