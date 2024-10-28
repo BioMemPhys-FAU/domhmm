@@ -336,7 +336,7 @@ class LeafletAnalysisBase(AnalysisBase):
                 # If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
                 self.trained_hmms = trained_hmms
 
-            elif not self.asymmetric_membrane:
+            else:
                 # Symmetric membrane is assumed!
                 # Assuming same lipid types per leaflet
                 # Structure of the expected dictionary: {ResnameA: HMMA, ResnameB: HMMB, ResnameC: HMMC, ...}
@@ -358,11 +358,6 @@ class LeafletAnalysisBase(AnalysisBase):
 
                 # If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
                 self.trained_hmms = trained_hmms
-
-            else:
-                # Something did not work as expected
-                raise ValueError(
-                    f"Argument 'asymmetric_membrane' must be boolean (True/False), not {self.asymmetric_membrane}.")
 
         # --------------------------------------HOUSE KEEPING-------------------------------------- #
 
