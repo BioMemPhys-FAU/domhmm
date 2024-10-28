@@ -23,10 +23,10 @@ class TestBase:
         uni = mda.Universe(path2tpr, path2xtc)
         return uni
 
-    @pytest.fixture(scope="class")
-    def analysis(self, universe):
+    @staticmethod
+    def base_test_inputs():
         """
-        Standard analysis options
+        General inputs for all DomHMM PropertyCalculation class
         """
         membrane_select = "resname DPPC DIPC CHOL"
         heads = {"DPPC": "PO4",
@@ -35,6 +35,14 @@ class TestBase:
                  "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
         sterol_heads = {"CHOL": "ROH"}
         sterol_tails = {"CHOL": ["ROH", "C1"]}
+        return membrane_select, heads, tails, sterol_heads, sterol_tails
+
+    @pytest.fixture(scope="class")
+    def analysis(self, universe):
+        """
+        Standard analysis options
+        """
+        membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
 
         return base.LeafletAnalysisBase(universe_or_atomgroup=universe,
                                         leaflet_kwargs={"select": "name PO4", "pbc": True},
@@ -49,13 +57,7 @@ class TestBase:
         """
         Analysis option with GMM and HMM arguments
         """
-        membrane_select = "resname DPPC DIPC CHOL"
-        heads = {"DPPC": "PO4",
-                 "DIPC": "PO4"}
-        tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
-                 "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
-        sterol_heads = {"CHOL": "ROH"}
-        sterol_tails = {"CHOL": ["ROH", "C1"]}
+        membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
 
         gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
                       "max_iter": 10000, "n_init": 20,
@@ -80,6 +82,63 @@ class TestBase:
         assert (analysis.unique_resnames == ['DPPC', 'DIPC', 'CHOL']).all()
         assert analysis.sterol_tails_selection.keys() == {"CHOL"}
         assert analysis.n_leaflets == 2
+
+    def test_leaflet_select_exceptions(self, universe):
+        """
+        Testing leaflet_select parameter
+        """
+        membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
+        # Catch errors for wrong leaflet selection option
+        leaflet_select = None
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                                leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                                membrane_select=membrane_select,
+                                                leaflet_select=leaflet_select,
+                                                heads=heads,
+                                                sterol_heads=sterol_heads,
+                                                sterol_tails=sterol_tails,
+                                                tails=tails)
+        leaflet_select = "Wrong String"
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                                leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                                membrane_select=membrane_select,
+                                                leaflet_select=leaflet_select,
+                                                heads=heads,
+                                                sterol_heads=sterol_heads,
+                                                sterol_tails=sterol_tails,
+                                                tails=tails)
+        leaflet_select = ["Single Leaflet"]
+        with pytest.raises(AssertionError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                                leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                                membrane_select=membrane_select,
+                                                leaflet_select=leaflet_select,
+                                                heads=heads,
+                                                sterol_heads=sterol_heads,
+                                                sterol_tails=sterol_tails,
+                                                tails=tails)
+        leaflet_select = [[1], [2]]
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select=leaflet_select,
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tails=tails)
+        leaflet_select = [["Wrong MDA"],["Query"]]
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select=leaflet_select,
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tails=tails)
 
     def test_check_parameters(self, analysis):
         """
