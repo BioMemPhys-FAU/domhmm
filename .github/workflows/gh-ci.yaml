@@ -108,6 +108,7 @@ jobs:
       if: github.repository == 'BioMemPhys-FAU/domhmm' && github.event_name != 'schedule'
       uses: codecov/codecov-action@v3
       with:
+        token: d76c3108-6030-44f7-aeee-2ca2eabfaf28
         file: coverage.xml
         name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
         verbose: True
