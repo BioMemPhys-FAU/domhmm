@@ -45,6 +45,42 @@ class TestBase:
                                         sterol_tails=sterol_tails,
                                         tails=tails)
 
+    def test_gmm_hmm_input(self, universe):
+        """
+        Analysis option with GMM and HMM arguments
+        """
+        membrane_select = "resname DPPC DIPC CHOL"
+        heads = {"DPPC": "PO4",
+                 "DIPC": "PO4"}
+        tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
+                 "DIPC": [["C1B", "D2B", "D3B", "C4B"], ["C1A", "D2A", "D3A", "C4A"]]}
+        sterol_heads = {"CHOL": "ROH"}
+        sterol_tails = {"CHOL": ["ROH", "C1"]}
+
+        gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
+                      "max_iter": 10000, "n_init": 20,
+                      "warm_start": False, "covariance_type": "full"}
+
+        hmm_kwargs = {"verbose": False, "tol": 1E-4, "n_iter": 2000,
+                      "algorithm": "viterbi", "covariance_type": "full",
+                      "init_params": "st", "params": "stmc"}
+
+        analysis = base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                            leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                            gmm_kwargs=gmm_kwargs,
+                                            hmm_kwargs=hmm_kwargs,
+                                            membrane_select=membrane_select,
+                                            leaflet_select="auto",
+                                            heads=heads,
+                                            sterol_heads=sterol_heads,
+                                            sterol_tails=sterol_tails,
+                                            tails=tails)
+
+        assert analysis.membrane_unique_resids.size == 720
+        assert (analysis.unique_resnames == ['DPPC', 'DIPC', 'CHOL']).all()
+        assert analysis.sterol_tails_selection.keys() == {"CHOL"}
+        assert analysis.n_leaflets == 2
+
     def test_check_parameters(self, analysis):
         """
         Checking initial parameters
@@ -81,7 +117,7 @@ class TestBase:
         """
         sterols_tail = analysis.get_leaflets_sterol()
         assert len(sterols_tail) == 2
-        assert sterols_tail.keys() == {'0','1'}
+        assert sterols_tail.keys() == {'0', '1'}
         assert sterols_tail['0'].n_atoms == 355
         assert sterols_tail['1'].n_atoms == 365
 
