@@ -85,7 +85,7 @@ class TestBase:
 
     def test_leaflet_select_exceptions(self, universe):
         """
-        Testing leaflet_select parameter
+        Testing leaflet_select parameter's exceptions
         """
         membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
         # Catch errors for wrong leaflet selection option
@@ -157,6 +157,9 @@ class TestBase:
                                      tails=tails)
 
     def test_leaflet_select_parameter(self, universe):
+        """
+        Testing leaflet_select parameter
+        """
         membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
         # With MDA Query String
         leaflet_select = ["resid 1:252", "resid 361:612"]
@@ -180,6 +183,65 @@ class TestBase:
                                  sterol_heads=sterol_heads,
                                  sterol_tails=sterol_tails,
                                  tails=tails)
+
+    def test_tmd_protein_list_exceptions(self, universe):
+        """
+        Testing tmd_protein_list parameter's exceptions
+        """
+        membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
+        # Test tmd_protein_list format
+        tmd_protein = "Wrong Format"
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select="auto",
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tmd_protein_list=tmd_protein,
+                                     tails=tails)
+        # Test wrong element format (should be only dicts)
+        tmd_protein = ["Wrong Format", "Wrong Format"]
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select="auto",
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tmd_protein_list=tmd_protein,
+                                     tails=tails)
+        # Test wrong key names ("0" for upper, "1" for lower)
+        tmd_protein = [{"2": []}, {"3": []}]
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select="auto",
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tmd_protein_list=tmd_protein,
+                                     tails=tails)
+        # Test wrong values (atomgroup or string query only)
+        tmd_protein = [{"0": 0}, {"1": 1}]
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select="auto",
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tmd_protein_list=tmd_protein,
+                                     tails=tails)
+    def test_tmd_protein_list_parameter(self, universe):
+        """
+        Testing tmd_protein_list parameter
+        """
+        pass
 
     def test_check_parameters(self, analysis):
         """
