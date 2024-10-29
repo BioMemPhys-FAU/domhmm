@@ -5,7 +5,6 @@ Unit and regression test for the domhmm package.
 import os
 
 import MDAnalysis as mda
-# Import package, test suite, and other packages as needed
 import pytest
 
 from ..analysis import base

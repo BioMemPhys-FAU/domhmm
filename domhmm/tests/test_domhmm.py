@@ -9,7 +9,6 @@ import MDAnalysis as mda
 import numpy as np
 import pytest
 
-# Import package, test suite, and other packages as needed
 import domhmm
 
 error_tolerance = 0.001
@@ -17,7 +16,7 @@ error_tolerance = 0.001
 
 class TestDomhmm:
 
-    @pytest.fixture(scope="function")
+    @pytest.fixture(scope="class")
     def universe(self):
         """
         MDA universe of test environment
@@ -58,7 +57,7 @@ class TestDomhmm:
                                           tails=tails,
                                           result_plots=True)
 
-    @pytest.fixture(scope="function")
+    @pytest.fixture(scope="class")
     def analysis_reuse_hmm_model(self, universe):
         """
         Analysis option with reusing of HMM models
@@ -78,7 +77,7 @@ class TestDomhmm:
                                           result_plots=True,
                                           trained_hmms=trained_hmm)
 
-    @pytest.fixture(scope="function")
+    @pytest.fixture(scope="class")
     def analysis_asymmetric(self, universe):
         """
         Analysis option with asymmetric membrane simulation
@@ -183,12 +182,12 @@ class TestDomhmm:
         """
         assert "domhmm" in sys.modules
 
-    # def test_run(self, analysis):
-    #     """
-    #     Demo run with standard options
-    #     """
-    #     analysis.run(start=0, stop=100)
-    #     self.result_parameter_check(analysis, "analysis")
+    def test_run(self, analysis):
+        """
+        Demo run with standard options
+        """
+        analysis.run(start=0, stop=100)
+        self.result_parameter_check(analysis, "analysis")
 
     def test_run_reuse_hmm_model(self, analysis_reuse_hmm_model):
         """
