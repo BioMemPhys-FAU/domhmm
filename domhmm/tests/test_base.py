@@ -202,7 +202,7 @@ class TestBase:
                                      tmd_protein_list=tmd_protein,
                                      tails=tails)
         # Test wrong element format (should be only dicts)
-        tmd_protein = ["Wrong Format", "Wrong Format"]
+        tmd_protein = ["Wrong Format"]
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
                                      leaflet_kwargs={"select": "name PO4", "pbc": True},
@@ -227,6 +227,18 @@ class TestBase:
                                      tails=tails)
         # Test wrong values (AtomGroup or string query only)
         tmd_protein = [{"0": 0, "1": 1}]
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select="auto",
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tmd_protein_list=tmd_protein,
+                                     tails=tails)
+        # Test wrong MDA query
+        tmd_protein = [{"0": "Wrong Query", "1": "Wrong Query"}]
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
                                      leaflet_kwargs={"select": "name PO4", "pbc": True},
