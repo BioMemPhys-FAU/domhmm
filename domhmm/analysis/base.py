@@ -236,10 +236,11 @@ class LeafletAnalysisBase(AnalysisBase):
         if isinstance(tmd_protein_list, list):
             # Initialize empty dictionary to store AtomGroups
             self.tmd_protein = {"0": [], "1": []}
-            if len(tmd_protein_list) != 2 or not isinstance(tmd_protein_list[0], dict) or not isinstance(tmd_protein_list[1], dict):
-                raise ValueError("Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
-                                 "where 0 for lower leaflet and 1 for upper leaflet.")
             for each in tmd_protein_list:
+                if not isinstance(each, dict):
+                    raise ValueError(
+                        "Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
+                        "where 0 for lower leaflet and 1 for upper leaflet.")
                 for leaflet, query in each.items():
                     if leaflet not in ["0", "1"]:
                         raise ValueError("Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
@@ -260,8 +261,8 @@ class LeafletAnalysisBase(AnalysisBase):
                     else:
                         raise ValueError("TDM Protein list should contain AtomGroup from MDAnalysis universe or a string "
                                          "query for MDAnalysis selection.")
-                self.tmd_protein["0"] = np.array(self.tmd_protein["0"])
-                self.tmd_protein["1"] = np.array(self.tmd_protein["1"])
+            self.tmd_protein["0"] = np.array(self.tmd_protein["0"])
+            self.tmd_protein["1"] = np.array(self.tmd_protein["1"])
         elif tmd_protein_list is not None:
             # An unknown argument is provided for tdm_protein_list
             raise ValueError(
