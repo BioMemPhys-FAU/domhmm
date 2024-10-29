@@ -93,36 +93,36 @@ class TestBase:
         leaflet_select = None
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
-                                                leaflet_kwargs={"select": "name PO4", "pbc": True},
-                                                membrane_select=membrane_select,
-                                                leaflet_select=leaflet_select,
-                                                heads=heads,
-                                                sterol_heads=sterol_heads,
-                                                sterol_tails=sterol_tails,
-                                                tails=tails)
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select=leaflet_select,
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tails=tails)
         # Test wrong string input (anything except "auto")
         leaflet_select = "Wrong String"
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
-                                                leaflet_kwargs={"select": "name PO4", "pbc": True},
-                                                membrane_select=membrane_select,
-                                                leaflet_select=leaflet_select,
-                                                heads=heads,
-                                                sterol_heads=sterol_heads,
-                                                sterol_tails=sterol_tails,
-                                                tails=tails)
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select=leaflet_select,
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tails=tails)
         # Test single element list (two needed for both upper and lower leaflet)
         leaflet_select = ["Single Leaflet"]
         with pytest.raises(AssertionError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
-                                                leaflet_kwargs={"select": "name PO4", "pbc": True},
-                                                membrane_select=membrane_select,
-                                                leaflet_select=leaflet_select,
-                                                heads=heads,
-                                                sterol_heads=sterol_heads,
-                                                sterol_tails=sterol_tails,
-                                                tails=tails)
-        # Test wrong type list (either string or atomgroup is required)
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select=leaflet_select,
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tails=tails)
+        # Test wrong type list (either string or AtomGroup is required)
         leaflet_select = [[1], [2]]
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
@@ -214,7 +214,7 @@ class TestBase:
                                      tmd_protein_list=tmd_protein,
                                      tails=tails)
         # Test wrong key names ("0" for upper, "1" for lower)
-        tmd_protein = [{"2": []}, {"3": []}]
+        tmd_protein = [{"2": [], "3": []}]
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
                                      leaflet_kwargs={"select": "name PO4", "pbc": True},
@@ -225,8 +225,8 @@ class TestBase:
                                      sterol_tails=sterol_tails,
                                      tmd_protein_list=tmd_protein,
                                      tails=tails)
-        # Test wrong values (atomgroup or string query only)
-        tmd_protein = [{"0": 0}, {"1": 1}]
+        # Test wrong values (AtomGroup or string query only)
+        tmd_protein = [{"0": 0, "1": 1}]
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
                                      leaflet_kwargs={"select": "name PO4", "pbc": True},
@@ -237,11 +237,46 @@ class TestBase:
                                      sterol_tails=sterol_tails,
                                      tmd_protein_list=tmd_protein,
                                      tails=tails)
+
     def test_tmd_protein_list_parameter(self, universe):
         """
         Testing tmd_protein_list parameter
         """
-        pass
+        membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
+        # Test tmd_protein_list with string query
+        tmd_protein_list = [{"0": "resid 1:3", "1": "resid 1:3"}]
+        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                 leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                 membrane_select=membrane_select,
+                                 leaflet_select="auto",
+                                 heads=heads,
+                                 sterol_heads=sterol_heads,
+                                 sterol_tails=sterol_tails,
+                                 tmd_protein_list=tmd_protein_list,
+                                 tails=tails)
+        # Test tmd_protein_list with AtomGroup
+        demo_protein = universe.select_atoms("resid 1:3")
+        tmd_protein_list = [{"0": demo_protein, "1": demo_protein}]
+        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                 leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                 membrane_select=membrane_select,
+                                 leaflet_select="auto",
+                                 heads=heads,
+                                 sterol_heads=sterol_heads,
+                                 sterol_tails=sterol_tails,
+                                 tmd_protein_list=tmd_protein_list,
+                                 tails=tails)
+        # Test multiple protein in tmd_protein_list
+        tmd_protein_list = [{"0": "resid 1:3", "1": "resid 1:3"}, {"0": "resid 1:3", "1": "resid 1:3"}]
+        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                 leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                 membrane_select=membrane_select,
+                                 leaflet_select="auto",
+                                 heads=heads,
+                                 sterol_heads=sterol_heads,
+                                 sterol_tails=sterol_tails,
+                                 tmd_protein_list=tmd_protein_list,
+                                 tails=tails)
 
     def test_check_parameters(self, analysis):
         """
