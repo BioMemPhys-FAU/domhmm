@@ -89,6 +89,7 @@ class TestBase:
         """
         membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
         # Catch errors for wrong leaflet selection option
+        # Test None input
         leaflet_select = None
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
@@ -99,6 +100,7 @@ class TestBase:
                                                 sterol_heads=sterol_heads,
                                                 sterol_tails=sterol_tails,
                                                 tails=tails)
+        # Test wrong string input (anything except "auto")
         leaflet_select = "Wrong String"
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
@@ -109,6 +111,7 @@ class TestBase:
                                                 sterol_heads=sterol_heads,
                                                 sterol_tails=sterol_tails,
                                                 tails=tails)
+        # Test single element list (two needed for both upper and lower leaflet)
         leaflet_select = ["Single Leaflet"]
         with pytest.raises(AssertionError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
@@ -119,6 +122,7 @@ class TestBase:
                                                 sterol_heads=sterol_heads,
                                                 sterol_tails=sterol_tails,
                                                 tails=tails)
+        # Test wrong type list (either string or atomgroup is required)
         leaflet_select = [[1], [2]]
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
@@ -129,7 +133,8 @@ class TestBase:
                                      sterol_heads=sterol_heads,
                                      sterol_tails=sterol_tails,
                                      tails=tails)
-        leaflet_select = [["Wrong MDA"],["Query"]]
+        # Test wrong MDA query strings for both leaflet
+        leaflet_select = ["Wrong MDA", "Query"]
         with pytest.raises(ValueError):
             base.LeafletAnalysisBase(universe_or_atomgroup=universe,
                                      leaflet_kwargs={"select": "name PO4", "pbc": True},
@@ -139,6 +144,42 @@ class TestBase:
                                      sterol_heads=sterol_heads,
                                      sterol_tails=sterol_tails,
                                      tails=tails)
+        # Test sterol involment (only lipids in leaflet selection)
+        leaflet_select = ["resname CHOL", "resname CHOL"]
+        with pytest.raises(ValueError):
+            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                     membrane_select=membrane_select,
+                                     leaflet_select=leaflet_select,
+                                     heads=heads,
+                                     sterol_heads=sterol_heads,
+                                     sterol_tails=sterol_tails,
+                                     tails=tails)
+
+    def test_leaflet_select_parameter(self, universe):
+        membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
+        # With MDA Query String
+        leaflet_select = ["resid 1:252", "resid 361:612"]
+        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                 leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                 membrane_select=membrane_select,
+                                 leaflet_select=leaflet_select,
+                                 heads=heads,
+                                 sterol_heads=sterol_heads,
+                                 sterol_tails=sterol_tails,
+                                 tails=tails)
+        # With MDA Atom Group
+        upper_leaflet = universe.select_atoms("resid 1:252")
+        lower_leaflet = universe.select_atoms("resid 361:612")
+        leaflet_select = [upper_leaflet, lower_leaflet]
+        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                 leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                 membrane_select=membrane_select,
+                                 leaflet_select=leaflet_select,
+                                 heads=heads,
+                                 sterol_heads=sterol_heads,
+                                 sterol_tails=sterol_tails,
+                                 tails=tails)
 
     def test_check_parameters(self, analysis):
         """
