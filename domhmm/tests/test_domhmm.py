@@ -57,7 +57,7 @@ class TestDomhmm:
                                           tails=tails,
                                           result_plots=True)
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def analysis_reuse_hmm_model(self, universe):
         """
         Analysis option with reusing of HMM models
@@ -78,7 +78,7 @@ class TestDomhmm:
                                           save_plots=True,
                                           trained_hmms=trained_hmm)
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def analysis_asymmetric(self, universe):
         """
         Analysis option with asymmetric membrane simulation
