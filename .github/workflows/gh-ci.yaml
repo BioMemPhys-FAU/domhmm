@@ -102,7 +102,7 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest -n 2 -v --cov=domhmm --cov-report=xml --color=yes domhmm/tests/
+        pytest -n 1 -v --cov=domhmm --cov-report=xml --color=yes domhmm/tests/
 
     - name: codecov
       if: github.repository == 'BioMemPhys-FAU/domhmm' && github.event_name != 'schedule'
