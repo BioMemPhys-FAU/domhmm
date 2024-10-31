@@ -66,6 +66,7 @@ class TestDomhmm:
         test_dir = os.path.dirname(__file__)
         with open(os.path.join(test_dir, "data/symmetric_hmm.pickle"), "rb") as f:
             trained_hmm = pickle.load(f)
+        mock_tmd_protein_list = [{"0": "resid 1:3", "1": "resid 1:3"}]
         return domhmm.PropertyCalculation(universe_or_atomgroup=universe,
                                           leaflet_kwargs={"select": "name PO4", "pbc": True},
                                           membrane_select=membrane_select,
@@ -74,6 +75,7 @@ class TestDomhmm:
                                           sterol_heads=sterol_heads,
                                           sterol_tails=sterol_tails,
                                           tails=tails,
+                                          tmd_protein_list=mock_tmd_protein_list,
                                           leaflet_frame_rate=2,
                                           result_plots=True,
                                           save_plots=True,
@@ -174,6 +176,9 @@ class TestDomhmm:
             assert analysis.results['HMM_Pred']['DPPC'].shape == (302, 100)
             assert analysis.results['HMM_Pred']['DIPC'].shape == (202, 100)
             assert analysis.results['HMM_Pred']['CHOL'].shape == (216, 100)
+            assert analysis.tmd_protein.keys() == {'0', '1'}
+            assert np.allclose(analysis.tmd_protein['0'], [[63.04445, 86.886116, 60.87222]], error_tolerance)
+            assert np.allclose(analysis.tmd_protein['1'], [[63.04445,  86.886116, 60.87222 ]], error_tolerance)
         assert len(analysis.results['HMM_Pred']) == 3
         assert analysis.results['HMM_Pred'].keys() == {'DPPC', 'DIPC', 'CHOL'}
         assert len(analysis.results['Getis_Ord']) == 4
