@@ -236,8 +236,11 @@ class LeafletAnalysisBase(AnalysisBase):
         if isinstance(tmd_protein_list, list):
             # Initialize empty dictionary to store AtomGroups
             self.tmd_protein = {"0": [], "1": []}
-
             for each in tmd_protein_list:
+                if not isinstance(each, dict):
+                    raise ValueError(
+                        "Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
+                        "where 0 for lower leaflet and 1 for upper leaflet.")
                 for leaflet, query in each.items():
                     if leaflet not in ["0", "1"]:
                         raise ValueError("Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
@@ -247,7 +250,7 @@ class LeafletAnalysisBase(AnalysisBase):
                         cog = np.mean(query.positions, axis=0)
                         self.tmd_protein[leaflet].append(cog)
                     # Character string was provided as input, assume it contains a selection for an MDAnalysis.AtomGroup
-                    elif isinstance(leaflet_select[int(leaflet)], str):
+                    elif isinstance(query, str):
                         # Try to create a MDAnalysis.AtomGroup, raise a ValueError if not selection group could be
                         # provided
                         try:
@@ -258,8 +261,8 @@ class LeafletAnalysisBase(AnalysisBase):
                     else:
                         raise ValueError("TDM Protein list should contain AtomGroup from MDAnalysis universe or a string "
                                          "query for MDAnalysis selection.")
-                self.tmd_protein["0"] = np.array(self.tmd_protein["0"])
-                self.tmd_protein["1"] = np.array(self.tmd_protein["1"])
+            self.tmd_protein["0"] = np.array(self.tmd_protein["0"])
+            self.tmd_protein["1"] = np.array(self.tmd_protein["1"])
         elif tmd_protein_list is not None:
             # An unknown argument is provided for tdm_protein_list
             raise ValueError(
@@ -336,7 +339,7 @@ class LeafletAnalysisBase(AnalysisBase):
                 # If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
                 self.trained_hmms = trained_hmms
 
-            elif not self.asymmetric_membrane:
+            else:
                 # Symmetric membrane is assumed!
                 # Assuming same lipid types per leaflet
                 # Structure of the expected dictionary: {ResnameA: HMMA, ResnameB: HMMB, ResnameC: HMMC, ...}
@@ -358,11 +361,6 @@ class LeafletAnalysisBase(AnalysisBase):
 
                 # If everthing works until here, it is assumed that all provided HMMs are valid and can be used later on
                 self.trained_hmms = trained_hmms
-
-            else:
-                # Something did not work as expected
-                raise ValueError(
-                    f"Argument 'asymmetric_membrane' must be boolean (True/False), not {self.asymmetric_membrane}.")
 
         # --------------------------------------HOUSE KEEPING-------------------------------------- #
 
