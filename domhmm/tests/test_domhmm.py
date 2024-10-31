@@ -74,6 +74,7 @@ class TestDomhmm:
                                           sterol_heads=sterol_heads,
                                           sterol_tails=sterol_tails,
                                           tails=tails,
+                                          leaflet_frame_rate=2,
                                           result_plots=True,
                                           save_plots=True,
                                           trained_hmms=trained_hmm)
