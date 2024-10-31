@@ -16,7 +16,7 @@ error_tolerance = 0.001
 
 class TestDomhmm:
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def universe(self):
         """
         MDA universe of test environment
@@ -75,6 +75,7 @@ class TestDomhmm:
                                           sterol_tails=sterol_tails,
                                           tails=tails,
                                           result_plots=True,
+                                          save_plots=True,
                                           trained_hmms=trained_hmm)
 
     @pytest.fixture(scope="class")
@@ -92,7 +93,7 @@ class TestDomhmm:
                                           sterol_tails=sterol_tails,
                                           tails=tails,
                                           verbose=True,
-                                          result_plots=True,
+                                          result_plots=False,
                                           asymmetric_membrane=True)
 
     @pytest.fixture(scope="class")
