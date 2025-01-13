@@ -951,6 +951,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                     else:
                         temp_array.append([])
 
+                # Leaflet checks in case lipid is only in one leaflet
                 if len(temp_array[0]) == 0:
                     idx = np.array(temp_array[1][0]).argsort()
                     result = temp_array[1][1]
@@ -979,6 +980,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                     else:
                         temp_array.append(None)
 
+                # Leaflet checks in case lipid is only in one leaflet
                 if temp_array[0] is None:
                     idx = np.array(temp_array[1][0]).argsort()
                     result = temp_array[1][1]
@@ -991,13 +993,13 @@ class PropertyCalculation(LeafletAnalysisBase):
                 result = result[idx]
                 self.results['HMM_Pred'][resname] = result
         else:
+            # Symmetric membrane case
             for resname, data in self.results.train_data_per_type.items():
                 shape = data[1].shape
                 hmm = self.results['HMM'][resname]
                 # Lengths consists of number of frames and number of residues
                 lengths = np.repeat(shape[1], shape[0])
                 prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
-                prediction = self.hmm_diff_checker(hmm.means_, prediction)
                 # Save prediction result of each residue
                 self.results['HMM_Pred'][resname] = prediction
 
