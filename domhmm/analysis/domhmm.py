@@ -997,6 +997,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 # Lengths consists of number of frames and number of residues
                 lengths = np.repeat(shape[1], shape[0])
                 prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+                prediction = self.hmm_diff_checker(hmm.means_, prediction)
                 # Save prediction result of each residue
                 self.results['HMM_Pred'][resname] = prediction
 
@@ -1334,7 +1335,6 @@ class PropertyCalculation(LeafletAnalysisBase):
             colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
 
             # Goto correct frame of the trajectory
-            # TODO Statement seems to have no effect
             self.universe.trajectory[self.start:self.stop:self.step][i]
 
             # Prepare positions for cluster plotting
