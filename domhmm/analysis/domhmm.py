@@ -318,7 +318,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
         upper_coor_xy = self.leaflet_selection[str(0)].positions
         lower_coor_xy = self.leaflet_selection[str(1)].positions
-        # Check Transmembrane domain existance
+        # Check Transmembrane domain existence
         if self.tmd_protein is not None:
             tmd_upper_coor_xy = self.tmd_protein["0"]
             # Check if dimension of coordinates is same in both array
@@ -1550,9 +1550,9 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Parameters
         ----------
-        leaflet : numpy.ndarray
+        leaflet : int
             leaflet index
-        step: numpy.ndarray
+        step: int
             step index
 
         Returns
@@ -1595,9 +1595,9 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Parameters
         ----------
-        leaflet : numpy.ndarray
+        leaflet : int
             leaflet index
-        step: numpy.ndarray
+        step: int
             step index
 
         Returns
@@ -1631,6 +1631,21 @@ class PropertyCalculation(LeafletAnalysisBase):
         return indexes, positions
 
     def get_leaflet_step_index_to_resid(self, leaflet, step):
+        """
+        Returns leaflet index to residue id map for a specific leaflet at specific frame of the trajectory
+
+        Parameters
+        ----------
+        leaflet : int
+            leaflet index
+        step: int
+            step index
+
+        Returns
+        -------
+        result_map : dict
+            dictionary contains leaflet index of residue as key and residue id as value
+        """
         leaflet_assignment_step = self.leaflet_assignment[:, step]
         leaflet_assignment_mask = leaflet_assignment_step == leaflet
         result_map = {}
