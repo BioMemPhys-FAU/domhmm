@@ -318,7 +318,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
         upper_coor_xy = self.leaflet_selection[str(0)].positions
         lower_coor_xy = self.leaflet_selection[str(1)].positions
-        # Check Transmembrane domain existance
+        # Check Transmembrane domain existence
         if self.tmd_protein is not None:
             tmd_upper_coor_xy = self.tmd_protein["0"]
             # Check if dimension of coordinates is same in both array
@@ -1396,7 +1396,11 @@ class PropertyCalculation(LeafletAnalysisBase):
                                                         w_ii_f=self.results["Getis_Ord"][j][f"w_ii_{j}"][i],
                                                         core_lipids=core_lipids)
                 frame_number = self.start + i * self.step
-                self.results["Clustering"][str(j)][frame_number] = list(clusters.values())
+                leaflet_index_resid_map = self.get_leaflet_step_index_to_resid(j, i)
+                cluster_result = []
+                for cluster in clusters.values():
+                    cluster_result.append([leaflet_index_resid_map[leaflet_index] for leaflet_index in cluster])
+                self.results["Clustering"][str(j)][frame_number] = cluster_result
 
     @staticmethod
     def assign_core_lipids(weight_matrix_f, g_star_i_f, order_states_f, w_ii_f, z_score):
@@ -1546,9 +1550,9 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         Parameters
         ----------
-        leaflet : numpy.ndarray
+        leaflet : int
             leaflet index
-        step: numpy.ndarray
+        step: int
             step index
 
         Returns
@@ -1560,7 +1564,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         #Init two empty lists for ...
         temp = [] #... order states prediction
         idxs = [] #... indices of lipids
-        
+
         #Iterate over lipids
         for res, data in self.results.train_data_per_type.items():
 
@@ -1583,17 +1587,17 @@ class PropertyCalculation(LeafletAnalysisBase):
         return order_states
 
 
-    
+
 
     def get_leaflet_step_order_index(self, leaflet, step):
         """
-        Receive residue's indexes and positions for a specific leaflet at any frame of the trajecytory.
+        Receive residue's indexes and positions for a specific leaflet at any frame of the trajectory.
 
         Parameters
         ----------
-        leaflet : numpy.ndarray
+        leaflet : int
             leaflet index
-        step: numpy.ndarray
+        step: int
             step index
 
         Returns
@@ -1625,3 +1629,30 @@ class PropertyCalculation(LeafletAnalysisBase):
                     f"resname {res} and name {self.sterol_heads[res]}")).positions
 
         return indexes, positions
+
+    def get_leaflet_step_index_to_resid(self, leaflet, step):
+        """
+        Returns leaflet index to residue id map for a specific leaflet at specific frame of the trajectory
+
+        Parameters
+        ----------
+        leaflet : int
+            leaflet index
+        step: int
+            step index
+
+        Returns
+        -------
+        result_map : dict
+            dictionary contains leaflet index of residue as key and residue id as value
+        """
+        leaflet_assignment_step = self.leaflet_assignment[:, step]
+        leaflet_assignment_mask = leaflet_assignment_step == leaflet
+        result_map = {}
+        for resname in self.unique_resnames:
+            sys_index = np.where(self.membrane.residues.resnames == resname)[0]
+            sys_index =sys_index[leaflet_assignment_mask[sys_index]]
+            leaflet_index = np.where(self.membrane.residues[leaflet_assignment_mask].resnames == resname)[0]
+            for i in range(0, len(leaflet_index)):
+                result_map[leaflet_index[i]] = self.index_resid_map[sys_index[i]]
+        return result_map
