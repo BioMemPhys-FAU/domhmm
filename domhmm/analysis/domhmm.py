@@ -1063,17 +1063,30 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     def predict_plot(self):
         """
-        Plots convergence of HMM model training process
+        Plots convergence of HMM model training process with adaptive time units.
         """
-        t = np.linspace(8, 10, self.n_frames)
+        start_time = self.universe.trajectory[self.start].time
+        end_time = self.universe.trajectory[self.stop - 1].time
+        if end_time - start_time >= 1e9:
+            time_unit = "s"
+            scale_factor = 1e9
+        elif end_time - start_time >= 1e6:
+            time_unit = "μs"
+            scale_factor = 1e6
+        else:
+            time_unit = "ns"
+            scale_factor = 1e3
+        start_time /= scale_factor
+        end_time /= scale_factor
+
+        t = np.linspace(start_time, end_time, self.n_frames)
         for resname in self.unique_resnames:
             plt.plot(t, self.results['HMM_Pred'][resname].mean(0), label=resname)
-        plt.xticks([8, 8.5, 9, 9.5, 10])
-        plt.xlabel(r"t ($\mu$s)", fontsize=18)
+
+        plt.xlabel(f"t ({time_unit})", fontsize=18)
         plt.ylabel(r"$\bar{O}_{Lipid}$", fontsize=18)
         plt.legend(fontsize=15, ncols=1, loc="lower left")
         plt.ylim(0, 1)
-        plt.xlim(8, 10)
         plt.title("b", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
         if self.save_plots:
