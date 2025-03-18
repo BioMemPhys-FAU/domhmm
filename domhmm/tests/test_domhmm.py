@@ -218,7 +218,7 @@ class TestDomhmm:
         for chain, tail in analysis.resid_tails_selection.items():
             s_cc = analysis.calc_order_parameter(tail)
             result.append(s_cc)
-        for i, (resname, tail) in enumerate(analysis.sterol_tails_selection.items()):
+        for tail in analysis.sterol_tails_selection.values():
             s_cc = analysis.calc_order_parameter(tail)
             result.append(s_cc)
         assert np.allclose(order_parameters_results["SCC_0"], result[0], error_tolerance)
