@@ -1067,8 +1067,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         start_time = self.universe.trajectory[self.start].time
         end_time = self.universe.trajectory[self.stop - 1].time
+        # TODO Maybe show 0.1 micro instead 1000 nano
         if end_time - start_time >= 1e9:
-            time_unit = "s"
+            time_unit = "ms"
             scale_factor = 1e9
         elif end_time - start_time >= 1e6:
             time_unit = "μs"
@@ -1347,7 +1348,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                               positions[resname][:, 1], marker="s", alpha=1, s=5, label=resname)
 
             # Choose color scheme for clustering coloring
-            colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
+            colors = plt.cm.nipy_spectral(np.linspace(0, 1.0, len(clusters.values())))
 
             # Goto correct frame of the trajectory
             self.universe.trajectory[self.start:self.stop:self.step][i]
@@ -1381,6 +1382,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         ax[0].set_title(label=f"Frame {frame_list[0]}", fontsize=18)
         ax[1].set_title(label=f"Frame {frame_list[1]}", fontsize=18)
         ax[2].set_title(label=f"Frame {frame_list[2]}", fontsize=18)
+        plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0, hspace=None)
         if self.save_plots:
             plt.savefig("d.pdf")
         plt.show()
