@@ -896,8 +896,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     def plot_hmm_result(self):
         """
-        Plots Hidden Markov Models training history
-
+        Plots convergence of HMM model training process.
         """
         x_len = 0
         for resname, ghmm in self.results['HMM'].items():
@@ -1063,15 +1062,15 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     def predict_plot(self):
         """
-        Plots convergence of HMM model training process with adaptive time units.
+        Plots average ordered lipids of HMM prediction for each lipid type.
         """
         start_time = self.universe.trajectory[self.start].time
         end_time = self.universe.trajectory[self.stop - 1].time
-        # TODO Maybe show 0.1 micro instead 1000 nano
-        if end_time - start_time >= 1e9:
+        # Configured as printing 0.1 microsecond instead 1000 nanoseconds for readability.
+        if end_time - start_time >= 1e8:
             time_unit = "ms"
             scale_factor = 1e9
-        elif end_time - start_time >= 1e6:
+        elif end_time - start_time >= 1e5:
             time_unit = "μs"
             scale_factor = 1e6
         else:
