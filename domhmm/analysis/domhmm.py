@@ -896,8 +896,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     def plot_hmm_result(self):
         """
-        Plots Hidden Markov Models training history
-
+        Plots convergence of HMM model training process.
         """
         x_len = 0
         for resname, ghmm in self.results['HMM'].items():
@@ -1063,17 +1062,31 @@ class PropertyCalculation(LeafletAnalysisBase):
 
     def predict_plot(self):
         """
-        Plots convergence of HMM model training process
+        Plots average ordered lipids of HMM prediction for each lipid type.
         """
-        t = np.linspace(8, 10, self.n_frames)
+        start_time = self.universe.trajectory[self.start].time
+        end_time = self.universe.trajectory[self.stop - 1].time
+        # Configured as printing 0.1 microsecond instead 1000 nanoseconds for readability.
+        if end_time - start_time >= 1e8:
+            time_unit = "ms"
+            scale_factor = 1e9
+        elif end_time - start_time >= 1e5:
+            time_unit = "μs"
+            scale_factor = 1e6
+        else:
+            time_unit = "ns"
+            scale_factor = 1e3
+        start_time /= scale_factor
+        end_time /= scale_factor
+
+        t = np.linspace(start_time, end_time, self.n_frames)
         for resname in self.unique_resnames:
             plt.plot(t, self.results['HMM_Pred'][resname].mean(0), label=resname)
-        plt.xticks([8, 8.5, 9, 9.5, 10])
-        plt.xlabel(r"t ($\mu$s)", fontsize=18)
+
+        plt.xlabel(f"t ({time_unit})", fontsize=18)
         plt.ylabel(r"$\bar{O}_{Lipid}$", fontsize=18)
         plt.legend(fontsize=15, ncols=1, loc="lower left")
         plt.ylim(0, 1)
-        plt.xlim(8, 10)
         plt.title("b", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
         if self.save_plots:
@@ -1334,7 +1347,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                               positions[resname][:, 1], marker="s", alpha=1, s=5, label=resname)
 
             # Choose color scheme for clustering coloring
-            colors = plt.cm.viridis_r(np.linspace(0, 1.0, len(clusters.values())))
+            colors = plt.cm.nipy_spectral(np.linspace(0, 1.0, len(clusters.values())))
 
             # Goto correct frame of the trajectory
             self.universe.trajectory[self.start:self.stop:self.step][i]
@@ -1368,6 +1381,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         ax[0].set_title(label=f"Frame {frame_list[0]}", fontsize=18)
         ax[1].set_title(label=f"Frame {frame_list[1]}", fontsize=18)
         ax[2].set_title(label=f"Frame {frame_list[2]}", fontsize=18)
+        plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0, hspace=None)
         if self.save_plots:
             plt.savefig("d.pdf")
         plt.show()
