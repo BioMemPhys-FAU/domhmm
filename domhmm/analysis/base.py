@@ -163,7 +163,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.n_leaflets = 0
 
         if gmm_kwargs is None:
-            self.gmm_kwargs = {"tol": 1E-4, "init_params": 'k-means++', "verbose": 0,
+            self.gmm_kwargs = {"tol": 1E-4, "init_params": 'random_from_data', "verbose": 0,
                                "max_iter": 10000, "n_init": 20,
                                "warm_start": False, "covariance_type": "full"}
         else:
