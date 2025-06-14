@@ -410,7 +410,7 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         # Copy dict for leaflet selection without sterols, only the AtomGroups in the copied dict should be updated
-        leaflet_selection = {}
+        leaflet_selection = self.leaflet_selection_no_sterol.copy()
 
         # Iterate over each type of sterol in the membrane
         for rsn, head in self.sterol_heads.items():
@@ -432,12 +432,8 @@ class LeafletAnalysisBase(AnalysisBase):
 
             # Merge the atom selections for the phospholipids and cholesterol. "+" just adds the second selection on
             # top of the former one.
-            leaflet_selection['0'] = self.leaflet_selection_no_sterol['0'] + upper_sterol
-            leaflet_selection['1'] = self.leaflet_selection_no_sterol['1'] + lower_sterol
-
-        # If not sterol compound was assigned the leaflet selection is the same as the leaflet selection without sterols
-        if not any(leaflet_selection):
-            leaflet_selection = self.leaflet_selection_no_sterol
+            leaflet_selection['0'] += upper_sterol
+            leaflet_selection['1'] += lower_sterol
 
         leaflet_selection['0'] = leaflet_selection['0'][np.argsort(leaflet_selection['0'].resids)]
         leaflet_selection['1'] = leaflet_selection['1'][np.argsort(leaflet_selection['1'].resids)]
