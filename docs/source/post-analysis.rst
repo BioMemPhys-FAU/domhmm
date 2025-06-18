@@ -1,11 +1,11 @@
 Results and Post-Analysis
 ==========================
 
-After running of DomHMM, results are achievable via assigned variable which in this document named ``model``. Besides clustering results of ordered and disorder domains, training data that is used for Hidden Markov Model is also available which contains area per lipid calculation and Scc order parameters calculations for each lipid and sterol.
+After running DomHMM, results are achievable via an assigned variable which in this document is named ``model``. Besides clustering results of ordered and disorder domains, training data that is used for the Hidden Markov model is also available which contains area per lipid calculation and Scc order parameters calculations for each lipid and sterol.
 
 Domain Cluster Results
 -----------------------
-``Clustering`` is a Python dictionary which contains each frames residue indexes that are assigned to Lo ordered domains.
+``Clustering`` is a Python dictionary that contains each frame residue index that is assigned to lipid-ordered domains.
 
 ``Clustering`` is a dictionary with two keys ``"0"`` as representing upper leaflet and ``"1"`` as representing lower leaflet.
 
@@ -26,10 +26,10 @@ Domain Cluster Results
 Training Data (Area per lipid and order parameters)
 ---------------------------------------------------
 
-If required for post analysis, user can access area per lipid and order parameters calculations of each lipid. This data is kept objects result data which can be accessed via ``model.results["train_data_per_type"]``.
+If required for post-analysis, the user can access the area per lipid and order parameter calculations of each lipid. This data is kept objects result in data which can be accessed via ``model.results["train_data_per_type"]``.
 
-``train_data_per_type`` is a Python dictionary which contains lipid and sterol names are keys and three dimension arrays as values. In this three dimension array, each dimension contains residue ids, second dimension contains parameters and third dimension contains each frame's residue leaflet assignments.
-Be aware that both second and third arrays are in same order of residue ids from first array.
+``train_data_per_type`` is a Python dictionary that contains lipid names as keys and three rowed arrays as values. The first row contains residue IDs, the second training data, and the third each frame's residue leaflet assignments.
+Be aware that both the second and third arrays are in the same order of residue IDs from the first array.
 
 Here is an example of it.
 
@@ -45,25 +45,25 @@ Here is an example of it.
 
 .. note::
 
-    Each arrays are in ``numpy.array`` format.
+    Each array is in ``numpy.array`` format.
 
 .. note::
-    Parameters array (second array) is keep in order of ``[[apl_1, scc_1_1, scc_1_2],[apl_2, scc_2_1, scc_2_2], ...]``. (apl = Area per Lipid, scc__x= Scc Order Parameter of tail x )
+    Parameters array (second array) is kept in order of ``[[apl_1, scc_1_1, scc_1_2],[apl_2, scc_2_1, scc_2_2], ...]``. (apl = Area per Lipid, scc__x= Scc Order Parameter of tail x )
 
 .. note::
-    Leaflet assignment array (third array) is consists of 0s and 1s where 0 means upper leaflet and 1 means lower leaflet. Rows are represents residues which are in some order with residue ids from first array and columns are represents frames.
+    The leaflet assignment array (third array) consists of 0s and 1s where 0 means exoplasmic leaflet and 1 means endoplasmic leaflet. Rows represent residues which are in some order with residue IDs from the first array and columns represent frames.
 
 .. note::
-    Names of lipids and sterols are same names that user gave in tails and heads parameters.
+    Names of lipids and sterols are the same names that users gave in tails and heads parameters.
 
 
 Result Saving
 ---------------
-User can save and reload model's itself or required data via `pickle`_.
+Users can save and reload the model itself or required data via `pickle`_.
 
 .. code-block::
 
-    # Model's itself or required result sections can be save via pickle
+    # Model itself or result section can be saved via pickle
     with open('DomHMM_model.pickle', 'wb') as file:
         pickle.dump(model, file)
 
@@ -72,5 +72,7 @@ User can save and reload model's itself or required data via `pickle`_.
         loaded_module = pickle.load(file)
 
 
+.. note::
+    When loading the full model, the MDAnalysis universe will load the trajectory and topology file from the same directory that was given in the analysis run. Therefore, full-model saving can't be loaded if files do not exist.
 
 .. _pickle: https://www.mdanalysis.org/pages/mdakits/
