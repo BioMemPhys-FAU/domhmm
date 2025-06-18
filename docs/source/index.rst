@@ -1,4 +1,4 @@
-Welcome to DomHMM's documentation!
+Welcome to DomHMM documentation!
 =========================================================
 
 .. toctree::

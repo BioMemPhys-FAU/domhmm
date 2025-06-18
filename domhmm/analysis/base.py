@@ -60,9 +60,9 @@ class LeafletAnalysisBase(AnalysisBase):
         fraction of box length in x and y outside the unit cell considered for Voronoi calculation
     p_value: float
         p_value for z_score calculation
-    leaflet_frame_rate: Union[None, int]
+    lipid_leaflet_rate: Union[None, int]
         Frame rate for checking lipids leaflet assignments via LeafletFinder
-    sterol_frame_rate: int
+    sterol_leaflet_rate: int
         Frame rate for checking sterols leaflet assignments via LeafletFinder
     asymmetric_membrane: bool
         Asymmetric membrane option to train models by separated data w.r.t. leaflets
@@ -76,6 +76,8 @@ class LeafletAnalysisBase(AnalysisBase):
         User-specific HMM (e.g., pre-trained on another simulation)
     do_clustering: bool
         Perform the hierarchical clustering for each frame
+    n_init_hmm: int
+        Number of repeats for HMM model trainings
 
     Attributes
     ----------
@@ -117,15 +119,15 @@ class LeafletAnalysisBase(AnalysisBase):
             tmd_protein_list: Union[None, "AtomGroup", str, list] = None,
             frac: float = 0.5,
             p_value: float = 0.05,
-            leaflet_frame_rate: Union[None, int] = None,
-            sterol_frame_rate: int = 1,
+            lipid_leaflet_rate: Union[None, int] = None,
+            sterol_leaflet_rate: int = 1,
             asymmetric_membrane: bool = False,
             verbose: bool = False,
             result_plots: bool = False,
             trained_hmms: Dict[str, Any] = {},
             n_init_hmm: int = 2,
             save_plots: bool = False,
-            do_clustering = True,
+            do_clustering: bool = True,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -145,8 +147,8 @@ class LeafletAnalysisBase(AnalysisBase):
         self.tails = tails
         self.sterol_heads = sterol_heads
         self.sterol_tails = sterol_tails
-        self.leaflet_frame_rate = leaflet_frame_rate
-        self.sterol_frame_rate = sterol_frame_rate
+        self.lipid_leaflet_rate = lipid_leaflet_rate
+        self.sterol_leaflet_rate = sterol_leaflet_rate
         self.frac = frac
         self.p_value = p_value
         self.asymmetric_membrane = asymmetric_membrane
@@ -244,8 +246,9 @@ class LeafletAnalysisBase(AnalysisBase):
                         "where 0 for lower leaflet and 1 for upper leaflet.")
                 for leaflet, query in each.items():
                     if leaflet not in ["0", "1"]:
-                        raise ValueError("Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
-                                         "where 0 for lower leaflet and 1 for upper leaflet.")
+                        raise ValueError(
+                            "Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
+                            "where 0 for lower leaflet and 1 for upper leaflet.")
                     if isinstance(query, AtomGroup):
                         # Take center of geometry of three positions
                         cog = np.mean(query.positions, axis=0)
@@ -260,15 +263,17 @@ class LeafletAnalysisBase(AnalysisBase):
                         except Exception as e:
                             raise ValueError("Please provide a valid MDAnalysis selection string!") from e
                     else:
-                        raise ValueError("TDM Protein list should contain AtomGroup from MDAnalysis universe or a string "
-                                         "query for MDAnalysis selection.")
+                        raise ValueError(
+                            "TDM Protein list should contain AtomGroup from MDAnalysis universe or a string "
+                            "query for MDAnalysis selection.")
             self.tmd_protein["0"] = np.array(self.tmd_protein["0"])
             self.tmd_protein["1"] = np.array(self.tmd_protein["1"])
         elif tmd_protein_list is not None:
             # An unknown argument is provided for tdm_protein_list
             raise ValueError(
                 "Please provide tdm_protein_list in list format such as [{'0': upper leaflet related 3 atom, "
-                "'1': lower leaflet related 3 atom }, {'0': ..., '1': ...}]. Every dictionary stands for an individual transmembrane protein.")
+                "'1': lower leaflet related 3 atom }, {'0': ..., '1': ...}]. Every dictionary stands for an "
+                "individual transmembrane protein.")
         # -----------------------------------------------------------------HMMs--------------------------------------- #
 
         # Check for user-specified trained HMM

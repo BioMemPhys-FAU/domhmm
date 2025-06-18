@@ -30,7 +30,7 @@ For installation, you can directly use pip in project directory.
 Installation for Development
 ------------------------------
 
-This type of installation can be use when pip is not usable, change in source code or contributing DomHMM.
+This type of installation can be use when source code will be change for special usage or contribution will be done to DomHMM.
 
 Clone DomHMM's repository and change directory to project directory
 

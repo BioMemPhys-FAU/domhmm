@@ -1,11 +1,11 @@
 What Is DomHMM
 =========================================================
 
-DomHMM is a Python project written on top of `MDAnalysis`_ library and shared as a `MDAKit`_.
+DomHMM is a Python project written on top of the `MDAnalysis`_ library and shared as an `MDAKit`_.
 
-It is used for automatically determining ordered or disordered domains in bilayer membrane molecular simulations by training Gaussian based Hidden Markov Model.
+It is used for automatically determining ordered or disordered lipid domains in bilayer membrane molecular simulations by using the Gaussian-based Hidden Markov Model, Getis-Ord autocorrelation statistics, and hierarchical clustering.
 
-DomHMM is an open-source library. Please refer any bugs, suggestions and questions via `issues`_ page of repository.
+DomHMM is an open-source library. Please refer to any bugs, suggestions, and questions via the `issues`_ page of the repository.
 
 
 

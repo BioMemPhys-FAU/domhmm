@@ -273,15 +273,15 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.index = ( self.frame - self.start ) // self.step
 
         # Update leaflet assignment (if leaflet_frame_rate is None, leaflets will never get updated during analysis)
-        if self.leaflet_frame_rate is not None and not self.index % self.leaflet_frame_rate:
+        if self.lipid_leaflet_rate is not None and not self.index % self.lipid_leaflet_rate:
             # Call leaflet assignment functions for non-sterol and sterol compounds
             self.leaflet_selection_no_sterol = self.get_leaflets()
             self.leaflet_selection = self.get_leaflets_sterol()
 
             # Write assignments to array
-            assignment_index = int(self.index / self.leaflet_frame_rate)
-            start_index = assignment_index * self.leaflet_frame_rate
-            end_index = (assignment_index + 1) * self.leaflet_frame_rate
+            assignment_index = int(self.index / self.lipid_leaflet_rate)
+            start_index = assignment_index * self.lipid_leaflet_rate
+            end_index = (assignment_index + 1) * self.lipid_leaflet_rate
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
 
@@ -293,15 +293,15 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.leaflet_assignment[self.lidx, start_index:end_index] = 1
 
         # Update sterol assignment. Don't do the update if it was already done in the if-statement before
-        if not self.index % self.sterol_frame_rate and (
-                self.leaflet_frame_rate is None or self.index % self.leaflet_frame_rate):
+        if not self.index % self.sterol_leaflet_rate and (
+                self.lipid_leaflet_rate is None or self.index % self.lipid_leaflet_rate):
             # Call leaflet assignment function for sterol compounds
             self.leaflet_selection = self.get_leaflets_sterol()
 
             # Write assignments to array
-            assignment_index = int(self.index / self.sterol_frame_rate)
-            start_index = assignment_index * self.sterol_frame_rate
-            end_index = (assignment_index + 1) * self.sterol_frame_rate
+            assignment_index = int(self.index / self.sterol_leaflet_rate)
+            start_index = assignment_index * self.sterol_leaflet_rate
+            end_index = (assignment_index + 1) * self.sterol_leaflet_rate
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
 
