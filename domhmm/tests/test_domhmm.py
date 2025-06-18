@@ -76,7 +76,7 @@ class TestDomhmm:
                                           sterol_tails=sterol_tails,
                                           tails=tails,
                                           tmd_protein_list=mock_tmd_protein_list,
-                                          leaflet_frame_rate=2,
+                                          lipid_leaflet_rate=2,
                                           result_plots=True,
                                           save_plots=True,
                                           trained_hmms=trained_hmm)
