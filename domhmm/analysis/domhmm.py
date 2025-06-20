@@ -1632,15 +1632,15 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.universe.trajectory[self.start:self.stop:self.step][step]
 
         for res in self.unique_resnames:
-
-            indexes[res] = np.where(self.membrane.residues[leaflet_assignment_mask].resnames == res)[0]
-
-            if res in self.heads.keys():
-                positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(
-                    f"resname {res} and name {self.heads[res]}")).positions
-            else:
-                positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(
-                    f"resname {res} and name {self.sterol_heads[res]}")).positions
+            indx = np.where(self.membrane.residues[leaflet_assignment_mask].resnames == res)[0]
+            if len(indx) != 0:
+                indexes[res] = indx
+                if res in self.heads.keys():
+                    positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(
+                        f"resname {res} and name {self.heads[res]}")).positions
+                else:
+                    positions[res] = (self.membrane.residues[leaflet_assignment_mask].atoms & self.universe.select_atoms(
+                        f"resname {res} and name {self.sterol_heads[res]}")).positions
 
         return indexes, positions
 
@@ -1665,7 +1665,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         result_map = {}
         for resname in self.unique_resnames:
             sys_index = np.where(self.membrane.residues.resnames == resname)[0]
-            sys_index =sys_index[leaflet_assignment_mask[sys_index]]
+            sys_index = sys_index[leaflet_assignment_mask[sys_index]]
             leaflet_index = np.where(self.membrane.residues[leaflet_assignment_mask].resnames == resname)[0]
             for i in range(0, len(leaflet_index)):
                 result_map[leaflet_index[i]] = self.index_resid_map[sys_index[i]]
