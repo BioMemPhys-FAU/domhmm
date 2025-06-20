@@ -1225,9 +1225,15 @@ class PropertyCalculation(LeafletAnalysisBase):
             for i, rsn in enumerate(self.unique_resnames):
                 # Merge Getis-Ord values for the upper and the lower leaflet to display them as a histogram
                 # The G* values should be sorted according to the indices of the resids
-                g_start_sorted_0 = self.results['Getis_Ord'][0]['g_star_i_0'][step][index_dict_0[rsn]]
+                if rsn in index_dict_0.keys():
+                    g_start_sorted_0 = self.results['Getis_Ord'][0]['g_star_i_0'][step][index_dict_0[rsn]]
+                else:
+                    g_start_sorted_0 = []
                 # The G* values should be sorted according to the indices of the resids
-                g_start_sorted_1 = self.results['Getis_Ord'][1]['g_star_i_1'][step][index_dict_1[rsn]]
+                if rsn in index_dict_1.keys():
+                    g_start_sorted_1 = self.results['Getis_Ord'][1]['g_star_i_1'][step][index_dict_1[rsn]]
+                else:
+                    g_start_sorted_1 = []
                 g_star_i_temp[i] += list(np.append(g_start_sorted_0, g_start_sorted_1))
 
         for i in range(resnum):
