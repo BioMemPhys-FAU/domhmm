@@ -85,7 +85,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
 
         # Separate the coordinates according to their residue index
-        ridx = np.where(np.diff(chain.resids) > 0)[0] + 1
+        ridx = np.where( np.abs(np.diff(chain.resids)) > 0)[0] + 1
 
         pos = np.split(chain.positions, ridx)
 
