@@ -118,7 +118,12 @@ class PropertyCalculation(LeafletAnalysisBase):
         for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
             s_cc = self.calc_order_parameter(tail)
             idx = self.get_residue_idx(self.resids_index_map, np.unique(tail.resids))
+            # Check s_cc < -0.25 mark as NaN in training data and return indexes of these lipids
+            flat_scc = np.where(s_cc < -0.25)[0]
+            flat_sterol_idx = idx[flat_scc]
+            s_cc[flat_scc] = None
             self.results.train[idx, self.index, 1 + self.max_tail_len + i] = s_cc
+        return flat_sterol_idx
 
     @staticmethod
     def area_per_lipid_vor(coor_xy, boxdim, frac):
@@ -286,12 +291,11 @@ class PropertyCalculation(LeafletAnalysisBase):
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
 
-            self.uidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["0"].resids)
-            self.lidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["1"].resids)
+            uidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["0"].resids)
+            lidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["1"].resids)
 
-            self.leaflet_assignment[self.lidx, start_index:end_index] = 1
-            self.leaflet_assignment[self.uidx, start_index:end_index] = 0
-            self.leaflet_assignment[self.lidx, start_index:end_index] = 1
+            self.leaflet_assignment[lidx, start_index:end_index] = 1
+            self.leaflet_assignment[uidx, start_index:end_index] = 0
 
         # Update sterol assignment. Don't do the update if it was already done in the if-statement before
         if not self.index % self.sterol_leaflet_rate and (
@@ -306,19 +310,33 @@ class PropertyCalculation(LeafletAnalysisBase):
             if end_index > self.leaflet_assignment.shape[1]:
                 end_index = self.leaflet_assignment.shape[1]
 
-            self.uidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["0"].resids)
-            self.lidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["1"].resids)
+            uidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["0"].resids)
+            lidx = self.get_residue_idx(self.resids_index_map, self.leaflet_selection["1"].resids)
 
-            self.leaflet_assignment[self.uidx, start_index:end_index] = 0
-            self.leaflet_assignment[self.lidx, start_index:end_index] = 1
+            self.leaflet_assignment[uidx, start_index:end_index] = 0
+            self.leaflet_assignment[lidx, start_index:end_index] = 1
 
         if self.leaflet_selection["0"].select_atoms("group leaf1", leaf1=self.leaflet_selection["1"]):
             raise ValueError("Atoms in both leaflets !")
 
+        # ------------------------------ Order parameter ------------------------------------------------------------- #
+        flat_sterol_idx = self.order_parameter()
+        flat_sterol_ids = [self.index_resid_map[idx] for idx in flat_sterol_idx]
+        # Assign -1 in leaflet_assignment flat sterols
+        self.leaflet_assignment[flat_sterol_idx, self.index] = -1
         # ------------------------------ Local Normals/Area per Lipid ------------------------------------------------ #
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
-        upper_coor_xy = self.leaflet_selection[str(0)].positions
-        lower_coor_xy = self.leaflet_selection[str(1)].positions
+        # Remove flat sterols those from coordinates and indexes for leaflets
+        # Put NaN for flat lipids' APL Value
+
+        # upper_coor_xy = self.leaflet_selection[str(0)].positions
+        upper_mask = ~np.in1d(self.leaflet_selection["0"].resids, flat_sterol_ids)
+        upper_coor_xy = self.leaflet_selection["0"][upper_mask].positions
+        uidx = uidx[upper_mask] 
+        # lower_coor_xy = self.leaflet_selection[str(1)].positions
+        lower_mask = ~np.in1d(self.leaflet_selection["1"].resids, flat_sterol_ids)
+        lower_coor_xy = self.leaflet_selection["1"][lower_mask].positions
+        lidx = lidx[lower_mask]
         # Check Transmembrane domain existence
         if self.tmd_protein is not None:
             tmd_upper_coor_xy = self.tmd_protein["0"]
@@ -337,12 +355,10 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Remove TMD Protein numbers from training data
             upper_apl = np.array(upper_apl[:-len(tmd_upper_coor_xy)])
             lower_apl = np.array(lower_apl[:-len(tmd_lower_coor_xy)])
-        self.results.train[self.uidx, self.index, 0] = upper_apl
-        self.results.train[self.lidx, self.index, 0] = lower_apl
+        self.results.train[uidx, self.index, 0] = upper_apl
+        self.results.train[lidx, self.index, 0] = lower_apl
+        self.results.train[flat_sterol_idx, self.index, 0] = None
         # TODO Local normal calculation
-
-        # ------------------------------ Order parameter ------------------------------------------------------------- #
-        self.order_parameter()
         # ------------------------------ Weight Matrix --------------------------------------------------------------- #
         upper_weight_matrix = self.weight_matrix(upper_vor, pbc_idx=upper_pbc_idx, coor_xy=upper_coor_xy)
         lower_weight_matrix = self.weight_matrix(lower_vor, pbc_idx=lower_pbc_idx, coor_xy=lower_coor_xy)
@@ -509,8 +525,12 @@ class PropertyCalculation(LeafletAnalysisBase):
                     if len(gmm_data) == 0:
                         temp_dict[leaflet] = None
                     else:
+                        features = gmm_data.shape[2]
+                        # Remove NaN values from training data if it is sterol
+                        if res in self.sterol_heads.keys():
+                            gmm_data = gmm_data[~np.isnan(gmm_data)]
                         gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(
-                            gmm_data.reshape(-1, gmm_data.shape[2]))
+                            gmm_data.reshape(-1, features))
                         temp_dict[leaflet] = gmm
                     log.info(f"Leaflet {leaflet}, {res} Gaussian Mixture Model is trained.")
                 self.results["GMM"][res] = temp_dict
@@ -786,6 +806,11 @@ class PropertyCalculation(LeafletAnalysisBase):
                     gmm = self.results["GMM"][resname][leaflet]
                     if gmm is not None:
                         hmm_data = data[1][leaflet]
+                        # Remove NaN values from training data if it is sterol
+                        if resname in self.sterol_heads.keys():
+                            features = hmm_data.shape[2]
+                            hmm_data = hmm_data[~np.isnan(hmm_data)].reshape(-1, features)
+
                         hmm = self.fit_hmm(data=hmm_data, gmm=gmm, hmm_kwargs=hmm_kwargs,
                                            n_repeats=self.n_init_hmm)
                         temp_dict[leaflet] = hmm
@@ -851,9 +876,15 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         best_ghmm = None
         # Specify the length of the sequence for each lipid
-        n_lipids = data.shape[0]
-        dim = data.shape[2]
-        lengths = np.repeat(self.n_frames, n_lipids)
+        # Adapt lengths for removed flat sterols implementation
+        if len(data.shape) == 3:
+            n_lipids = data.shape[0]
+            dim = data.shape[2]
+            lengths = np.repeat(self.n_frames, n_lipids)
+        else:
+            dim = data.shape[1]
+            lengths = None
+
 
         # The HMM fitting is started multiple times from
         # different starting conditions
@@ -964,18 +995,30 @@ class PropertyCalculation(LeafletAnalysisBase):
                 result = result[idx]
                 self.results['HMM_Pred'][resname] = result
 
-            for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
+            for i, (resname, _) in enumerate(self.sterol_tails_selection.items()):
                 temp_array = []
+                # Change Nan values from prediction data to 0
+                # Put 0 (disordered) state for NaN valued lipids
                 for leaflet in range(2):
                     idx = self.leaflet_residx[resname][leaflet]
                     data = self.results.train[idx][:, :, [0, 1 + self.max_tail_len + i]]
                     shape = data.shape
                     hmm = self.results['HMM'][resname][leaflet]
                     if hmm is not None:
+                        # Changing APL NaN to 200 for disordered prediction
+                        mask_flats = np.isnan(data[:, :, 0])
+                        # Just assign 0 to all NaNs and change prediction to 0 (disordered) later
+                        data = np.nan_to_num(data, nan=0)
+                        # data[:,:,0][mask_apl] = 200.0
+                        # # Changing scc NaN to -2 for disordered prediction
+                        # mask_scc = np.isnan(data[:, :, 1])
+                        # data[:,:,1][mask_scc] = -2.0
                         lengths = np.repeat(shape[1], shape[0])
                         prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0],
                                                                                                       shape[1])
                         prediction = self.hmm_diff_checker(hmm.means_, prediction)
+                        # Change flat sterol predictions to 0 (disordered)
+                        prediction[mask_flats] = 0
                         temp_array.append([idx, prediction])
                     else:
                         temp_array.append(None)
@@ -1019,7 +1062,7 @@ class PropertyCalculation(LeafletAnalysisBase):
     def hmm_diff_checker(means, prediction_results):
         """
         Checks if prediction assignments correct with respect to means. Since HMM is unsupervised, model can assign 0 to
-         disordered domains and 1 to ordered domains. In these cases needs to be changed to vice versa.
+         ordered domains and 1 to disordered domains. In these cases needs to be changed to vice versa.
 
         Parameters
         ----------
@@ -1036,6 +1079,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         diff_percents = (means[1, 0] - means[0, 0]) / means[0, 0]
         if diff_percents > 0.0:
+            # State 0 has lower APL then state 1
             return np.abs(prediction_results - 1)
         else:
             return prediction_results
@@ -1418,7 +1462,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return (j, frame_number, cluster_result)
 
-    def result_clustering(self):
+    def result_clustering_parallel(self):
         """
         Runs hierarchical clustering for each frame and saves result (parallelized).
         """
@@ -1447,7 +1491,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         for j, frame_number, cluster_result in results:
             self.results["Clustering"][str(j)][frame_number] = cluster_result
 
-    def result_clustering_serial(self):
+    def result_clustering(self):
         """
         Runs hierarchical clustering for each frame and saves result
         """
