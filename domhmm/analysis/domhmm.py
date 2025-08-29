@@ -406,7 +406,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.predict_states()
 
             # Validate states and result prediction
-            self.state_validate()
+            # self.state_validate()
             if self.result_plots:
                 # Plot prediction result
                 self.predict_plot()
@@ -535,7 +535,11 @@ class PropertyCalculation(LeafletAnalysisBase):
                     log.info(f"Leaflet {leaflet}, {res} Gaussian Mixture Model is trained.")
                 self.results["GMM"][res] = temp_dict
             else:
-                gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(data[1].reshape(-1, data[1].shape[2]))
+                gmm_data = data[1]
+                features = gmm_data.shape[2]
+                if res in self.sterol_heads.keys():
+                    gmm_data = gmm_data[~np.isnan(gmm_data)]
+                gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(gmm_data.reshape(-1, features))
                 self.results["GMM"][res] = gmm
                 log.info(f"{res} Gaussian Mixture Model is trained.")
 
@@ -838,7 +842,11 @@ class PropertyCalculation(LeafletAnalysisBase):
                     log.info(f"Leaflet {leaflet}, {resname} Gaussian Hidden Markov Model is trained.")
                 self.results["HMM"][resname] = temp_dict
             else:
-                hmm = self.fit_hmm(data=data[1], gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs,
+                hmm_data = data[1]
+                if resname in self.sterol_heads.keys():
+                    features = hmm_data.shape[2]
+                    hmm_data = hmm_data[~np.isnan(hmm_data)].reshape(-1, features)
+                hmm = self.fit_hmm(data=hmm_data, gmm=self.results["GMM"][resname], hmm_kwargs=hmm_kwargs,
                                    n_repeats=self.n_init_hmm)
                 self.results["HMM"][resname] = hmm
                 log.info(f"{resname} Gaussian Hidden Markov Model is trained.")
@@ -848,7 +856,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Make predictions based on HMM model
         self.predict_states()
         # Validate states and result prediction
-        self.state_validate()
+        # self.state_validate()
         if self.result_plots:
             # Plot prediction result
             self.predict_plot()
@@ -1035,10 +1043,6 @@ class PropertyCalculation(LeafletAnalysisBase):
                         mask_flats = np.isnan(data[:, :, 0])
                         # Just assign 0 to all NaNs and change prediction to 0 (disordered) later
                         data = np.nan_to_num(data, nan=0)
-                        # data[:,:,0][mask_apl] = 200.0
-                        # # Changing scc NaN to -2 for disordered prediction
-                        # mask_scc = np.isnan(data[:, :, 1])
-                        # data[:,:,1][mask_scc] = -2.0
                         lengths = np.repeat(shape[1], shape[0])
                         prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0],
                                                                                                       shape[1])
@@ -1064,25 +1068,33 @@ class PropertyCalculation(LeafletAnalysisBase):
         else:
             # Symmetric membrane case
             for resname, data in self.results.train_data_per_type.items():
-                shape = data[1].shape
+                predict_data = data[1]
+                shape = predict_data.shape
                 hmm = self.results['HMM'][resname]
+                # Changing APL NaN to 200 for disordered prediction
+                mask_flats = np.isnan(predict_data[:, :, 0])
+                # Just assign 0 to all NaNs and change prediction to 0 (disordered) later
+                predict_data = np.nan_to_num(predict_data, nan=0)
                 # Lengths consists of number of frames and number of residues
                 lengths = np.repeat(shape[1], shape[0])
-                prediction = hmm.predict(data[1].reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+                prediction = hmm.predict(predict_data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0], shape[1])
+                prediction = self.hmm_diff_checker(hmm.means_, prediction)
+                # Change flat sterol predictions to 0 (disordered)
+                prediction[mask_flats] = 0
                 # Save prediction result of each residue
                 self.results['HMM_Pred'][resname] = prediction
 
-    def state_validate(self):
-        """
-        Validate state assignments of HMM model by checking means of the model of each residue.
-        """
-        if not self.asymmetric_membrane:
-            # Asymmetric membrane validation is done in prediction step due to nature of it
-            for resname, hmm in self.results["HMM"].items():
-                if hmm is not None:
-                    means = hmm.means_
-                    prediction_results = self.results['HMM_Pred'][resname]
-                    self.results['HMM_Pred'][resname] = self.hmm_diff_checker(means, prediction_results)
+    # def state_validate(self):
+    #     """
+    #     Validate state assignments of HMM model by checking means of the model of each residue.
+    #     """
+    #     if not self.asymmetric_membrane:
+    #         # Asymmetric membrane validation is done in prediction step due to nature of it
+    #         for resname, hmm in self.results["HMM"].items():
+    #             if hmm is not None:
+    #                 means = hmm.means_
+    #                 prediction_results = self.results['HMM_Pred'][resname]
+    #                 self.results['HMM_Pred'][resname] = self.hmm_diff_checker(means, prediction_results)
 
     @staticmethod
     def hmm_diff_checker(means, prediction_results):
