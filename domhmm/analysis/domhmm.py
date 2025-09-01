@@ -1506,7 +1506,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return (j, frame_number, cluster_result)
 
-    def result_clustering_parallel(self):
+    def result_clustering(self):
         """
         Runs hierarchical clustering for each frame and saves result (parallelized).
         """
@@ -1535,7 +1535,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         for j, frame_number, cluster_result in results:
             self.results["Clustering"][str(j)][frame_number] = cluster_result
 
-    def result_clustering(self):
+    def result_clustering_serial(self):
         """
         Runs hierarchical clustering for each frame and saves result
         """
