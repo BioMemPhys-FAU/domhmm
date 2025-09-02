@@ -431,80 +431,22 @@ class PropertyCalculation(LeafletAnalysisBase):
         """
         Prepare train data for GMM and HMM while separating self.results.train with respect to each residue
         """
-        self.results.train_data_per_type = {}
-        resid_dict = {}
-        for resname in self.unique_resnames:
-            idx = self.get_residue_idx(self.resids_index_map, self.residue_ids[resname])
-            resid_dict[resname] = idx
-            self.results.train_data_per_type[f"{resname}"] = [[] for _ in range(3)]
-        if self.asymmetric_membrane:
-            # For asymmetric membranes, models will be trained for each leaflets' each residue type
-            leaflet_residx = {}
-            # leaflet_train_residx contains residue indexes that are not too flip-floppy for model training
-            leaflet_train_residx = {}
-            # Save each residues indexes with respect to leaflet assignment
-            for resname, idx in resid_dict.items():
-                leaflet_assign = self.leaflet_assignment[idx]
-                leaflet_train_residx[resname] = {0: [], 1: []}
-                leaflet_residx[resname] = {0: [], 1: []}
-                for i in range(len(leaflet_assign)):
-                    if (leaflet_assign[i] == 0).all():
-                        leaflet_train_residx[resname][0].append(idx[i])
-                        leaflet_residx[resname][0].append(idx[i])
-                    elif (leaflet_assign[i] == 1).all():
-                        leaflet_train_residx[resname][1].append(idx[i])
-                        leaflet_residx[resname][1].append(idx[i])
-                    else:
-                        # If a residue is %80 of time belongs to a leaflet, accept it as residue of that leaflet
-                        lower_leaflet_percentage = len(np.nonzero(leaflet_assign[i] == 1)[0]) / len(leaflet_assign[i])
-                        if lower_leaflet_percentage >= 0.8:
-                            leaflet_train_residx[resname][1].append(idx[i])
-                        elif lower_leaflet_percentage <= 0.2:
-                            leaflet_train_residx[resname][0].append(idx[i])
-                        if lower_leaflet_percentage > 0.5:
-                            leaflet_residx[resname][1].append(idx[i])
-                        else:
-                            leaflet_residx[resname][0].append(idx[i])
-            self.leaflet_residx = leaflet_residx
-            # Prepare rest of train data for each residue
-            for resname, tails in self.tails.items():
-                rsn_ids = self.residue_ids[resname]
-                self.results.train_data_per_type[resname][0] = rsn_ids
-                # Select columns of area per lipid and tails' scc parameters
-                residx = leaflet_train_residx[resname]
-                upper_leaflet_data = self.results.train[residx[0]][:, :, 0:len(tails) + 1]
-                lower_leaflet_data = self.results.train[residx[1]][:, :, 0:len(tails) + 1]
-                self.results.train_data_per_type[resname][1] = [upper_leaflet_data, lower_leaflet_data]
-                self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
-
-            for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
-                rsn_ids = self.residue_ids[resname]
-                self.results.train_data_per_type[resname][0] = rsn_ids
-                idx = self.get_residue_idx(self.resids_index_map, rsn_ids)
-                # Select columns of area per lipid and sterol's scc parameter
-                residx = leaflet_train_residx[resname]
-                upper_leaflet_data = self.results.train[residx[0]][:, :, [0, 1 + self.max_tail_len + i]]
-                lower_leaflet_data = self.results.train[residx[1]][:, :, [0, 1 + self.max_tail_len + i]]
-                self.results.train_data_per_type[resname][1] = [upper_leaflet_data, lower_leaflet_data]
-                self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
-        else:
-            # For symmetric membranes, models will be trained for each residue type
-            for resname, tails in self.tails.items():
-                rsn_ids = self.residue_ids[resname]
-                self.results.train_data_per_type[resname][0] = rsn_ids
-                idx = resid_dict[resname]
-                # Select columns of area per lipid and tails' scc parameters
-                self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, 0:len(tails) + 1]
-                self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
-
-            for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
-                rsn_ids = self.residue_ids[resname]
-                self.results.train_data_per_type[resname][0] = rsn_ids
-                idx = resid_dict[resname]
-                # Select columns of area per lipid and sterol's scc parameter
-                self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :,
-                                                               [0, 1 + self.max_tail_len + i]]
-                self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
+        self.results.train_data_per_type = {resname : [[] for _ in range(3)] for resname in self.unique_resnames}
+        # Prepare rest of train data for each residue
+        for resname, tails in self.tails.items():
+            rsn_ids = self.residue_ids[resname]
+            self.results.train_data_per_type[resname][0] = rsn_ids
+            idx = self.get_residue_idx(self.resids_index_map, rsn_ids)
+            # Select columns of area per lipid and tails' scc parameters
+            self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, 0:len(tails) + 1]
+            self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
+        for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
+            rsn_ids = self.residue_ids[resname]
+            self.results.train_data_per_type[resname][0] = rsn_ids
+            idx = self.get_residue_idx(self.resids_index_map, rsn_ids)
+            # Select columns of area per lipid and sterol's scc parameter
+            self.results.train_data_per_type[resname][1] = self.results.train[idx][:, :, [0, 1 + self.max_tail_len + i]]
+            self.results.train_data_per_type[resname][2] = self.leaflet_assignment[idx]
 
     # ------------------------------ FIT GAUSSIAN MIXTURE MODEL ------------------------------------------------------ #
     def GMM(self, gmm_kwargs):
@@ -521,16 +463,12 @@ class PropertyCalculation(LeafletAnalysisBase):
             if self.asymmetric_membrane:
                 temp_dict = {}
                 for leaflet in range(2):
-                    gmm_data = data[1][leaflet]
+                    gmm_data = data[1][data[2] == leaflet]
+                    # If lipid has no data in leaflet
                     if len(gmm_data) == 0:
                         temp_dict[leaflet] = None
                     else:
-                        features = gmm_data.shape[2]
-                        # Remove NaN values from training data if it is sterol
-                        if res in self.sterol_heads.keys():
-                            gmm_data = gmm_data[~np.isnan(gmm_data)]
-                        gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(
-                            gmm_data.reshape(-1, features))
+                        gmm = mixture.GaussianMixture(n_components=2, **gmm_kwargs).fit(gmm_data)
                         temp_dict[leaflet] = gmm
                     log.info(f"Leaflet {leaflet}, {res} Gaussian Mixture Model is trained.")
                 self.results["GMM"][res] = temp_dict
@@ -821,28 +759,26 @@ class PropertyCalculation(LeafletAnalysisBase):
         hmm_kwargs : dict
             Additional parameters for hmmlearn.hmm.GaussianHMM
         """
-        # Iterate over each residue and implement gaussian-hidden markov model
+        # Iterate over each residue and train Gaussian-Hidden Markov Model
         for resname, data in self.results.train_data_per_type.items():
             if self.asymmetric_membrane:
                 temp_dict = {}
                 for leaflet in range(2):
                     gmm = self.results["GMM"][resname][leaflet]
                     if gmm is not None:
-                        hmm_data = data[1][leaflet]
-                        # Remove NaN values from training data if it is sterol
-                        if resname in self.sterol_heads.keys():
-                            features = hmm_data.shape[2]
-                            hmm_data = hmm_data[~np.isnan(hmm_data)].reshape(-1, features)
-
+                        # Select correspending leaflet data
+                        hmm_data = data[1][data[2] == leaflet]
                         hmm = self.fit_hmm(data=hmm_data, gmm=gmm, hmm_kwargs=hmm_kwargs,
                                            n_repeats=self.n_init_hmm)
                         temp_dict[leaflet] = hmm
                     else:
+                        # If GMM is None, no lipid in this leaflet -> HMM is None too
                         temp_dict[leaflet] = None
                     log.info(f"Leaflet {leaflet}, {resname} Gaussian Hidden Markov Model is trained.")
                 self.results["HMM"][resname] = temp_dict
             else:
                 hmm_data = data[1]
+                # Remove NaN values from flat sterol data. (No need at asymmetric because of leaflet assignment usage)
                 if resname in self.sterol_heads.keys():
                     features = hmm_data.shape[2]
                     hmm_data = hmm_data[~np.isnan(hmm_data)].reshape(-1, features)
@@ -998,73 +934,33 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         """
         if self.asymmetric_membrane:
-            # Since we select stable lipids for training, we need all training data of lipids to predict order of
-            # frequently flip-flop doing ones
             for resname, tails in self.tails.items():
-                temp_array = []
+                data = self.results.train_data_per_type[resname][1]
+                leaflet_assign  = self.results.train_data_per_type[resname][2]
+                predict_result = np.full(data.shape[:2],-1)
                 for leaflet in range(2):
-                    idx = self.leaflet_residx[resname][leaflet]
-                    data = self.results.train[idx][:, :, 0:len(tails) + 1]
-                    shape = data.shape
                     hmm = self.results['HMM'][resname][leaflet]
                     if hmm is not None:
-                        lengths = np.repeat(shape[1], shape[0])
-                        prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0],
-                                                                                                      shape[1])
+                        pred_data = data[leaflet_assign == leaflet]
+                        prediction = hmm.predict(pred_data)
                         prediction = self.hmm_diff_checker(hmm.means_, prediction)
-                        temp_array.append([idx, prediction])
-                    else:
-                        temp_array.append([])
-
-                # Leaflet checks in case lipid is only in one leaflet
-                if len(temp_array[0]) == 0:
-                    idx = np.array(temp_array[1][0]).argsort()
-                    result = temp_array[1][1]
-                elif len(temp_array[1]) == 0:
-                    idx = np.array(temp_array[0][0]).argsort()
-                    result = temp_array[0][1]
-                else:
-                    idx = np.concatenate((temp_array[0][0], temp_array[1][0])).argsort()
-                    result = np.concatenate((temp_array[0][1], temp_array[1][1]))
-                result = result[idx]
-                self.results['HMM_Pred'][resname] = result
+                        predict_result[leaflet_assign == leaflet] = prediction
+                self.results['HMM_Pred'][resname] = predict_result
 
             for i, (resname, _) in enumerate(self.sterol_tails_selection.items()):
-                temp_array = []
-                # Change Nan values from prediction data to 0
-                # Put 0 (disordered) state for NaN valued lipids
+                data = self.results.train_data_per_type[resname][1]
+                leaflet_assign = self.results.train_data_per_type[resname][2]
+                predict_result = np.full(data.shape[:2], -1)
                 for leaflet in range(2):
-                    idx = self.leaflet_residx[resname][leaflet]
-                    data = self.results.train[idx][:, :, [0, 1 + self.max_tail_len + i]]
-                    shape = data.shape
                     hmm = self.results['HMM'][resname][leaflet]
                     if hmm is not None:
-                        # Changing APL NaN to 200 for disordered prediction
-                        mask_flats = np.isnan(data[:, :, 0])
-                        # Just assign 0 to all NaNs and change prediction to 0 (disordered) later
-                        data = np.nan_to_num(data, nan=0)
-                        lengths = np.repeat(shape[1], shape[0])
-                        prediction = hmm.predict(data.reshape(-1, shape[2]), lengths=lengths).reshape(shape[0],
-                                                                                                      shape[1])
+                        pred_data = data[leaflet_assign == leaflet]
+                        prediction = hmm.predict(pred_data)
                         prediction = self.hmm_diff_checker(hmm.means_, prediction)
-                        # Change flat sterol predictions to 0 (disordered)
-                        prediction[mask_flats] = 0
-                        temp_array.append([idx, prediction])
-                    else:
-                        temp_array.append(None)
-
-                # Leaflet checks in case lipid is only in one leaflet
-                if temp_array[0] is None:
-                    idx = np.array(temp_array[1][0]).argsort()
-                    result = temp_array[1][1]
-                elif temp_array[1] is None:
-                    idx = np.array(temp_array[0][0]).argsort()
-                    result = temp_array[0][1]
-                else:
-                    idx = np.concatenate((temp_array[0][0], temp_array[1][0])).argsort()
-                    result = np.concatenate((temp_array[0][1], temp_array[1][1]))
-                result = result[idx]
-                self.results['HMM_Pred'][resname] = result
+                        predict_result[leaflet_assign == leaflet] = prediction
+                # Assign disordered state to flat sterols
+                predict_result[leaflet_assign == -1] = 0
+                self.results['HMM_Pred'][resname] = predict_result
         else:
             # Symmetric membrane case
             for resname, data in self.results.train_data_per_type.items():
