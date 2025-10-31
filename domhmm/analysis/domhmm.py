@@ -64,7 +64,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         self.leaflet_assignment = np.zeros((len(self.membrane_unique_resids), self.n_frames), dtype=np.int32)
 
     @staticmethod
-    def calc_order_parameter_old(chain):
+    def calc_order_parameter_z_axis(chain):
 
         """
         Calculate average Scc order parameters per acyl chain according to the equation:
@@ -96,7 +96,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         vec_norm = [np.sqrt((vec_i ** 2).sum(axis=-1)) for vec_i in vec]
 
         vec = [vec_i / vec_norm_i.reshape(-1, 1) for vec_i, vec_norm_i in zip(vec, vec_norm)]
-        # TODO z axis multiplication inside. It needs to be changed in future work
         # Choose the z-axis as membrane normal and take care of the machine precision
         dot_prod = [np.clip(vec_i[:, 2], -1., 1.) for vec_i in vec]
 
@@ -193,7 +192,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Iterate over each tail with chain id
         flat_sterol_idx = []
         for i, (resname, tail) in enumerate(self.sterol_tails_selection.items()):
-            s_cc = self.calc_order_parameter_old(tail)
+            s_cc = self.calc_order_parameter_z_axis(tail)
             idx = self.get_residue_idx(self.resids_index_map, np.unique(tail.resids))
             # Check s_cc < -0.25 mark as NaN in training data and return indexes of these lipids
             flat_scc = np.where(s_cc < -0.25)[0]
@@ -400,10 +399,6 @@ class PropertyCalculation(LeafletAnalysisBase):
             all_neighbors = tree.query_ball_point(positions, r=cutoff)
         else:
             Lx, Ly, Lz = pbc
-            # shifts = np.array([[i * Lx, j * Ly, k * Lz]
-            #                    for i in (-1, 0, 1)
-            #                    for j in (-1, 0, 1)
-            #                    for k in (-1, 0, 1)])
             shifts = np.array([[i * Lx, j * Ly, 0]
                                for i in (-1, 0, 1)
                                for j in (-1, 0, 1)])
@@ -495,11 +490,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
 
     def tangent_plane_voronoi_weights(self, positions,
-                                      k_neighbors=None,
-                                      cutoff=None,
-                                      pbc=None,
-                                      min_neighbors=6,
-                                      clip_factor=2.0):
+                                      cutoff=30,
+                                      pbc=None):
         """
         Tangent-plane Voronoi with neighbor selection by cutoff or k-nearest.
 
@@ -507,16 +499,10 @@ class PropertyCalculation(LeafletAnalysisBase):
         ----------
         positions : (N,3)
             3D coordinates of lipids.
-        k_neighbors : int, optional
-            Number of nearest neighbors (if cutoff not given).
         cutoff : float, optional
-            Cutoff distance. Overrides k_neighbors if given.
+            Cutoff distance in Armstrong.
         pbc : (3,), optional
             Box lengths for PBC.
-        min_neighbors : int
-            Minimum neighbors for PCA.
-        clip_factor : float
-            For clipping infinite regions.
 
         Returns
         -------
@@ -524,7 +510,14 @@ class PropertyCalculation(LeafletAnalysisBase):
             Symmetric weight matrix.
         areas : (N,) array
             Approximate Voronoi cell area in tangent plane.
+        normals : (N,3) array
+            Lipid normals for further Scc calculation
         """
+
+        if pbc is None:
+            log.error("Periodic boundary condition box size is required.")
+            sys.exit(1)
+
         positions = np.asarray(positions, dtype=float)
         N = positions.shape[0]
         W = np.zeros((N, N))
@@ -532,13 +525,12 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         # Get neighbor lists
         neighbor_lists, neighbors_pos = self.detect_neighbors_cutoff(positions, cutoff, pbc=pbc)
-        # neighbor_lists, neighbors_pos = self.detect_neighbors_knn(positions, pbc=pbc, k_neighbors=16)
+
         normals = np.zeros(shape=(N,3))
         for i in range(N):
             neigh_pos = neighbors_pos[i]
             P = neigh_pos - positions[i]
             # PCA for local normal
-            # TODO We will use this normal for Scc calculation
             normals[i] = self._pca_normal(P)
         # TODO Error
         # smooth_normals = self.smooth_normals(normals, neighbor_lists)
@@ -548,10 +540,6 @@ class PropertyCalculation(LeafletAnalysisBase):
             neigh_idx = neighbor_lists[i]
             neigh_pos = neighbors_pos[i]
             P = neigh_pos - positions[i]
-            # PCA for local normal
-            # TODO We will use this normal for Scc calculation
-            # TODO Normal calculation with close neighbors and smoothing with neighbor normals
-            # normal = self._pca_normal(P)
             u, v = self._build_tangent_basis(smooth_normals[i])
 
             # Project
@@ -659,9 +647,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             raise ValueError("Atoms in both leaflets !")
 
         # ------------------------------ Order parameter ------------------------------------------------------------- #
-        # flat_sterol_idx = self.order_parameter()
         flat_sterol_idx = self.flat_sterols()
-        # flat_sterol_idx = []
         flat_sterol_ids = [self.index_resid_map[idx] for idx in flat_sterol_idx]
         # Assign -1 in leaflet_assignment flat sterols
         self.leaflet_assignment[flat_sterol_idx, self.index] = -1
@@ -669,10 +655,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         boxdim = self.universe.trajectory.ts.dimensions[0:3]
         # Remove flat sterols those from coordinates and indexes for leaflets
         # Put NaN for flat lipids' APL Value
-
         upper_mask = ~np.in1d(self.leaflet_selection["0"].resids, flat_sterol_ids)
-        # TODO Delete later
-        self.upper_mask = upper_mask
         upper_coor_xy = self.leaflet_selection["0"][upper_mask].positions
         uidx = uidx[upper_mask]
         lower_mask = ~np.in1d(self.leaflet_selection["1"].resids, flat_sterol_ids)
@@ -680,8 +663,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         lidx = lidx[lower_mask]
         # Check Transmembrane domain existence
         if self.tmd_protein is not None:
-            # TODO Fix this - Calculate COG for every frame separately
-            # tmd_upper_coor_xy = self.tmd_protein["0"]
+            # Calculate COG for every frame separately
             tmd_upper_coor_xy = np.array([np.mean(bb.positions, axis=0) for bb in self.tmd_protein["0"]])
             # Check if dimension of coordinates is same in both array
             if tmd_upper_coor_xy.shape[1] == upper_coor_xy.shape[1]:
@@ -691,32 +673,9 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Check if dimension of coordinates is same in both array
             if tmd_lower_coor_xy.shape[1] == lower_coor_xy.shape[1]:
                 lower_coor_xy = np.append(lower_coor_xy, tmd_lower_coor_xy, axis=0)
-        # upper_vor, upper_apl_old, upper_pbc_idx = self.area_per_lipid_vor(coor_xy=upper_coor_xy, boxdim=boxdim,
-        #                                                               frac=self.frac)
-        # lower_vor, lower_apl_old, lower_pbc_idx = self.area_per_lipid_vor(coor_xy=lower_coor_xy, boxdim=boxdim,
-        #                                                               frac=self.frac)
-        # if self.tmd_protein is not None:
-        #     # Remove TMD Protein numbers from training data
-        #     upper_apl_old = np.array(upper_apl_old[:-len(tmd_upper_coor_xy)])
-        #     lower_apl_old = np.array(lower_apl_old[:-len(tmd_lower_coor_xy)])
-        # self.results.train[uidx, self.index, 0] = upper_apl_old
-        # self.results.train[lidx, self.index, 0] = lower_apl_old
-        # self.results.train[flat_sterol_idx, self.index, 0] = None
-        # # TODO Local normal calculation
-        # # ------------------------------ Weight Matrix --------------------------------------------------------------- #
-        # upper_weight_matrix = self.weight_matrix(upper_vor, pbc_idx=upper_pbc_idx, coor_xy=upper_coor_xy)
-        # lower_weight_matrix = self.weight_matrix(lower_vor, pbc_idx=lower_pbc_idx, coor_xy=lower_coor_xy)
-        # if self.tmd_protein is not None:
-        #     # Remove TMD Protein numbers from weight matrix
-        #     upper_weight_matrix = upper_weight_matrix[:-len(tmd_upper_coor_xy), :-len(tmd_upper_coor_xy)]
-        #     lower_weight_matrix = lower_weight_matrix[:-len(tmd_lower_coor_xy), :-len(tmd_lower_coor_xy)]
 
-        # Keep weight matrices in scipy.sparse.csr_array format since both is sparse matrices
-        # self.results["upper_weight_all"].append(csr_array(upper_weight_matrix))
-        # self.results["lower_weight_all"].append(csr_array(lower_weight_matrix))
-
-        upper_weight, upper_apl, upper_normal = self.tangent_plane_voronoi_weights(upper_coor_xy, cutoff=30, pbc=boxdim)
-        lower_weight, lower_apl, lower_normal = self.tangent_plane_voronoi_weights(lower_coor_xy, cutoff=30, pbc=boxdim)
+        upper_weight, upper_apl, upper_normal = self.tangent_plane_voronoi_weights(upper_coor_xy, cutoff=self.cutoff, pbc=boxdim)
+        lower_weight, lower_apl, lower_normal = self.tangent_plane_voronoi_weights(lower_coor_xy, cutoff=self.cutoff, pbc=boxdim)
 
         if self.tmd_protein is not None:
             # Remove TMD Protein numbers from training data
@@ -731,8 +690,6 @@ class PropertyCalculation(LeafletAnalysisBase):
         lipid_normals[uidx] = upper_normal
         lipid_normals[lidx] = lower_normal
 
-        # self.results["upper_weight_all"].append(csr_array(upper_weight))
-        # self.results["lower_weight_all"].append(csr_array(lower_weight))
         self.order_parameter_lipid_normal(lipid_normals)
 
         self.results.train[uidx, self.index, 0] = upper_apl

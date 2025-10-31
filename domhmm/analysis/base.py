@@ -128,6 +128,7 @@ class LeafletAnalysisBase(AnalysisBase):
             n_init_hmm: int = 2,
             save_plots: bool = False,
             do_clustering: bool = True,
+            curved_apl_cutoff: float = 30,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -158,6 +159,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.n_init_hmm = n_init_hmm
         self.save_plots = save_plots
         self.do_clustering = do_clustering
+        self.cutoff = curved_apl_cutoff
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 
