@@ -216,10 +216,10 @@ class TestDomhmm:
         """
         result = []
         for chain, tail in analysis.resid_tails_selection.items():
-            s_cc = analysis.calc_order_parameter(tail)
+            s_cc = analysis.calc_order_parameter_z_axis(tail)
             result.append(s_cc)
         for i, (resname, tail) in enumerate(analysis.sterol_tails_selection.items()):
-            s_cc = analysis.calc_order_parameter(tail)
+            s_cc = analysis.calc_order_parameter_z_axis(tail)
             result.append(s_cc)
         assert np.allclose(order_parameters_results["SCC_0"], result[0], error_tolerance)
         assert np.allclose(order_parameters_results["SCC_1"], result[1], error_tolerance)
