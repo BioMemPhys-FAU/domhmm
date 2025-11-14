@@ -404,7 +404,10 @@ class PropertyCalculation(LeafletAnalysisBase):
             pass
         else:
             log.info("Clustering is starting.")
-            self.result_clustering()
+            if self.parallel_clustering:
+                self.result_clustering_parallel()
+            else:
+                self.result_clustering_serial()
 
             if self.result_plots:
                 self.clustering_plot()
@@ -1450,7 +1453,7 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         return (j, frame_number, cluster_result)
 
-    def result_clustering(self):
+    def result_clustering_parallel(self):
         """
         Runs hierarchical clustering for each frame and saves result (parallelized).
         """
@@ -1472,7 +1475,7 @@ class PropertyCalculation(LeafletAnalysisBase):
                 }
                 tasks.append((i, j, frame_data))
 
-        print(f"Total CPU count is {mp.cpu_count()}")
+        log.info(f"{mp.cpu_count()} CPU cores will be used for hierarchical clustering")
         with mp.Pool(processes=mp.cpu_count()) as pool:
             results = list(tqdm(pool.imap(self._process_frame_leaflet, tasks), total=len(tasks)))
 
