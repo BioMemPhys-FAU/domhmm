@@ -40,7 +40,11 @@ if __name__ == "__main__":
                                        sterol_heads=sterol_heads,
                                        sterol_tails=sterol_tails,
                                        tails=tails,
-                                       result_plots=True)
+                                       result_plots=True,
+                                       save_plots=True,
+                                       parallel_clustering=True,
+                                       verbose=True,
+                                       )
 
     # run option can be updated by parameters such as start=0, stop=100, step=5
     model.run()

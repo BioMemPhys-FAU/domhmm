@@ -127,6 +127,10 @@ It needs to be enabled if leaflets are not symmetric. With this option, models a
 
 Whether to perform the hierarchical clustering or not (Default is True).
 
+* ``parallel_clustering``
+
+Parallelize the hierarchical clustering. (Default is False).
+
 * ``result_plot``
 
 Plotting option for debugging. While enabled, DomHMM will print Hidden Markov model convergence, prediction results, Getis-Ord statistic results, and clustering results of three frames.
@@ -207,5 +211,7 @@ Transmembrane domain (TMD) protein list to include area per lipid calculation. T
     loBB = uni.select_atoms('name BB')[-3:]
     # List can be expended with multiple dictionary objects as in more than one TMD protein scenario.
     tmd_protein_list = [{"0": upBB, "1": loBB}]
+    model = domhmm.PropertyCalculation( ... ,
+                                     tmd_protein_list=tmd_protein_list)
 
 We encourage you to check :doc:`tips` section which may contain useful information for your progress.
