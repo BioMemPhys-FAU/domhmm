@@ -76,6 +76,8 @@ class LeafletAnalysisBase(AnalysisBase):
         User-specific HMM (e.g., pre-trained on another simulation)
     do_clustering: bool
         Perform the hierarchical clustering for each frame
+    parallel_clustering: bool
+        Perform the hierarchical clustering in parallel
     n_init_hmm: int
         Number of repeats for HMM model trainings
 
@@ -128,6 +130,7 @@ class LeafletAnalysisBase(AnalysisBase):
             n_init_hmm: int = 2,
             save_plots: bool = False,
             do_clustering: bool = True,
+            parallel_clustering: bool = False,
             **kwargs
     ):
         # the below line must be kept to initialize the AnalysisBase class!
@@ -158,6 +161,7 @@ class LeafletAnalysisBase(AnalysisBase):
         self.n_init_hmm = n_init_hmm
         self.save_plots = save_plots
         self.do_clustering = do_clustering
+        self.parallel_clustering = parallel_clustering
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
 

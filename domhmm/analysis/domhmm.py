@@ -10,6 +10,7 @@ import logging as log
 import sys
 
 import matplotlib.pyplot as plt
+import multiprocessing as mp
 import numpy as np
 from hmmlearn.hmm import GaussianHMM
 from scipy.sparse import csr_array
@@ -403,7 +404,10 @@ class PropertyCalculation(LeafletAnalysisBase):
             pass
         else:
             log.info("Clustering is starting.")
-            self.result_clustering()
+            if self.parallel_clustering:
+                self.result_clustering_parallel()
+            else:
+                self.result_clustering_serial()
 
             if self.result_plots:
                 self.clustering_plot()
@@ -1418,7 +1422,67 @@ class PropertyCalculation(LeafletAnalysisBase):
             plt.savefig("d.pdf")
         plt.show()
 
-    def result_clustering(self):
+    @staticmethod
+    def _process_frame_leaflet(args):
+        """
+        Helper function to run clustering for a single (frame, leaflet) pair.
+        """
+        i, j, frame_data = args  # frame index and leaflet index
+
+        # These must be accessible via self or passed explicitly
+        core_lipids = frame_data["assign_core_lipids"](
+            weight_matrix_f=frame_data["weight_matrix_f"],
+            g_star_i_f=frame_data["g_star_i_f"],
+            order_states_f=frame_data["order_states_f"],
+            w_ii_f=frame_data["w_ii_f"],
+            z_score=frame_data["z_score"],
+        )
+
+        clusters = frame_data["hierarchical_clustering"](
+            weight_matrix_f=frame_data["weight_matrix_f"],
+            w_ii_f=frame_data["w_ii_f"],
+            core_lipids=core_lipids
+        )
+
+        frame_number = frame_data["frame_number"]
+        leaflet_index_resid_map = frame_data["leaflet_index_resid_map"]
+        cluster_result = [
+            [leaflet_index_resid_map[leaflet_index] for leaflet_index in cluster]
+            for cluster in clusters.values()
+        ]
+
+        return (j, frame_number, cluster_result)
+
+    def result_clustering_parallel(self):
+        """
+        Runs hierarchical clustering for each frame and saves result (parallelized).
+        """
+        self.results["Clustering"] = {'0': {}, '1': {}}
+
+        tasks = []
+        for i in range(self.n_frames):
+            for j, leaflet_ in enumerate(['upper', 'lower']):
+                frame_data = {
+                    "weight_matrix_f": self.results[f"{leaflet_}_weight_all"][i],
+                    "g_star_i_f": self.results['Getis_Ord'][j][f'g_star_i_{j}'][i],
+                    "order_states_f": self.get_leaflet_step_order(j, i),
+                    "w_ii_f": self.results["Getis_Ord"][j][f"w_ii_{j}"][i],
+                    "z_score": self.results["z_score"][j],
+                    "leaflet_index_resid_map": self.get_leaflet_step_index_to_resid(j, i),
+                    "frame_number": self.start + i * self.step,
+                    "assign_core_lipids": self.assign_core_lipids,
+                    "hierarchical_clustering": self.hierarchical_clustering,
+                }
+                tasks.append((i, j, frame_data))
+
+        log.info(f"{mp.cpu_count()} CPU cores will be used for hierarchical clustering")
+        with mp.Pool(processes=mp.cpu_count()) as pool:
+            results = list(tqdm(pool.imap(self._process_frame_leaflet, tasks), total=len(tasks)))
+
+        for j, frame_number, cluster_result in results:
+            self.results["Clustering"][str(j)][frame_number] = cluster_result
+
+    def result_clustering_serial(self):
         """
         Runs hierarchical clustering for each frame and saves result
         """
