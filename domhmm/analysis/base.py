@@ -167,8 +167,7 @@ class LeafletAnalysisBase(AnalysisBase):
         if leaflet_kwargs is not None:
             self.leaflet_kwargs = leaflet_kwargs
         else:
-            unique_head_strs = np.unique(list(heads.values()))
-            select_str_list = [f"name {head_str}" for head_str in unique_head_strs]
+            select_str_list = [f"(name {head_str} and resname {residue_str})" for residue_str, head_str in heads.items()]
             select_str = " or ".join(select_str_list)
             self.leaflet_kwargs = {"select": select_str, "pbc": True}
 
