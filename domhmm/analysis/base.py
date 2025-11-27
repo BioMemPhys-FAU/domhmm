@@ -112,7 +112,7 @@ class LeafletAnalysisBase(AnalysisBase):
             membrane_select: str = "all",
             gmm_kwargs: Union[None, dict] = None,
             hmm_kwargs: Union[None, dict] = None,
-            leaflet_kwargs: Dict[str, Any] = {},
+            leaflet_kwargs: Dict[str, Any] = None,
             leaflet_select: Union[None, "AtomGroup", str, list] = None,
             heads: Dict[str, Any] = {},
             tails: Dict[str, Any] = {},
@@ -164,8 +164,14 @@ class LeafletAnalysisBase(AnalysisBase):
         self.parallel_clustering = parallel_clustering
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
+        if leaflet_kwargs is not None:
+            self.leaflet_kwargs = leaflet_kwargs
+        else:
+            unique_head_strs = np.unique(list(heads.values()))
+            select_str_list = [f"name {head_str}" for head_str in unique_head_strs]
+            select_str = " or ".join(select_str_list)
+            self.leaflet_kwargs = {"select": select_str, "pbc": True}
 
-        self.leaflet_kwargs = leaflet_kwargs
         self.n_leaflets = 0
 
         if gmm_kwargs is None:
