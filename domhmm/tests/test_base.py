@@ -88,17 +88,6 @@ class TestBase:
         """
         membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
         # Catch errors for wrong leaflet selection option
-        # Test None input
-        leaflet_select = None
-        with pytest.raises(ValueError):
-            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
-                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
-                                     membrane_select=membrane_select,
-                                     leaflet_select=leaflet_select,
-                                     heads=heads,
-                                     sterol_heads=sterol_heads,
-                                     sterol_tails=sterol_tails,
-                                     tails=tails)
         # Test wrong string input (anything except "auto")
         leaflet_select = "Wrong String"
         with pytest.raises(ValueError):
@@ -178,6 +167,14 @@ class TestBase:
                                  leaflet_kwargs={"select": "name PO4", "pbc": True},
                                  membrane_select=membrane_select,
                                  leaflet_select=leaflet_select,
+                                 heads=heads,
+                                 sterol_heads=sterol_heads,
+                                 sterol_tails=sterol_tails,
+                                 tails=tails)
+        # With auto option and without leaflet kwargs
+        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                 membrane_select=membrane_select,
+                                 leaflet_select="auto",
                                  heads=heads,
                                  sterol_heads=sterol_heads,
                                  sterol_tails=sterol_tails,
