@@ -23,7 +23,7 @@ With DomHMM you can:
 
 - Calculate the area per lipid for each lipid in every leaflet.
 - Compute the average S<sub>CC</sub> parameter for each acyl chain of every lipid.
-- Easily identify lateral nano- and microdomains in your membrane simulations.
+- Identify lateral nano- and microdomains in your membrane simulations.
 
 Documentation
 --------------
@@ -157,7 +157,6 @@ tails = {"DPPC": [["C1B", "C2B", "C3B", "C4B"], ["C1A", "C2A", "C3A", "C4A"]],
 sterol_heads = {"CHOL": "ROH"}
 sterol_tails = {"CHOL": ["ROH", "C1"]}
 model = domhmm.PropertyCalculation(universe_or_atomgroup=uni,
-                                       leaflet_kwargs={"select": "name PO4", "pbc": True},
                                        membrane_select=membrane_select,
                                        leaflet_select="auto",
                                        heads=heads,
