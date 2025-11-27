@@ -488,17 +488,19 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         # Init empty dict to store atom selection of resids
-        # TODO Cause => UserWarning: Empty string to select atoms, empty group returned.
-        #  warnings.warn("Empty string to select atoms, empty group returned.",
-        all_heads = self.universe.select_atoms('')
+        selection_strings = []
 
         # Iterate over found leaflets
         for resname, head in self.heads.items():
-            query_str = f"name {head} and resname {resname}"
-            all_heads = all_heads | self.universe.select_atoms(query_str)
+            selection_strings.append(f"(name {head} and resname {resname})")
         for resname, head in self.sterol_heads.items():
-            query_str = f"name {head} and resname {resname}"
-            all_heads = all_heads | self.universe.select_atoms(query_str)
+            selection_strings.append(f"(name {head} and resname {resname})")
+
+        if selection_strings:
+            all_heads = self.universe.select_atoms(" or ".join(selection_strings))
+        else:
+            all_heads = self.universe.atoms[:0]
+
         return all_heads
 
     def get_sterol_tails(self):
