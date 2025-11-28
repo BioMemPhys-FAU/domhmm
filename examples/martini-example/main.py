@@ -31,9 +31,7 @@ if __name__ == "__main__":
     sterol_heads = {"CHOL": "ROH"}
     sterol_tails = {"CHOL": ["ROH", "C1"]}
 
-    # leaflet_kwargs should contain all head group molecules of lipids for LeafletFinder function
     model = domhmm.PropertyCalculation(universe_or_atomgroup=universe,
-                                       leaflet_kwargs={"select": "name PO4", "pbc": True},
                                        membrane_select=membrane_select,
                                        leaflet_select="auto",
                                        heads=heads,

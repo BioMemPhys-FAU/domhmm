@@ -73,6 +73,6 @@ Users can save and reload the model itself or required data via `pickle`_.
 
 
 .. note::
-    When loading the full model, the MDAnalysis universe will load the trajectory and topology file from the same directory that was given in the analysis run. Therefore, full-model saving can't be loaded if files do not exist.
+    When loading the full model, the MDAnalysis universe will load the trajectory and topology file from the same directory that was given in the analysis run. Therefore, full-model saving may not be loaded from outside of analysis directory.
 
 .. _pickle: https://www.mdanalysis.org/pages/mdakits/

@@ -112,7 +112,7 @@ class LeafletAnalysisBase(AnalysisBase):
             membrane_select: str = "all",
             gmm_kwargs: Union[None, dict] = None,
             hmm_kwargs: Union[None, dict] = None,
-            leaflet_kwargs: Dict[str, Any] = {},
+            leaflet_kwargs: Dict[str, Any] = None,
             leaflet_select: Union[None, "AtomGroup", str, list] = None,
             heads: Dict[str, Any] = {},
             tails: Dict[str, Any] = {},
@@ -164,8 +164,13 @@ class LeafletAnalysisBase(AnalysisBase):
         self.parallel_clustering = parallel_clustering
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
+        if leaflet_kwargs is not None:
+            self.leaflet_kwargs = leaflet_kwargs
+        else:
+            select_str_list = [f"(name {head_str} and resname {residue_str})" for residue_str, head_str in heads.items()]
+            select_str = " or ".join(select_str_list)
+            self.leaflet_kwargs = {"select": select_str, "pbc": True}
 
-        self.leaflet_kwargs = leaflet_kwargs
         self.n_leaflets = 0
 
         if gmm_kwargs is None:
@@ -482,17 +487,19 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         # Init empty dict to store atom selection of resids
-        # TODO Cause => UserWarning: Empty string to select atoms, empty group returned.
-        #  warnings.warn("Empty string to select atoms, empty group returned.",
-        all_heads = self.universe.select_atoms('')
+        selection_strings = []
 
         # Iterate over found leaflets
         for resname, head in self.heads.items():
-            query_str = f"name {head} and resname {resname}"
-            all_heads = all_heads | self.universe.select_atoms(query_str)
+            selection_strings.append(f"(name {head} and resname {resname})")
         for resname, head in self.sterol_heads.items():
-            query_str = f"name {head} and resname {resname}"
-            all_heads = all_heads | self.universe.select_atoms(query_str)
+            selection_strings.append(f"(name {head} and resname {resname})")
+
+        if selection_strings:
+            all_heads = self.universe.select_atoms(" or ".join(selection_strings))
+        else:
+            all_heads = self.universe.atoms[:0]
+
         return all_heads
 
     def get_sterol_tails(self):
