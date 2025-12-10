@@ -259,24 +259,19 @@ class LeafletAnalysisBase(AnalysisBase):
                             "Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
                             "where 0 for lower leaflet and 1 for upper leaflet.")
                     if isinstance(query, AtomGroup):
-                        # Take center of geometry of three positions
-                        cog = np.mean(query.positions, axis=0)
-                        self.tmd_protein[leaflet].append(cog)
+                        self.tmd_protein[leaflet].append(query)
                     # Character string was provided as input, assume it contains a selection for an MDAnalysis.AtomGroup
                     elif isinstance(query, str):
                         # Try to create a MDAnalysis.AtomGroup, raise a ValueError if not selection group could be
                         # provided
                         try:
-                            cog = np.mean(self.universe.select_atoms(query).positions, axis=0)
-                            self.tmd_protein[leaflet].append(cog)
+                            self.tmd_protein[leaflet].append(self.universe.select_atoms(query))
                         except Exception as e:
                             raise ValueError("Please provide a valid MDAnalysis selection string!") from e
                     else:
                         raise ValueError(
                             "TDM Protein list should contain AtomGroup from MDAnalysis universe or a string "
                             "query for MDAnalysis selection.")
-            self.tmd_protein["0"] = np.array(self.tmd_protein["0"])
-            self.tmd_protein["1"] = np.array(self.tmd_protein["1"])
         elif tmd_protein_list is not None:
             # An unknown argument is provided for tdm_protein_list
             raise ValueError(
