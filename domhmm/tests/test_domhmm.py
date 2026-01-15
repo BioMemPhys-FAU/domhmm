@@ -176,9 +176,15 @@ class TestDomhmm:
             assert analysis.results['HMM_Pred']['DPPC'].shape == (302, 100)
             assert analysis.results['HMM_Pred']['DIPC'].shape == (202, 100)
             assert analysis.results['HMM_Pred']['CHOL'].shape == (216, 100)
+
+            # Set the first frame for tmd protein check
+            _ = analysis.universe.trajectory[0]
             assert analysis.tmd_protein.keys() == {'0', '1'}
-            assert np.allclose(analysis.tmd_protein['0'], [[63.04445, 86.886116, 60.87222]], error_tolerance)
-            assert np.allclose(analysis.tmd_protein['1'], [[63.04445,  86.886116, 60.87222 ]], error_tolerance)
+            # Calculate center of geometry of three backbone atoms for both leaflets
+            tmd_upper_coor_xy = np.array([np.mean(bb.positions, axis=0) for bb in analysis.tmd_protein["0"]])
+            tmd_lower_coor_xy = np.array([np.mean(bb.positions, axis=0) for bb in analysis.tmd_protein["1"]])
+            assert np.allclose(tmd_upper_coor_xy, [[63.04445, 86.886116, 60.87222]], error_tolerance)
+            assert np.allclose(tmd_lower_coor_xy, [[63.04445,  86.886116, 60.87222 ]], error_tolerance)
         assert len(analysis.results['HMM_Pred']) == 3
         assert analysis.results['HMM_Pred'].keys() == {'DPPC', 'DIPC', 'CHOL'}
         assert len(analysis.results['Getis_Ord']) == 4

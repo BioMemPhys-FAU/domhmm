@@ -200,7 +200,7 @@ Probability value that is used for z-score calculation. It is a determination pe
 
 * ``tmd_protein_list``
 
-Transmembrane domain (TMD) protein list to include area per lipid calculation. TMD proteins take up space in the exoplasmic, cytoplasmic leaflets. Three backbone atoms of protein that are in close position to lipid head groups should be included in this parameter to increase the success of identification.
+Transmembrane domain (TMD) protein list to include area per lipid calculation. TMD proteins take up space in the exoplasmic, cytoplasmic leaflets. Three backbone atoms of protein that are in close position to lipid head groups should be included in this parameter to increase the success of identification. Backbone atoms can be provided by MDAnalysis atom group or a string query for MDAnalysis selection.
 
 .. code-block::
 

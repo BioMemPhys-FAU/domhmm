@@ -321,11 +321,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         lower_coor_xy = self.leaflet_selection[str(1)].positions
         # Check Transmembrane domain existence
         if self.tmd_protein is not None:
-            tmd_upper_coor_xy = self.tmd_protein["0"]
+            tmd_upper_coor_xy = np.array([np.mean(bb.positions, axis=0) for bb in self.tmd_protein["0"]])
             # Check if dimension of coordinates is same in both array
             if tmd_upper_coor_xy.shape[1] == upper_coor_xy.shape[1]:
                 upper_coor_xy = np.append(upper_coor_xy, tmd_upper_coor_xy, axis=0)
-            tmd_lower_coor_xy = self.tmd_protein["1"]
+            tmd_lower_coor_xy = np.array([np.mean(bb.positions, axis=0) for bb in self.tmd_protein["1"]])
             # Check if dimension of coordinates is same in both array
             if tmd_lower_coor_xy.shape[1] == lower_coor_xy.shape[1]:
                 lower_coor_xy = np.append(lower_coor_xy, tmd_lower_coor_xy, axis=0)
@@ -1403,9 +1403,16 @@ class PropertyCalculation(LeafletAnalysisBase):
                               positions[idx, 1],
                               s=100, marker="o", color=colors[j], zorder=-10)
             if self.tmd_protein is not None:
-                label_length += len(self.tmd_protein["0"])
-                for protein in self.tmd_protein["0"]:
-                    ax[k].scatter(protein[0], protein[1], s=100, marker="^", color="black", label="TMD Protein")
+                label_length += 1
+                proteins = np.array([np.mean(bb.positions, axis=0) for bb in self.tmd_protein["0"]])
+                ax[k].scatter(
+                    proteins[:, 0],
+                    proteins[:, 1],
+                    s=100,
+                    marker="^",
+                    color="black",
+                    label="TMD Protein",
+                )
             ax[k].set_xticks([])
             ax[k].set_yticks([])
             ax[k].set_aspect("equal")
