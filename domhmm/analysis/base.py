@@ -112,7 +112,7 @@ class LeafletAnalysisBase(AnalysisBase):
             membrane_select: str = "all",
             gmm_kwargs: Union[None, dict] = None,
             hmm_kwargs: Union[None, dict] = None,
-            leaflet_kwargs: Dict[str, Any] = {},
+            leaflet_kwargs: Dict[str, Any] = None,
             leaflet_select: Union[None, "AtomGroup", str, list] = None,
             heads: Dict[str, Any] = {},
             tails: Dict[str, Any] = {},
@@ -164,8 +164,13 @@ class LeafletAnalysisBase(AnalysisBase):
         self.parallel_clustering = parallel_clustering
 
         assert heads.keys() == tails.keys(), "Heads and tails don't contain same residue names"
+        if leaflet_kwargs is not None:
+            self.leaflet_kwargs = leaflet_kwargs
+        else:
+            select_str_list = [f"(name {head_str} and resname {residue_str})" for residue_str, head_str in heads.items()]
+            select_str = " or ".join(select_str_list)
+            self.leaflet_kwargs = {"select": select_str, "pbc": True}
 
-        self.leaflet_kwargs = leaflet_kwargs
         self.n_leaflets = 0
 
         if gmm_kwargs is None:
@@ -254,24 +259,19 @@ class LeafletAnalysisBase(AnalysisBase):
                             "Entry for each TDM protein should be a dictionary in the format {'0': ..., '1': ...} "
                             "where 0 for lower leaflet and 1 for upper leaflet.")
                     if isinstance(query, AtomGroup):
-                        # Take center of geometry of three positions
-                        cog = np.mean(query.positions, axis=0)
-                        self.tmd_protein[leaflet].append(cog)
+                        self.tmd_protein[leaflet].append(query)
                     # Character string was provided as input, assume it contains a selection for an MDAnalysis.AtomGroup
                     elif isinstance(query, str):
                         # Try to create a MDAnalysis.AtomGroup, raise a ValueError if not selection group could be
                         # provided
                         try:
-                            cog = np.mean(self.universe.select_atoms(query).positions, axis=0)
-                            self.tmd_protein[leaflet].append(cog)
+                            self.tmd_protein[leaflet].append(self.universe.select_atoms(query))
                         except Exception as e:
                             raise ValueError("Please provide a valid MDAnalysis selection string!") from e
                     else:
                         raise ValueError(
                             "TDM Protein list should contain AtomGroup from MDAnalysis universe or a string "
                             "query for MDAnalysis selection.")
-            self.tmd_protein["0"] = np.array(self.tmd_protein["0"])
-            self.tmd_protein["1"] = np.array(self.tmd_protein["1"])
         elif tmd_protein_list is not None:
             # An unknown argument is provided for tdm_protein_list
             raise ValueError(
@@ -482,17 +482,19 @@ class LeafletAnalysisBase(AnalysisBase):
         """
 
         # Init empty dict to store atom selection of resids
-        # TODO Cause => UserWarning: Empty string to select atoms, empty group returned.
-        #  warnings.warn("Empty string to select atoms, empty group returned.",
-        all_heads = self.universe.select_atoms('')
+        selection_strings = []
 
         # Iterate over found leaflets
         for resname, head in self.heads.items():
-            query_str = f"name {head} and resname {resname}"
-            all_heads = all_heads | self.universe.select_atoms(query_str)
+            selection_strings.append(f"(name {head} and resname {resname})")
         for resname, head in self.sterol_heads.items():
-            query_str = f"name {head} and resname {resname}"
-            all_heads = all_heads | self.universe.select_atoms(query_str)
+            selection_strings.append(f"(name {head} and resname {resname})")
+
+        if selection_strings:
+            all_heads = self.universe.select_atoms(" or ".join(selection_strings))
+        else:
+            all_heads = self.universe.atoms[:0]
+
         return all_heads
 
     def get_sterol_tails(self):
