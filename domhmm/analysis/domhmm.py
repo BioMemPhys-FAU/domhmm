@@ -405,8 +405,6 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Make predictions based on HMM model
             self.predict_states()
 
-            # Validate states and result prediction
-            # self.state_validate()
             if self.result_plots:
                 # Plot prediction result
                 self.predict_plot()
@@ -858,8 +856,7 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.plot_hmm_result()
         # Make predictions based on HMM model
         self.predict_states()
-        # Validate states and result prediction
-        # self.state_validate()
+
         if self.result_plots:
             # Plot prediction result
             self.predict_plot()
@@ -1086,18 +1083,6 @@ class PropertyCalculation(LeafletAnalysisBase):
                 prediction[mask_flats] = 0
                 # Save prediction result of each residue
                 self.results['HMM_Pred'][resname] = prediction
-
-    # def state_validate(self):
-    #     """
-    #     Validate state assignments of HMM model by checking means of the model of each residue.
-    #     """
-    #     if not self.asymmetric_membrane:
-    #         # Asymmetric membrane validation is done in prediction step due to nature of it
-    #         for resname, hmm in self.results["HMM"].items():
-    #             if hmm is not None:
-    #                 means = hmm.means_
-    #                 prediction_results = self.results['HMM_Pred'][resname]
-    #                 self.results['HMM_Pred'][resname] = self.hmm_diff_checker(means, prediction_results)
 
     @staticmethod
     def hmm_diff_checker(means, prediction_results):
