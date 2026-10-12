@@ -988,9 +988,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.text(s="Tolerance 1e-4", x=1, y=1E-4 + 0.00005, color="k", fontsize=15)
         plt.title("a", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
-        if self.save_plots:
-            plt.savefig("a.pdf")
-        plt.show()
+        plt.savefig("a.pdf")
+
 
     def predict_states(self):
         """
@@ -1160,9 +1159,8 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.ylim(0, 1)
         plt.title("b", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
-        if self.save_plots:
-            plt.savefig("b.pdf")
-        plt.show()
+        plt.savefig("b.pdf")
+
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
     def getis_ord(self):
@@ -1296,9 +1294,8 @@ class PropertyCalculation(LeafletAnalysisBase):
 
         plt.title("c", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
-        if self.save_plots:
-            plt.savefig("c.pdf")
-        plt.show()
+        plt.savefig("c.pdf")
+
 
     def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
 
@@ -1466,9 +1463,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         ax[1].set_title(label=f"Frame {frame_list[1]}", fontsize=18)
         ax[2].set_title(label=f"Frame {frame_list[2]}", fontsize=18)
         plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0, hspace=None)
-        if self.save_plots:
-            plt.savefig("d.pdf")
-        plt.show()
+        plt.savefig("d.pdf")
 
     @staticmethod
     def _process_frame_leaflet(args):
