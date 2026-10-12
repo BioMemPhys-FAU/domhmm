@@ -330,11 +330,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Put NaN for flat lipids' APL Value
 
         # upper_coor_xy = self.leaflet_selection[str(0)].positions
-        upper_mask = ~np.in1d(self.leaflet_selection["0"].resids, flat_sterol_ids)
+        upper_mask = ~np.isin(self.leaflet_selection["0"].resids, flat_sterol_ids)
         upper_coor_xy = self.leaflet_selection["0"][upper_mask].positions
         uidx = uidx[upper_mask] 
         # lower_coor_xy = self.leaflet_selection[str(1)].positions
-        lower_mask = ~np.in1d(self.leaflet_selection["1"].resids, flat_sterol_ids)
+        lower_mask = ~np.isin(self.leaflet_selection["1"].resids, flat_sterol_ids)
         lower_coor_xy = self.leaflet_selection["1"][lower_mask].positions
         lidx = lidx[lower_mask]
         # Check Transmembrane domain existence
