@@ -18,7 +18,7 @@ from scipy.spatial import Voronoi, ConvexHull
 from scipy import stats
 from sklearn import mixture
 from tqdm import tqdm
-
+from matplotlib.backends.backend_pdf import PdfPages
 from .base import LeafletAnalysisBase
 
 
@@ -555,14 +555,14 @@ class PropertyCalculation(LeafletAnalysisBase):
                 if not each.converged_:
                     log.warning(f"{resname} Gaussian Mixture Model is not converged.")
 
-    def mixture_plot(self, resname, gmm_model, hmm_model, leaflet=None):
+    def mixture_plot(self, resname, gmm_model, hmm_model, leaflet=None, pdf=None):
 
         """
         Plot results of the Gaussian Mixture Model for each residue type.
         The function should help to spot flaws in the results of the Gaussian Mixture Model.
 
         The Gaussian Mixture Model in DomHMM is trained on a three-dimensional space (1 APL + 2 Acyl chains), hence also
-        its ouput (mean vectors and covariance matrices) are three0-dimensional. However, plots in 3 dimensions are rather hard 
+        its ouput (mean vectors and covariance matrices) are three-dimensional. However, plots in 3 dimensions are rather hard
         to understand, therefore we plot here the projections of the raw/fitted probability densities on the xz, yz, and xy plane.
 
         Parameters
@@ -575,6 +575,9 @@ class PropertyCalculation(LeafletAnalysisBase):
             hmmlearn object
         leaflet : int or None
             If membrane is asymmetric ensure that plots are made for upper and lower leaflet
+        pdf : matplotlib.backends.backend_pdf.PdfPages or None
+            Open multi-page PDF. If given, the figure is appended to it as a new page.
+            If None, the figure is saved as a separate file (GMM_<resname>[_<leaflet>].pdf) as before.
         """
 
         # Define parameters that define a grid for the calculations of the fitted distributions
@@ -588,6 +591,9 @@ class PropertyCalculation(LeafletAnalysisBase):
         xy01 = np.dstack((x01, y01))
         xy2 = np.dstack((x2, y2))
 
+        apl_bins = np.linspace(MIN_APL, MAX_APL, int(np.round((MAX_APL - MIN_APL) / 1 + 1)))
+        scc_bins = np.linspace(MIN_SCC, MAX_SCC, int(np.round((MAX_SCC - MIN_SCC) / 0.025 + 1)))
+
         # Define colors for the markers that mark the fitted means of the Gaussians
         cx = ["crimson", "cyan"]
         cx_hmm = ["orange", "hotpink"]
@@ -595,12 +601,11 @@ class PropertyCalculation(LeafletAnalysisBase):
         # Get trainings data for this type lipid and check if its asymmetric
         train_data_per_type = self.results["train_data_per_type"][resname][1]
 
-        if leaflet != None:
+        if leaflet is not None:
             train_data_per_type = train_data_per_type[leaflet]
-        else:
-            pass
 
-        # Joint distributions for current lipid type
+        # Page title, so each page in the merged PDF can be identified
+        page_title = f"{resname}" if leaflet is None else f"{resname} (leaflet {leaflet})"
 
         cm = 1 / 2.54
 
@@ -610,26 +615,16 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Init suplots
             fig, ax = plt.subplots(1, 3, figsize=(35 * cm, 10 * cm))
 
+            data = train_data_per_type.reshape(-1, 3)
+
             # Area per Lipid - Scc Chain A
-            ax[0].hist2d(x=train_data_per_type.reshape(-1, 3)[:, 0],
-                         y=train_data_per_type.reshape(-1, 3)[:, 1],
-                         bins=[np.linspace(MIN_APL, MAX_APL, int(np.round((MAX_APL - MIN_APL) / 1 + 1))),
-                               np.linspace(MIN_SCC, MAX_SCC, int(np.round((MAX_SCC - MIN_SCC) / 0.025 + 1)))],
-                         density=True, cmap="viridis")
+            ax[0].hist2d(x=data[:, 0], y=data[:, 1], bins=[apl_bins, scc_bins], density=True, cmap="viridis")
 
             # Area per Lipid - Scc Chain B
-            ax[1].hist2d(x=train_data_per_type.reshape(-1, 3)[:, 0],
-                         y=train_data_per_type.reshape(-1, 3)[:, 2],
-                         bins=[np.linspace(MIN_APL, MAX_APL, int(np.round((MAX_APL - MIN_APL) / 1 + 1))),
-                               np.linspace(MIN_SCC, MAX_SCC, int(np.round((MAX_SCC - MIN_SCC) / 0.025 + 1)))],
-                         density=True, cmap="viridis")
+            ax[1].hist2d(x=data[:, 0], y=data[:, 2], bins=[apl_bins, scc_bins], density=True, cmap="viridis")
 
             # Scc Chain A - Scc Chain B
-            ax[2].hist2d(x=train_data_per_type.reshape(-1, 3)[:, 1],
-                         y=train_data_per_type.reshape(-1, 3)[:, 2],
-                         bins=[np.linspace(MIN_SCC, MAX_SCC, int(np.round((MAX_SCC - MIN_SCC) / 0.025 + 1))),
-                               np.linspace(MIN_SCC, MAX_SCC, int(np.round((MAX_SCC - MIN_SCC) / 0.025 + 1)))],
-                         density=True, cmap="viridis")
+            ax[2].hist2d(x=data[:, 1], y=data[:, 2], bins=[scc_bins, scc_bins], density=True, cmap="viridis")
 
             # Calculate and display fitted distributions
             # Iterate over both Gaussian distributions
@@ -637,28 +632,20 @@ class PropertyCalculation(LeafletAnalysisBase):
                 # -------------------------------------------------------GMM-------------------------------------------------------
 
                 # Area per Lipid (0) - Scc Chain A (1)
-                rv0 = stats.multivariate_normal(gmm_model.means_[i][0:2], gmm_model.covariances_[i][:2, :2])
-                z0 = rv0.pdf(xy01)
-
+                z0 = stats.multivariate_normal(gmm_model.means_[i][0:2], gmm_model.covariances_[i][:2, :2]).pdf(
+                    xy01)
                 # Area per Lipid (0) - Scc Chain B (2)
-                rv1 = stats.multivariate_normal(gmm_model.means_[i][::2], gmm_model.covariances_[i][::2, ::2])
-                z1 = rv1.pdf(xy01)
-
+                z1 = stats.multivariate_normal(gmm_model.means_[i][::2], gmm_model.covariances_[i][::2, ::2]).pdf(
+                    xy01)
                 # Scc Chain A (1) - Scc Chain B (2)
-                rv2 = stats.multivariate_normal(gmm_model.means_[i][1:], gmm_model.covariances_[i][1:, 1:])
-                z2 = rv2.pdf(xy2)
+                z2 = stats.multivariate_normal(gmm_model.means_[i][1:], gmm_model.covariances_[i][1:, 1:]).pdf(xy2)
 
                 # Plot contours -> Be aware that the first two plots share the same ranges
                 ax[0].contour(x01, y01, z0, colors=[cx[i]], alpha=0.2, linewidths=2.25, zorder=25)
                 ax[1].contour(x01, y01, z1, colors=[cx[i]], alpha=0.2, linewidths=2.25, zorder=25)
                 ax[2].contour(x2, y2, z2, colors=[cx[i]], alpha=0.2, linewidths=2.25, zorder=25)
 
-                del rv0
-                del rv1
-                del rv2
-                del z0
-                del z1
-                del z2
+                del z0, z1, z2
 
                 # Mark with a cross the means of the fitted Gaussians
                 ax[0].scatter(gmm_model.means_[i][0], gmm_model.means_[i][1], marker="x", s=100, zorder=100,
@@ -671,28 +658,18 @@ class PropertyCalculation(LeafletAnalysisBase):
                 # -------------------------------------------------------HMM-------------------------------------------------------
 
                 # Area per Lipid (0) - Scc Chain A (1)
-                rv0 = stats.multivariate_normal(hmm_model.means_[i][0:2], hmm_model.covars_[i][:2, :2])
-                z0 = rv0.pdf(xy01)
-
+                z0 = stats.multivariate_normal(hmm_model.means_[i][0:2], hmm_model.covars_[i][:2, :2]).pdf(xy01)
                 # Area per Lipid (0) - Scc Chain B (2)
-                rv1 = stats.multivariate_normal(hmm_model.means_[i][::2], hmm_model.covars_[i][::2, ::2])
-                z1 = rv1.pdf(xy01)
-
+                z1 = stats.multivariate_normal(hmm_model.means_[i][::2], hmm_model.covars_[i][::2, ::2]).pdf(xy01)
                 # Scc Chain A (1) - Scc Chain B (2)
-                rv2 = stats.multivariate_normal(hmm_model.means_[i][1:], hmm_model.covars_[i][1:, 1:])
-                z2 = rv2.pdf(xy2)
+                z2 = stats.multivariate_normal(hmm_model.means_[i][1:], hmm_model.covars_[i][1:, 1:]).pdf(xy2)
 
                 # Plot contours -> Be aware that the first two plots share the same ranges
                 ax[0].contour(x01, y01, z0, colors=[cx_hmm[i]], alpha=0.2, zorder=50, linewidths=1.25)
                 ax[1].contour(x01, y01, z1, colors=[cx_hmm[i]], alpha=0.2, zorder=50, linewidths=1.25)
                 ax[2].contour(x2, y2, z2, colors=[cx_hmm[i]], alpha=0.2, zorder=50, linewidths=1.25)
 
-                del rv0
-                del rv1
-                del rv2
-                del z0
-                del z1
-                del z2
+                del z0, z1, z2
 
                 # Mark with a circle the means of the fitted Gaussians from the HMM
                 ax[0].scatter(hmm_model.means_[i][0], hmm_model.means_[i][1], marker="o", facecolor="none", s=100,
@@ -731,12 +708,9 @@ class PropertyCalculation(LeafletAnalysisBase):
             lg = ax[1].legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), fancybox=False, framealpha=0.5,
                               facecolor="grey", ncols=4)
 
-            if leaflet != None:
-                plt.savefig(f"GMM_{resname}_{leaflet}.pdf", dpi=300, transparent=True,
-                            bbox_extra_artists=(xl0, xl1, xl2, yl0, yl1, yl2, lg), bbox_inches="tight")
-            else:
-                plt.savefig(f"GMM_{resname}.pdf", dpi=300, transparent=True,
-                            bbox_extra_artists=(xl0, xl1, xl2, yl0, yl1, yl2, lg), bbox_inches="tight")
+            st = fig.suptitle(page_title, fontsize=18)
+
+            extra_artists = (xl0, xl1, xl2, yl0, yl1, yl2, lg, st)
 
         # Do the plot for sterolic lipid types
         else:
@@ -744,42 +718,29 @@ class PropertyCalculation(LeafletAnalysisBase):
             # Init only one subplot
             fig, ax = plt.subplots(1, 1, figsize=(15 * cm, 15 * cm))
 
-            # Area per Lipid - Scc Chain A
-            ax.hist2d(x=train_data_per_type.reshape(-1, 2)[:, 0],
-                      y=train_data_per_type.reshape(-1, 2)[:, 1],
-                      bins=[np.linspace(MIN_APL, MAX_APL, int(np.round((MAX_APL - MIN_APL) / 1 + 1))),
-                            np.linspace(MIN_SCC, MAX_SCC, int(np.round((MAX_SCC - MIN_SCC) / 0.025 + 1)))],
-                      density=True, cmap="viridis")
+            data = train_data_per_type.reshape(-1, 2)
+
+            # Area per Lipid - Order parameter
+            ax.hist2d(x=data[:, 0], y=data[:, 1], bins=[apl_bins, scc_bins], density=True, cmap="viridis")
 
             # Calculate and display fitted distributions
             # Iterate over both Gaussian distributions
             for i in range(2):
                 # -------------------------------------------------------GMM-------------------------------------------------------
 
-                # Area per Lipid (0) - Scc Chain C (1)
-                rv0 = stats.multivariate_normal(gmm_model.means_[i], gmm_model.covariances_[i])
-                z0 = rv0.pdf(xy01)
-
-                # Plot contours
+                z0 = stats.multivariate_normal(gmm_model.means_[i], gmm_model.covariances_[i]).pdf(xy01)
                 ax.contour(x01, y01, z0, colors=[cx[i]], alpha=0.2, linewidths=2.25, zorder=25)
-
-                del rv0
                 del z0
 
                 # Mark with a cross the means of the fitted Gaussians
-                ax.scatter(gmm_model.means_[i][0], gmm_model.means_[i][1], marker="x", s=100, zorder=100, color=cx[i],
+                ax.scatter(gmm_model.means_[i][0], gmm_model.means_[i][1], marker="x", s=100, zorder=100,
+                           color=cx[i],
                            label=f"GMM Mean {i}")
 
                 # -------------------------------------------------------HMM-------------------------------------------------------
 
-                # Area per Lipid (0) - Scc Chain C (1)
-                rv0 = stats.multivariate_normal(hmm_model.means_[i], hmm_model.covars_[i])
-                z0 = rv0.pdf(xy01)
-
-                # Plot contours
+                z0 = stats.multivariate_normal(hmm_model.means_[i], hmm_model.covars_[i]).pdf(xy01)
                 ax.contour(x01, y01, z0, colors=[cx_hmm[i]], alpha=0.2, zorder=50, linewidths=1.25)
-
-                del rv0
                 del z0
 
                 # Mark with a circle the means of the fitted Gaussians from the HMM
@@ -802,14 +763,20 @@ class PropertyCalculation(LeafletAnalysisBase):
             lg = ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), fancybox=False, framealpha=0.5,
                            facecolor="grey", ncols=4)
 
-            if leaflet != None:
-                plt.savefig(f"GMM_{resname}_{leaflet}.pdf", dpi=300, transparent=True, bbox_extra_artists=(xl, yl, lg),
-                            bbox_inches="tight")
-            else:
-                plt.savefig(f"GMM_{resname}.pdf", dpi=300, transparent=True, bbox_extra_artists=(xl, yl, lg),
-                            bbox_inches="tight")
+            st = fig.suptitle(page_title, fontsize=18)
 
-        plt.close()
+            extra_artists = (xl, yl, lg, st)
+
+        # ---------------------------------------------------------Save---------------------------------------------------------
+
+        save_kwargs = dict(dpi=300, transparent=True, bbox_extra_artists=extra_artists, bbox_inches="tight")
+        if pdf is not None:
+            pdf.savefig(fig, **save_kwargs)
+        else:
+            # Fallback: one file per lipid type (previous behaviour)
+            fname = f"GMM_{resname}.pdf" if leaflet is None else f"GMM_{resname}_{leaflet}.pdf"
+            fig.savefig(fname, **save_kwargs)
+        plt.close(fig)
 
     # ------------------------------ HIDDEN MARKOV MODEL ------------------------------------------------------------- #
 
@@ -862,29 +829,35 @@ class PropertyCalculation(LeafletAnalysisBase):
             self.predict_plot()
 
             # Plot results of GMM and HMM
+            with PdfPages("GMM_plots.pdf") as gmm_pdf:
+                # Iterate over fitted Gaussian Mixture Models
+                for resname in self.results["GMM"].keys():
 
-            # Iterate over fitted Gaussian Mixture Models
-            for resname in self.results["GMM"].keys():
+                    gmm_trained = self.results["GMM"][resname]
+                    hmm_trained = self.results["HMM"][resname]
 
-                gmm_trained = self.results["GMM"][resname]
-                hmm_trained = self.results["HMM"][resname]
+                    if self.asymmetric_membrane:
 
-                if self.asymmetric_membrane:
+                        if gmm_trained[0] is not None and hmm_trained[0] is not None and gmm_trained[0].converged_ and \
+                                hmm_trained[0].monitor_.converged:
+                            self.mixture_plot(resname=resname,
+                                              gmm_model=gmm_trained[0],
+                                              hmm_model=hmm_trained[0], leaflet=0,
+                                              pdf=gmm_pdf)
 
-                    if gmm_trained[0] is not None and hmm_trained[0] is not None and gmm_trained[0].converged_ and \
-                            hmm_trained[0].monitor_.converged: self.mixture_plot(resname=resname,
-                                                                                 gmm_model=gmm_trained[0],
-                                                                                 hmm_model=hmm_trained[0], leaflet=0)
+                        if gmm_trained[1] is not None and hmm_trained[1] is not None and gmm_trained[1].converged_ and \
+                                hmm_trained[1].monitor_.converged:
+                            self.mixture_plot(resname=resname,
+                                              gmm_model=gmm_trained[1],
+                                              hmm_model=hmm_trained[1], leaflet=1,
+                                              pdf=gmm_pdf)
 
-                    if gmm_trained[1] is not None and hmm_trained[1] is not None and gmm_trained[1].converged_ and \
-                            hmm_trained[1].monitor_.converged: self.mixture_plot(resname=resname,
-                                                                                 gmm_model=gmm_trained[1],
-                                                                                 hmm_model=hmm_trained[1], leaflet=1)
-
-                else:
-                    if gmm_trained.converged_ and hmm_trained.monitor_.converged: self.mixture_plot(resname=resname,
-                                                                                                    gmm_model=gmm_trained,
-                                                                                                    hmm_model=hmm_trained)
+                    else:
+                        if gmm_trained.converged_ and hmm_trained.monitor_.converged:
+                            self.mixture_plot(resname=resname,
+                                              gmm_model=gmm_trained,
+                                              hmm_model=hmm_trained,
+                                              pdf=gmm_pdf)
 
     def fit_hmm(self, data, gmm, hmm_kwargs, n_repeats=10):
 
@@ -989,6 +962,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.title("a", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
         plt.savefig("a.pdf")
+        plt.close()
 
 
     def predict_states(self):
@@ -1160,6 +1134,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.title("b", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
         plt.savefig("b.pdf")
+        plt.close()
 
 
     # ------------------------------ GETIS-ORD STATISTIC ------------------------------------------------------------- #
@@ -1295,7 +1270,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         plt.title("c", fontsize=20, fontweight="bold", loc="left")
         plt.tight_layout()
         plt.savefig("c.pdf")
-
+        plt.close()
 
     def permut_getis_ord_stat(self, weight_matrix_all, leaflet):
 
@@ -1464,6 +1439,7 @@ class PropertyCalculation(LeafletAnalysisBase):
         ax[2].set_title(label=f"Frame {frame_list[2]}", fontsize=18)
         plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0, hspace=None)
         plt.savefig("d.pdf")
+        plt.close()
 
     @staticmethod
     def _process_frame_leaflet(args):
