@@ -88,17 +88,6 @@ class TestBase:
         """
         membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
         # Catch errors for wrong leaflet selection option
-        # Test None input
-        leaflet_select = None
-        with pytest.raises(ValueError):
-            base.LeafletAnalysisBase(universe_or_atomgroup=universe,
-                                     leaflet_kwargs={"select": "name PO4", "pbc": True},
-                                     membrane_select=membrane_select,
-                                     leaflet_select=leaflet_select,
-                                     heads=heads,
-                                     sterol_heads=sterol_heads,
-                                     sterol_tails=sterol_tails,
-                                     tails=tails)
         # Test wrong string input (anything except "auto")
         leaflet_select = "Wrong String"
         with pytest.raises(ValueError):
@@ -161,27 +150,49 @@ class TestBase:
         """
         membrane_select, heads, tails, sterol_heads, sterol_tails = self.base_test_inputs()
         # With MDA Query String
-        leaflet_select = ["resid 1:252", "resid 361:612"]
-        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+        leaflet_select = ["resid 1:252 and name PO4", "resid 361:612 and name PO4"]
+        leaflets_query_string = base.LeafletAnalysisBase(universe_or_atomgroup=universe,
                                  leaflet_kwargs={"select": "name PO4", "pbc": True},
                                  membrane_select=membrane_select,
                                  leaflet_select=leaflet_select,
                                  heads=heads,
                                  sterol_heads=sterol_heads,
                                  sterol_tails=sterol_tails,
-                                 tails=tails)
+                                 tails=tails).leaflet_selection_no_sterol
         # With MDA Atom Group
-        upper_leaflet = universe.select_atoms("resid 1:252")
-        lower_leaflet = universe.select_atoms("resid 361:612")
+        upper_leaflet = universe.select_atoms("resid 1:252 and name PO4")
+        lower_leaflet = universe.select_atoms("resid 361:612 and name PO4")
         leaflet_select = [upper_leaflet, lower_leaflet]
-        base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+        leaflets_atom_group = base.LeafletAnalysisBase(universe_or_atomgroup=universe,
                                  leaflet_kwargs={"select": "name PO4", "pbc": True},
                                  membrane_select=membrane_select,
                                  leaflet_select=leaflet_select,
                                  heads=heads,
                                  sterol_heads=sterol_heads,
                                  sterol_tails=sterol_tails,
-                                 tails=tails)
+                                 tails=tails).leaflet_selection_no_sterol
+        # With auto option and without leaflet kwargs
+        leaflets_auto = base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                 membrane_select=membrane_select,
+                                 leaflet_select="auto",
+                                 heads=heads,
+                                 sterol_heads=sterol_heads,
+                                 sterol_tails=sterol_tails,
+                                 tails=tails).leaflet_selection_no_sterol
+        # With auto option and with leaflet kwargs
+        leaflets_auto_w_kwargs = base.LeafletAnalysisBase(universe_or_atomgroup=universe,
+                                                 membrane_select=membrane_select,
+                                                 leaflet_select="auto",
+                                                 leaflet_kwargs={"select": "name PO4", "pbc": True},
+                                                 heads=heads,
+                                                 sterol_heads=sterol_heads,
+                                                 sterol_tails=sterol_tails,
+                                                 tails=tails).leaflet_selection_no_sterol
+
+        assert leaflets_query_string == leaflets_atom_group
+        assert leaflets_query_string == leaflets_auto
+        assert leaflets_query_string == leaflets_auto_w_kwargs
+
 
     def test_tmd_protein_list_exceptions(self, universe):
         """

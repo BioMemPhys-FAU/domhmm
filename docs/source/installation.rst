@@ -12,6 +12,13 @@ If you don't have any Python environment, you can create a conda environment by
     conda create --name domhmm
     conda activate domhmm
 
+or a venv environment by
+
+.. code-block:: console
+
+    python3 -m venv venv
+    source venv/bin/activate
+
 .. tip::
 
     ``conda create`` command creates a conda environment named *domhmm* and ``conda activate`` command starts environment in your terminal. Whenever you close your terminal, you need to use activate command again to restart environment.

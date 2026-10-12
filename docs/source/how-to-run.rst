@@ -14,7 +14,6 @@ DomHMM's main class is ``PropertyCalculation``. In a basic example, it is initia
 .. code-block::
 
     model = domhmm.PropertyCalculation(universe_or_atomgroup=universe,
-                                       leaflet_kwargs=leaflet_kwargs,
                                        membrane_select=membrane_select,
                                        leaflet_select="auto",
                                        heads=heads,
@@ -42,13 +41,6 @@ Let's dive into each parameter's details.
     path2tpr = "YOUR_TPR_FILE.tpr"
     universe = mda.Universe(path2tpr, path2xtc)
 
-* ``leaflet_kwargs`` parameter stands for MDAnalysis ``LeafletFinder`` function's arguments. It is used to determine each leaflet's lipids. ``leaflet_kwargs`` requires head groups of lipids but not sterols.
-
-.. code-block::
-
-    # An example where all lipids head group is PO4
-    leaflet_kwargs={"select": "name PO4", "pbc": True}
-
 * ``membrane_select`` argument is for atom group selection of universe. It is useful for simulations that contain non-membrane residues/molecules inside. If the universe contains only membrane elements, the parameter can be left in the default option which is ``all``
 
 .. code-block::
@@ -56,7 +48,7 @@ Let's dive into each parameter's details.
     # An example where simulation contains DPPC and DIPC lipids, and CHOL sterol
     membrane_select = "resname DPPC DIPC CHOL"
 
-* ``leaflet_select`` argument is a selection option for lipids which can be a list of atom groups, a list of string queries, or automatic via LeafletFinder.
+* ``leaflet_select`` argument is a selection option for lipids which can be a list of atom groups, a list of string queries, or automatic via LeafletFinder. In automatic option, lipid head groups from ``heads`` parameter will be used for leaflet identification or user can setup with ``leaflet_kwargs`` optional parameter.
 
 .. code-block::
 
@@ -127,6 +119,10 @@ It needs to be enabled if leaflets are not symmetric. With this option, models a
 
 Whether to perform the hierarchical clustering or not (Default is True).
 
+* ``parallel_clustering``
+
+Parallelize the hierarchical clustering. (Default is False).
+
 * ``result_plot``
 
 Plotting option for debugging. While enabled, DomHMM will print Hidden Markov model convergence, prediction results, Getis-Ord statistic results, and clustering results of three frames.
@@ -138,6 +134,13 @@ Option for saving result plots in pdf format.
 * ``verbose``
 
 Verbose option for debugging. It shows which steps are done in the analysis.
+
+* ``leaflet_kwargs`` parameter stands for MDAnalysis ``LeafletFinder`` function's arguments and used with ``leaflet_select="auto"`` option. It is used to determine each leaflet's lipids. ``leaflet_kwargs`` requires head groups of lipids but not sterols.
+
+.. code-block::
+
+    # An example where all lipids head group is PO4
+    leaflet_kwargs={"select": "name PO4", "pbc": True}
 
 * ``lipid_leaflet_rate``
 
@@ -197,7 +200,7 @@ Probability value that is used for z-score calculation. It is a determination pe
 
 * ``tmd_protein_list``
 
-Transmembrane domain (TMD) protein list to include area per lipid calculation. TMD proteins take up space in the exoplasmic, cytoplasmic leaflets. Three backbone atoms of protein that are in close position to lipid head groups should be included in this parameter to increase the success of identification.
+Transmembrane domain (TMD) protein list to include area per lipid calculation. TMD proteins take up space in the exoplasmic, cytoplasmic leaflets. Three backbone atoms of protein that are in close position to lipid head groups should be included in this parameter to increase the success of identification. Backbone atoms can be provided by MDAnalysis atom group or a string query for MDAnalysis selection.
 
 .. code-block::
 
@@ -207,5 +210,7 @@ Transmembrane domain (TMD) protein list to include area per lipid calculation. T
     loBB = uni.select_atoms('name BB')[-3:]
     # List can be expended with multiple dictionary objects as in more than one TMD protein scenario.
     tmd_protein_list = [{"0": upBB, "1": loBB}]
+    model = domhmm.PropertyCalculation( ... ,
+                                     tmd_protein_list=tmd_protein_list)
 
 We encourage you to check :doc:`tips` section which may contain useful information for your progress.
