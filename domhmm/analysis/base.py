@@ -69,9 +69,7 @@ class LeafletAnalysisBase(AnalysisBase):
     verbose: bool
         Debug option to print step progress, warnings and errors
     result_plots: bool
-        Plotting intermediate result option
-    save_plots : bool
-        Option for saving intermediate plots in pdf format
+        Creating plots of intermediate results and saving in pdf format
     trained_hmms: dict
         User-specific HMM (e.g., pre-trained on another simulation)
     do_clustering: bool
@@ -128,7 +126,6 @@ class LeafletAnalysisBase(AnalysisBase):
             result_plots: bool = False,
             trained_hmms: Dict[str, Any] = {},
             n_init_hmm: int = 2,
-            save_plots: bool = False,
             do_clustering: bool = True,
             parallel_clustering: bool = False,
             **kwargs
@@ -159,7 +156,6 @@ class LeafletAnalysisBase(AnalysisBase):
         self.result_plots = result_plots
         self.tmd_protein = None
         self.n_init_hmm = n_init_hmm
-        self.save_plots = save_plots
         self.do_clustering = do_clustering
         self.parallel_clustering = parallel_clustering
 

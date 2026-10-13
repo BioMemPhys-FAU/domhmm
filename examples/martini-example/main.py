@@ -39,7 +39,6 @@ if __name__ == "__main__":
                                        sterol_tails=sterol_tails,
                                        tails=tails,
                                        result_plots=True,
-                                       save_plots=True,
                                        parallel_clustering=True,
                                        verbose=True,
                                        )

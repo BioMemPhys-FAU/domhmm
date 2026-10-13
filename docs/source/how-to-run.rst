@@ -125,11 +125,7 @@ Parallelize the hierarchical clustering. (Default is False).
 
 * ``result_plot``
 
-Plotting option for debugging. While enabled, DomHMM will print Hidden Markov model convergence, prediction results, Getis-Ord statistic results, and clustering results of three frames.
-
-* ``save_plots``
-
-Option for saving result plots in pdf format.
+Plotting option for debugging. While enabled, DomHMM will save these plots at run directory: Hidden Markov model convergence, prediction results, Getis-Ord statistic results, and clustering results of three frames.
 
 * ``verbose``
 
