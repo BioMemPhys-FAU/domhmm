@@ -1,0 +1,65 @@
+name: Publish to PyPI
+
+"on":
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # versioneer reads the version from the tags
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist and wheel
+        run: |
+          pip install build twine
+          python -m build
+
+      - name: Check the version matches the release tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          expected="$TAG"
+          wheel=$(ls dist/*.whl)
+          built=$(basename "$wheel" | cut -d- -f2)
+          echo "tag $TAG → expected $expected, built $built"
+          if [ "$built" != "$expected" ]; then
+            echo "::error::built version $built does not match release tag $TAG (versioneer only sees tags starting with a digit, e.g. 1.2.0)"
+            exit 1
+          fi
+
+      - name: Check package metadata and size
+        run: |
+          twine check --strict dist/*
+          ls -lh dist/
+          # PyPI rejects files over 100 MB unless the project's limit is raised
+          for f in dist/*; do
+            size=$(stat -c %s "$f")
+            if [ "$size" -gt 104857600 ]; then
+              echo "::warning::$(basename "$f") is $((size / 1048576)) MB, above PyPI's default 100 MB limit"
+            fi
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write             # Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
